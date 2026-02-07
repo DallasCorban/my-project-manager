@@ -25,6 +25,8 @@ const GanttView = (props) => {
     handleRowDragOver,
     handleRowDrop,
     handleRowDragEnd,
+    handleGroupDragOver,
+    handleGroupDrop,
     reorderDrag,
     selectedItems,
     toggleSelection,
@@ -147,11 +149,20 @@ const GanttView = (props) => {
                   (t) => t.groupId === group.id || (!t.groupId && group.id === "default")
                 );
                 const isGroupCollapsed = collapsedGroups.includes(group.id);
+                const isGroupDropTarget =
+                  reorderDrag.active &&
+                  reorderDrag.dropTargetType === "group" &&
+                  reorderDrag.dropTargetId === group.id &&
+                  reorderDrag.dropTargetProjectId === project.id;
                 return (
                   <div key={group.id}>
                     <div
-                      className="flex relative transition-colors duration-200"
+                      className={`flex relative transition-colors duration-200 ${
+                        isGroupDropTarget ? (darkMode ? "ring-2 ring-blue-500/60" : "ring-2 ring-blue-300") : ""
+                      }`}
                       style={{ height: `${rowHeight}px`, backgroundColor: group.color + (darkMode ? "33" : "1A") }}
+                      onDragOver={(e) => handleGroupDragOver(e, project.id, group.id)}
+                      onDrop={(e) => handleGroupDrop(e, project.id, group.id)}
                     >
                       <div
                         className={`w-80 border-r px-4 flex items-center gap-2 sticky left-0 z-40 cursor-pointer flex-shrink-0 transition-colors ${
@@ -213,8 +224,10 @@ const GanttView = (props) => {
                           task,
                           projectId: project.id,
                           isSubitem: false,
-                          isDragging: false,
-                          onDragStart: (e) => handleRowDragStart(e, "task", task.id, null, project.id, group.id),
+                          isDragging,
+                          onDragStart: (e) => handleRowDragStart(e, "task", task.id),
+                          onDragOver: (e) => handleRowDragOver(e, "task", task.id),
+                          onDrop: handleRowDrop,
                           onDragEnd: handleRowDragEnd,
                           isSelected: selectedItems.has(task.id),
                           onToggle: toggleSelection,
@@ -302,20 +315,9 @@ const GanttView = (props) => {
                                     ? "border-[#2b2c32] bg-inherit text-gray-300"
                                     : "border-[#d0d4e4] bg-inherit text-gray-800"
                                 }`}
-                                onDragOver={(e) => handleRowDragOver(e, "task", task.id)}
-                                onDrop={handleRowDrop}
                                 style={{ opacity: isDragging ? 0.5 : 1, transition: "opacity 0.2s" }}
                               >
                                 <TaskRow {...taskRowProps} />
-                                {reorderDrag.active && reorderDrag.dropTargetId === task.id && (
-                                  <div
-                                    className="absolute left-0 right-0 h-0.5 bg-blue-500 z-50 pointer-events-none"
-                                    style={{
-                                      top: reorderDrag.dropPosition === "before" ? "-1px" : "auto",
-                                      bottom: reorderDrag.dropPosition === "after" ? "-1px" : "auto",
-                                    }}
-                                  />
-                                )}
                               </div>
 
                               <div
@@ -443,8 +445,9 @@ const GanttView = (props) => {
                                   task: sub,
                                   parentId: task.id,
                                   isSubitem: true,
-                                  onDragStart: (e) =>
-                                    handleRowDragStart(e, "subitem", sub.id, null, task.id, group.id),
+                                  isDragging: isSubDragging,
+                                  onDragStart: (e) => handleRowDragStart(e, "subitem", sub.id),
+                                  onDragOver: (e) => handleRowDragOver(e, "subitem", sub.id),
                                 };
 
                                 return (
@@ -453,8 +456,6 @@ const GanttView = (props) => {
                                     className={`flex h-10 items-center border-t relative ${
                                       darkMode ? "border-[#2b2c32] hover:bg-[#202336]" : "border-[#eceff8] hover:bg-[#eceff8]"
                                     }`}
-                                    onDragOver={(e) => handleRowDragOver(e, "subitem", sub.id)}
-                                    onDrop={handleRowDrop}
                                   >
                                     <div
                                       className={`w-80 border-r flex-shrink-0 sticky left-0 z-30 ${
@@ -462,20 +463,9 @@ const GanttView = (props) => {
                                           ? "border-[#2b2c32] bg-inherit text-gray-400"
                                           : "border-[#d0d4e4] bg-inherit text-gray-500"
                                       }`}
-                                      onDragOver={(e) => handleRowDragOver(e, "subitem", sub.id)}
-                                      onDrop={handleRowDrop}
                                       style={{ opacity: isSubDragging ? 0.5 : 1, transition: "opacity 0.2s" }}
                                     >
                                       <TaskRow {...subRowProps} />
-                                      {reorderDrag.active && reorderDrag.dropTargetId === sub.id && (
-                                        <div
-                                          className="absolute left-0 right-0 h-0.5 bg-blue-500 z-50 pointer-events-none"
-                                          style={{
-                                            top: reorderDrag.dropPosition === "before" ? "-1px" : "auto",
-                                            bottom: reorderDrag.dropPosition === "after" ? "-1px" : "auto",
-                                          }}
-                                        />
-                                      )}
                                     </div>
                                     <div
                                       className="relative flex-1 h-full"

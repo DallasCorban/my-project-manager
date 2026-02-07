@@ -1,9 +1,9 @@
 import TaskRow from "./components/TaskRow";
 import GanttView from "./components/GanttView";
-import React, { useState, useEffect, useRef, useMemo, useLayoutEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { 
   Mic, Send, BarChart2, FileText, Plus, ChevronRight, ChevronDown, ChevronLeft, Zap, Layout,
-  MessageSquare, GripVertical, ZoomIn, ZoomOut, ArrowUpDown, ChevronsDown, ChevronsUp,
+  MessageSquare, ZoomIn, ZoomOut, ArrowUpDown, ChevronsDown, ChevronsUp,
   MoreHorizontal, X, Edit2, Check, Briefcase, LayoutDashboard, Settings, Square, CheckSquare,
   Moon, Sun, CornerDownRight, Trash2, Palette, GripHorizontal, Pipette, CheckCircle2,
   Calendar as CalendarIcon, CalendarOff, Layers, Tag, Eye, Target, Download, Upload
@@ -174,6 +174,11 @@ const INITIAL_PROJECTS = [
 // ==========================================
 // 2. HELPER FUNCTIONS
 // ==========================================
+
+const getLocalMidnight = (date) => {
+  const d = new Date(date);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+};
 
 const getRelativeFromDate = (date) => {
   const d = getLocalMidnight(date);
@@ -393,7 +398,7 @@ const EditableText = ({ value, onChange, className, style, placeholder, autoFocu
   return (
     <div className="relative max-w-full flex items-center no-drag">
         <span ref={spanRef} className={`absolute opacity-0 pointer-events-none whitespace-pre px-1 ${className}`} style={style} aria-hidden="true">{value || placeholder || ''}</span>
-        <input value={value} onChange={onChange} placeholder={placeholder} autoFocus={autoFocus} onBlur={onBlur} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} draggable="true" onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }} className={`bg-transparent border border-transparent hover:border-gray-400/50 rounded px-1 -ml-1 transition-all outline-none cursor-text truncate ${className}`} style={{ ...style, width }} />
+        <input value={value} onChange={onChange} placeholder={placeholder} autoFocus={autoFocus} onBlur={onBlur} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} draggable={false} className={`bg-transparent border border-transparent hover:border-gray-400/50 rounded px-1 -ml-1 transition-all outline-none cursor-text truncate ${className}`} style={{ ...style, width }} />
     </div>
   );
 };
@@ -541,33 +546,249 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit }) =
 );
 
 const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDate }) => {
+    const [rangeStart, setRangeStart] = useState(null);
+    const [rangeEnd, setRangeEnd] = useState(null);
+    const [isDraggingRange, setIsDraggingRange] = useState(false);
+    const dragAnchorRef = useRef(null);
+
+    useEffect(() => {
+        if (!datePickerOpen) {
+            setRangeStart(null);
+            setRangeEnd(null);
+            setIsDraggingRange(false);
+            dragAnchorRef.current = null;
+            return;
+        }
+        const safeDuration = Math.max(1, Number(datePickerOpen.duration || 1));
+        const nextStart = datePickerOpen.start ?? null;
+        const nextEnd =
+            nextStart !== null && nextStart !== undefined ? nextStart + safeDuration - 1 : null;
+        setRangeStart(nextStart);
+        setRangeEnd(nextEnd);
+        setIsDraggingRange(false);
+        dragAnchorRef.current = null;
+    }, [datePickerOpen]);
+
+    useEffect(() => {
+        if (!isDraggingRange) return;
+        const handleMouseUp = () => {
+            setIsDraggingRange(false);
+            dragAnchorRef.current = null;
+        };
+        window.addEventListener("mouseup", handleMouseUp);
+        return () => window.removeEventListener("mouseup", handleMouseUp);
+    }, [isDraggingRange]);
+
     if (!datePickerOpen) return null;
-    const { projectId, taskId, subitemId, start, duration, el } = datePickerOpen;
-    const rect = el.getBoundingClientRect();
-    const top = Math.min(window.innerHeight - 300, rect.bottom + 5);
+    const { projectId, taskId, subitemId, el } = datePickerOpen;
+    const rect =
+        el && typeof el.getBoundingClientRect === "function"
+            ? el.getBoundingClientRect()
+            : { bottom: window.innerHeight / 2, left: window.innerWidth / 2 };
+    const top = Math.min(window.innerHeight - 340, rect.bottom + 5);
     const left = Math.min(window.innerWidth - 300, rect.left);
 
-    const handleDateSelect = (relIndex) => {
-        const newDur = duration || 1;
-        updateTaskDate(projectId, taskId, subitemId, relIndex, newDur);
+    const commitRange = (nextStart, nextEnd) => {
+        if (nextStart === null || nextStart === undefined) {
+            updateTaskDate(projectId, taskId, subitemId, null, null);
+            return;
+        }
+        const safeEnd =
+            nextEnd === null || nextEnd === undefined ? nextStart : Math.max(nextEnd, nextStart);
+        const nextDuration = Math.max(1, safeEnd - nextStart + 1);
+        updateTaskDate(projectId, taskId, subitemId, nextStart, nextDuration);
     };
+
+    const handleDateSelect = (relIndex) => {
+        if (relIndex === null || relIndex === undefined) return;
+        const hasStart = rangeStart !== null && rangeStart !== undefined;
+        const hasEnd = rangeEnd !== null && rangeEnd !== undefined;
+
+        if (!hasStart) {
+            setRangeStart(relIndex);
+            setRangeEnd(null);
+            commitRange(relIndex, relIndex);
+            return;
+        }
+
+        if (!hasEnd) {
+            if (relIndex < rangeStart) {
+                setRangeStart(relIndex);
+                setRangeEnd(null);
+                commitRange(relIndex, relIndex);
+                return;
+            }
+            setRangeEnd(relIndex);
+            commitRange(rangeStart, relIndex);
+            return;
+        }
+
+        if (relIndex < rangeStart) {
+            setRangeStart(relIndex);
+            commitRange(relIndex, rangeEnd);
+            return;
+        }
+        if (relIndex > rangeEnd) {
+            setRangeEnd(relIndex);
+            commitRange(rangeStart, relIndex);
+            return;
+        }
+
+        setRangeEnd(relIndex);
+        commitRange(rangeStart, relIndex);
+    };
+
+    const handleDragStart = (relIndex) => {
+        if (relIndex === null || relIndex === undefined) return;
+        dragAnchorRef.current = relIndex;
+        setIsDraggingRange(true);
+    };
+
+    const handleDragMove = (relIndex) => {
+        if (!isDraggingRange) return;
+        const anchor = dragAnchorRef.current;
+        if (anchor === null || anchor === undefined) return;
+        if (relIndex === anchor) return;
+        const nextStart = Math.min(anchor, relIndex);
+        const nextEnd = Math.max(anchor, relIndex);
+        setRangeStart(nextStart);
+        setRangeEnd(nextEnd);
+        commitRange(nextStart, nextEnd);
+    };
+
+    const handleClear = () => {
+        updateTaskDate(projectId, taskId, subitemId, null, null);
+        setRangeStart(null);
+        setRangeEnd(null);
+        setIsDraggingRange(false);
+        dragAnchorRef.current = null;
+        setDatePickerOpen(null);
+    };
+
+    const getInputValue = (dayIndex) => {
+        if (dayIndex === null || dayIndex === undefined) return "";
+        const d = new Date(TODAY);
+        d.setDate(TODAY.getDate() + dayIndex);
+        return toLocalDateKey(d);
+    };
+
+    const handleStartInputChange = (value) => {
+        if (!value) return handleClear();
+        const dt = fromLocalDateKey(value);
+        if (!dt) return;
+        const relIdx = getRelativeFromDate(dt);
+        const nextEnd =
+            rangeEnd !== null && rangeEnd !== undefined && rangeEnd >= relIdx ? rangeEnd : relIdx;
+        setRangeStart(relIdx);
+        setRangeEnd(nextEnd);
+        commitRange(relIdx, nextEnd);
+    };
+
+    const handleEndInputChange = (value) => {
+        if (!value) {
+            if (rangeStart === null || rangeStart === undefined) return handleClear();
+            setRangeEnd(null);
+            commitRange(rangeStart, rangeStart);
+            return;
+        }
+        const dt = fromLocalDateKey(value);
+        if (!dt) return;
+        const relIdx = getRelativeFromDate(dt);
+        const startIdx = rangeStart !== null && rangeStart !== undefined ? rangeStart : relIdx;
+        const endIdx = Math.max(relIdx, startIdx);
+        setRangeStart(startIdx);
+        setRangeEnd(endIdx);
+        commitRange(startIdx, endIdx);
+    };
+
+    const displayStart = rangeStart;
+    const displayEnd =
+        rangeEnd !== null && rangeEnd !== undefined ? rangeEnd : rangeStart;
+    const rangeLabel =
+        displayStart === null || displayStart === undefined
+            ? "No dates selected"
+            : displayEnd === displayStart
+            ? getFutureDate(displayStart)
+            : `${getFutureDate(displayStart)} – ${getFutureDate(displayEnd)}`;
 
     return (
         <>
           <div className="fixed inset-0 z-[110]" onClick={() => setDatePickerOpen(null)}></div>
-          <div className={`fixed z-[120] w-64 rounded-lg shadow-2xl border p-3 flex flex-col gap-2 ${darkMode ? 'bg-[#2b2c32] border-[#3e3f4b] text-white' : 'bg-white border-gray-200 text-gray-800'}`} style={{ top, left }}>
+          <div
+            className={`fixed z-[120] w-64 rounded-lg shadow-2xl border p-3 flex flex-col gap-2 ${darkMode ? 'bg-[#2b2c32] border-[#3e3f4b] text-white' : 'bg-white border-gray-200 text-gray-800'}`}
+            style={{ top, left }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
               <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
-                  <span>Select Start Date</span>
-                  <span className="cursor-pointer hover:text-red-500" onClick={() => updateTaskDate(projectId, taskId, subitemId, null, null)}><Trash2 size={12}/> Clear</span>
+                  <span>Select Date Range</span>
+                  <button className="flex items-center gap-1 cursor-pointer hover:text-red-500" onClick={handleClear} type="button">
+                      <Trash2 size={12}/> Clear
+                  </button>
               </div>
-              <div className="grid grid-cols-7 gap-1">
+              <div className="text-[11px] opacity-70">{rangeLabel}</div>
+              <label className="text-[10px] uppercase tracking-wide opacity-60">Start date</label>
+              <input
+                type="date"
+                value={getInputValue(rangeStart)}
+                onChange={(e) => handleStartInputChange(e.target.value)}
+                className={`w-full px-2 py-1.5 rounded text-xs border ${
+                  darkMode ? 'bg-[#1c213e] border-[#3e3f4b] text-white' : 'bg-white border-gray-200 text-gray-800'
+                }`}
+              />
+              <label className="text-[10px] uppercase tracking-wide opacity-60">End date</label>
+              <input
+                type="date"
+                value={rangeStart === null || rangeStart === undefined ? "" : getInputValue(displayEnd)}
+                onChange={(e) => handleEndInputChange(e.target.value)}
+                className={`w-full px-2 py-1.5 rounded text-xs border ${
+                  darkMode ? 'bg-[#1c213e] border-[#3e3f4b] text-white' : 'bg-white border-gray-200 text-gray-800'
+                }`}
+              />
+              <div className="text-[10px] uppercase tracking-wide opacity-60 mt-2">Quick pick (next 4 weeks)</div>
+              <div
+                className="grid grid-cols-7 gap-1"
+                onMouseLeave={() => {
+                  setIsDraggingRange(false);
+                  dragAnchorRef.current = null;
+                }}
+              >
                   {['S','M','T','W','T','F','S'].map((d,i) => <div key={i} className="text-[10px] text-center opacity-50">{d}</div>)}
                   {Array.from({length: 28}).map((_, i) => {
                       const d = new Date();
                       d.setDate(d.getDate() + i); 
                       const relIdx = getRelativeFromDate(d);
-                      const isSelected = start === relIdx;
-                      return <div key={i} onClick={() => handleDateSelect(relIdx)} className={`h-7 w-7 rounded flex items-center justify-center text-xs cursor-pointer transition-colors ${isSelected ? 'bg-blue-600 text-white' : (darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100')}`}>{d.getDate()}</div>
+                      const activeEnd =
+                        rangeEnd !== null && rangeEnd !== undefined ? rangeEnd : rangeStart;
+                      const isRangeStart = rangeStart !== null && rangeStart !== undefined && relIdx === rangeStart;
+                      const isRangeEnd = rangeEnd !== null && rangeEnd !== undefined && relIdx === rangeEnd;
+                      const isInRange =
+                        rangeStart !== null &&
+                        activeEnd !== null &&
+                        activeEnd !== undefined &&
+                        relIdx > rangeStart &&
+                        relIdx < activeEnd;
+                      const baseClass = "h-7 w-7 rounded flex items-center justify-center text-xs cursor-pointer transition-colors";
+                      const styleClass = isRangeStart || isRangeEnd
+                        ? " bg-blue-600 text-white"
+                        : isInRange
+                        ? darkMode
+                          ? " bg-blue-600/30 text-blue-100"
+                          : " bg-blue-100 text-blue-700"
+                        : darkMode
+                          ? " hover:bg-white/10"
+                          : " hover:bg-gray-100";
+                      return (
+                        <div
+                          key={i}
+                          onClick={() => handleDateSelect(relIdx)}
+                          onMouseDown={() => handleDragStart(relIdx)}
+                          onMouseEnter={() => handleDragMove(relIdx)}
+                          className={baseClass + styleClass}
+                        >
+                          {d.getDate()}
+                        </div>
+                      );
                   })}
               </div>
           </div>
@@ -579,7 +800,7 @@ const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDat
 
 // --- BOARD VIEW ---
 const BoardView = (props) => {
-    const { visibleProjects, collapsedGroups, toggleGroupCollapse, updateGroupName, statuses, darkMode, addTaskToGroup, addGroup } = props;
+    const { visibleProjects, collapsedGroups, toggleGroupCollapse, updateGroupName, statuses, darkMode, addTaskToGroup, addGroup, reorderDrag } = props;
     return (
         <div className={`flex-1 overflow-auto pb-40 ${darkMode ? 'bg-[#181b34]' : 'bg-[#f5f6f8]'}`}>
             {visibleProjects.map(proj => {
@@ -591,7 +812,11 @@ const BoardView = (props) => {
                              const isGroupCollapsed = collapsedGroups.includes(group.id);
                              return (
                                  <div key={group.id} className="mb-8">
-                                     <div className="flex items-center gap-2 mb-2 group">
+                                     <div
+                                         className={`flex items-center gap-2 mb-2 group rounded-md px-1 ${reorderDrag.active && reorderDrag.dropTargetType === 'group' && reorderDrag.dropTargetId === group.id && reorderDrag.dropTargetProjectId === proj.id ? (darkMode ? 'bg-blue-500/10' : 'bg-blue-50') : ''}`}
+                                         onDragOver={(e) => props.handleGroupDragOver(e, proj.id, group.id)}
+                                         onDrop={(e) => props.handleGroupDrop(e, proj.id, group.id)}
+                                     >
                                          <div onClick={() => toggleGroupCollapse(group.id)} className={`p-1 rounded cursor-pointer transition ${isGroupCollapsed ? '-rotate-90' : 'rotate-0'} ${darkMode ? 'hover:bg-[#2b2c32]' : 'hover:bg-gray-100'}`}><ChevronDown size={18} style={{ color: group.color }} /></div>
                                          <EditableText value={group.name} onChange={(e) => updateGroupName(proj.id, group.id, e.target.value)} className="text-lg font-medium" style={{ color: group.color }} />
                                          <span className="text-xs text-gray-500 font-normal ml-2">{groupTasks.length} Items</span>
@@ -663,10 +888,10 @@ export default function ProjectManagerAI() {
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState([]);
   const [expandedItems, setExpandedItems] = useState(['t1']); 
-  const [reorderDrag, setReorderDrag] = useState({ active: false, type: null, dragId: null, parentId: null, dropTargetId: null, dropPosition: 'before', originalExpanded: false });
+  const [reorderDrag, setReorderDrag] = useState({ active: false, type: null, dragId: null, parentId: null, dropTargetId: null, dropTargetType: null, dropTargetProjectId: null, dropPosition: 'before', originalExpanded: false });
+  const reorderDragRef = useRef(reorderDrag);
   const [dragState, setDragState] = useState({ isDragging: false, type: null, taskId: null, subitemId: null, projectId: null, startX: 0, originalStart: 0, originalDuration: 0, currentSpan: 0, currentVisualSlot: 0, hasMoved: false, isDeleteMode: false, origin: null });
   const bodyRef = useRef(null);
-  const dragTimeoutRef = useRef(null); 
 
   // --- DERIVED STATE ---
   const rawDays = useMemo(() => generateTimelineData(), []);
@@ -770,44 +995,171 @@ export default function ProjectManagerAI() {
   }, []);
 
   // --- DRAG HANDLERS (ROWS) ---
-  const handleRowDragStart = (e, type, id, index, parentId, groupId) => { 
-    e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id);
+  const handleRowDragStart = (e, type, id) => { 
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
     const wasExpanded = expandedItems.includes(id);
     if (type === 'task' && wasExpanded) setExpandedItems(prev => prev.filter(tid => tid !== id));
-    dragTimeoutRef.current = setTimeout(() => { setReorderDrag({ active: true, type, dragId: id, parentId, dropTargetId: null, dropPosition: 'before', originalExpanded: wasExpanded }); }, 10);
+    const next = {
+      active: true,
+      type,
+      dragId: id,
+      parentId: null,
+      dropTargetId: null,
+      dropTargetType: null,
+      dropTargetProjectId: null,
+      dropPosition: 'before',
+      originalExpanded: wasExpanded
+    };
+    reorderDragRef.current = next;
+    setReorderDrag(next);
   };
   const handleRowDragOver = (e, type, id) => { 
-    e.preventDefault(); e.stopPropagation(); 
-    if(!reorderDrag.active || reorderDrag.type !== type) return;
-    const rect = e.currentTarget.getBoundingClientRect(); const midY = rect.top + rect.height / 2; const position = e.clientY >= midY ? 'after' : 'before';
-    if(reorderDrag.dropTargetId !== id || reorderDrag.dropPosition !== position) setReorderDrag(prev => ({ ...prev, dropTargetId: id, dropPosition: position })); 
-  };
-  const handleRowDrop = (e) => {
     e.preventDefault();
-    if (!reorderDrag.active || !reorderDrag.dropTargetId || reorderDrag.dragId === reorderDrag.dropTargetId) { handleRowDragEnd(); return; }
+    e.stopPropagation(); 
+    if (!reorderDragRef.current.active || reorderDragRef.current.type !== type) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY >= midY ? 'after' : 'before';
+    if (reorderDragRef.current.dropTargetId !== id || reorderDragRef.current.dropPosition !== position || reorderDragRef.current.dropTargetType !== 'row') {
+      const next = { ...reorderDragRef.current, dropTargetId: id, dropTargetType: 'row', dropTargetProjectId: null, dropPosition: position };
+      reorderDragRef.current = next;
+      setReorderDrag(next);
+    }
+  };
+  const handleGroupDragOver = (e, projectId, groupId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!reorderDragRef.current.active || reorderDragRef.current.type !== 'task') return;
+    if (
+      reorderDragRef.current.dropTargetId !== groupId ||
+      reorderDragRef.current.dropTargetType !== 'group' ||
+      reorderDragRef.current.dropTargetProjectId !== projectId
+    ) {
+      const next = {
+        ...reorderDragRef.current,
+        dropTargetId: groupId,
+        dropTargetType: 'group',
+        dropTargetProjectId: projectId,
+        dropPosition: 'after'
+      };
+      reorderDragRef.current = next;
+      setReorderDrag(next);
+    }
+  };
+  const handleRowDrop = (e, targetType, targetId) => {
+    e.preventDefault();
+    const currentDrag = reorderDragRef.current;
+    const resolvedTargetId = targetId || currentDrag.dropTargetId;
+    const resolvedTargetType = targetType || currentDrag.type;
+    if (!currentDrag.active || !resolvedTargetId || currentDrag.dragId === resolvedTargetId) {
+      handleRowDragEnd();
+      return;
+    }
+    if (resolvedTargetType !== currentDrag.type) {
+      handleRowDragEnd();
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const dropPosition = e.clientY >= midY ? 'after' : 'before';
     setProjects(prev => {
-        const newProjects = JSON.parse(JSON.stringify(prev));
-        const findLocation = (itemId, itemType) => { for(let pIdx=0; pIdx<newProjects.length; pIdx++) { for(let tIdx=0; tIdx<newProjects[pIdx].tasks.length; tIdx++) { const task = newProjects[pIdx].tasks[tIdx]; if (itemType === 'task' && task.id === itemId) return { pIdx, tIdx }; if (itemType === 'subitem') { const sIdx = task.subitems.findIndex(s => s.id === itemId); if (sIdx !== -1) return { pIdx, tIdx, sIdx }; } } } return null; };
-        const source = findLocation(reorderDrag.dragId, reorderDrag.type); const target = findLocation(reorderDrag.dropTargetId, reorderDrag.type);
-        if (source && target) {
-             if (reorderDrag.type === 'task') {
-                 const [moved] = newProjects[source.pIdx].tasks.splice(source.tIdx, 1);
-                 let idx = target.tIdx; if (reorderDrag.dropPosition === 'after') idx++;
-                 if (source.pIdx === target.pIdx && source.tIdx < target.tIdx) idx--;
-                 newProjects[target.pIdx].tasks.splice(idx, 0, moved);
-                 const tTask = newProjects[target.pIdx].tasks[target.tIdx]; if (tTask) moved.groupId = tTask.groupId;
-             } else if (reorderDrag.type === 'subitem') {
-                 const [moved] = newProjects[source.pIdx].tasks[source.tIdx].subitems.splice(source.sIdx, 1);
-                 let idx = target.sIdx; if (reorderDrag.dropPosition === 'after') idx++;
-                 if (source.pIdx === target.pIdx && source.tIdx === target.tIdx && source.sIdx < target.sIdx) idx--;
-                 newProjects[target.pIdx].tasks[target.tIdx].subitems.splice(idx, 0, moved);
-             }
+      const newProjects = JSON.parse(JSON.stringify(prev));
+      const findLocation = (itemId, itemType) => {
+        for (let pIdx = 0; pIdx < newProjects.length; pIdx++) {
+          for (let tIdx = 0; tIdx < newProjects[pIdx].tasks.length; tIdx++) {
+            const task = newProjects[pIdx].tasks[tIdx];
+            if (itemType === 'task' && task.id === itemId) return { pIdx, tIdx };
+            if (itemType === 'subitem') {
+              const sIdx = task.subitems.findIndex(s => s.id === itemId);
+              if (sIdx !== -1) return { pIdx, tIdx, sIdx };
+            }
+          }
         }
-        return newProjects;
+        return null;
+      };
+      const source = findLocation(currentDrag.dragId, currentDrag.type);
+      const target = findLocation(resolvedTargetId, resolvedTargetType);
+      if (source && target) {
+        if (currentDrag.type === 'task') {
+          const targetGroupId = newProjects[target.pIdx].tasks[target.tIdx]?.groupId || null;
+          const [moved] = newProjects[source.pIdx].tasks.splice(source.tIdx, 1);
+          let idx = target.tIdx;
+          if (dropPosition === 'after') idx++;
+          if (source.pIdx === target.pIdx && source.tIdx < target.tIdx) idx--;
+          newProjects[target.pIdx].tasks.splice(idx, 0, moved);
+          if (targetGroupId !== null && targetGroupId !== undefined) moved.groupId = targetGroupId;
+        } else if (currentDrag.type === 'subitem') {
+          const [moved] = newProjects[source.pIdx].tasks[source.tIdx].subitems.splice(source.sIdx, 1);
+          let idx = target.sIdx;
+          if (dropPosition === 'after') idx++;
+          if (source.pIdx === target.pIdx && source.tIdx === target.tIdx && source.sIdx < target.sIdx) idx--;
+          newProjects[target.pIdx].tasks[target.tIdx].subitems.splice(idx, 0, moved);
+        }
+      }
+      return newProjects;
     });
     handleRowDragEnd();
   };
-  const handleRowDragEnd = () => { if (dragTimeoutRef.current) clearTimeout(dragTimeoutRef.current); if (reorderDrag.active && reorderDrag.originalExpanded && reorderDrag.dragId) setExpandedItems(prev => [...prev, reorderDrag.dragId]); setReorderDrag({ active: false, type: null, dragId: null, parentId: null, originalExpanded: false }); };
+  const handleGroupDrop = (e, projectId, groupId) => {
+    e.preventDefault();
+    const currentDrag = reorderDragRef.current;
+    if (!currentDrag.active || currentDrag.type !== 'task' || !currentDrag.dragId) {
+      handleRowDragEnd();
+      return;
+    }
+    setProjects(prev => {
+      const newProjects = JSON.parse(JSON.stringify(prev));
+      let moved = null;
+      let sourceProjectIdx = -1;
+      let sourceTaskIdx = -1;
+      for (let pIdx = 0; pIdx < newProjects.length; pIdx++) {
+        const tIdx = newProjects[pIdx].tasks.findIndex(t => t.id === currentDrag.dragId);
+        if (tIdx !== -1) {
+          sourceProjectIdx = pIdx;
+          sourceTaskIdx = tIdx;
+          [moved] = newProjects[pIdx].tasks.splice(tIdx, 1);
+          break;
+        }
+      }
+      if (!moved) return newProjects;
+      const targetProjectIdx = newProjects.findIndex(p => p.id === projectId);
+      if (targetProjectIdx === -1) return newProjects;
+      moved.groupId = groupId;
+      let insertIdx = newProjects[targetProjectIdx].tasks.length;
+      for (let i = newProjects[targetProjectIdx].tasks.length - 1; i >= 0; i--) {
+        if (newProjects[targetProjectIdx].tasks[i].groupId === groupId) {
+          insertIdx = i + 1;
+          break;
+        }
+      }
+      if (sourceProjectIdx === targetProjectIdx && sourceTaskIdx !== -1 && sourceTaskIdx < insertIdx) {
+        insertIdx -= 1;
+      }
+      newProjects[targetProjectIdx].tasks.splice(insertIdx, 0, moved);
+      return newProjects;
+    });
+    handleRowDragEnd();
+  };
+  const handleRowDragEnd = () => {
+    if (reorderDragRef.current.active && reorderDragRef.current.originalExpanded && reorderDragRef.current.dragId) {
+      setExpandedItems(prev => (prev.includes(reorderDragRef.current.dragId) ? prev : [...prev, reorderDragRef.current.dragId]));
+    }
+    const next = {
+      active: false,
+      type: null,
+      dragId: null,
+      parentId: null,
+      dropTargetId: null,
+      dropTargetType: null,
+      dropTargetProjectId: null,
+      dropPosition: 'before',
+      originalExpanded: false
+    };
+    reorderDragRef.current = next;
+    setReorderDrag(next);
+  };
 
   // --- DRAG HANDLERS (GANTT BARS) ---
   const handleMouseDown = (e, task, projectId, type, subitemId = null, origin = 'parent') => {
@@ -946,6 +1298,7 @@ export default function ProjectManagerAI() {
     reader.readAsText(file);
   };
 
+
   return (
     <div className={`flex h-screen font-sans overflow-hidden select-none transition-colors duration-300 ${darkMode ? 'bg-[#181b34] text-gray-100' : 'bg-[#eceff8] text-[#323338]'}`} onClick={() => { setStatusMenuOpen(null); setSettingsMenuOpen(false); setDatePickerOpen(null); }}>
         <Sidebar darkMode={darkMode} workspaces={workspaces} dashboards={dashboards} activeEntityId={activeEntityId} setActiveEntityId={setActiveEntityId} createWorkspace={createWorkspace} createDashboard={createDashboard} setDarkMode={setDarkMode} />
@@ -971,6 +1324,7 @@ export default function ProjectManagerAI() {
                         addTaskToGroup={addTaskToGroup} addGroup={addGroup} expandedItems={expandedItems} toggleItemExpand={toggleItemExpand}
                         updateTaskName={updateTaskName} updateSubitemName={updateSubitemName} handleAddSubitem={addSubitem}
                         handleRowDragStart={handleRowDragStart} handleRowDragOver={handleRowDragOver} handleRowDrop={handleRowDrop} handleRowDragEnd={handleRowDragEnd}
+                        handleGroupDragOver={handleGroupDragOver} handleGroupDrop={handleGroupDrop}
                         reorderDrag={reorderDrag} selectedItems={selectedItems} toggleSelection={toggleSelection}
                         setStatusMenuOpen={setStatusMenuOpen} setStatusMenuType={setStatusMenuType} setDatePickerOpen={setDatePickerOpen}
                         statusMenuOpen={statusMenuOpen} statusMenuType={statusMenuType} 
@@ -984,6 +1338,7 @@ export default function ProjectManagerAI() {
                         showWeekends={showWeekends} showLabels={showLabels} statuses={statuses} jobTypes={jobTypes} colorBy={colorBy}
                         dragState={dragState} handleMouseDown={handleMouseDown}
                         handleRowDragStart={handleRowDragStart} handleRowDragOver={handleRowDragOver} handleRowDrop={handleRowDrop} handleRowDragEnd={handleRowDragEnd}
+                        handleGroupDragOver={handleGroupDragOver} handleGroupDrop={handleGroupDrop}
                         reorderDrag={reorderDrag} selectedItems={selectedItems} toggleSelection={toggleSelection}
                         handleAddSubitem={addSubitem} updateTaskName={updateTaskName} addTaskToGroup={addTaskToGroup}
                         expandedItems={expandedItems} toggleItemExpand={toggleItemExpand} updateSubitemName={updateSubitemName}

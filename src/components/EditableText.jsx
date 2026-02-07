@@ -37,11 +37,7 @@ const EditableText = ({
         onBlur={onBlur}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
-        draggable="true"
-        onDragStart={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
+        draggable={false}
         className={`bg-transparent border border-transparent hover:border-gray-400/50 rounded px-1 -ml-1 transition-all outline-none cursor-text truncate ${className}`}
         style={{ ...style, width }}
       />

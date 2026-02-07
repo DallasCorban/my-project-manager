@@ -42,11 +42,7 @@ function EditableText({ value, onChange, className = "", style, placeholder }) {
         placeholder={placeholder}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
-        draggable="true"
-        onDragStart={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
+        draggable={false}
         className={`bg-transparent border border-transparent hover:border-gray-400/50 rounded px-1 -ml-1 transition-all outline-none cursor-text truncate ${className}`}
         style={{ ...(style || {}), width }}
       />
@@ -155,7 +151,7 @@ export default function TaskRow({
   projectId,
   parentId,
   isSubitem,
-  isDragging,
+  isDragging: isDraggingProp,
   onDragStart,
   onDragOver,
   onDrop,
@@ -189,11 +185,17 @@ export default function TaskRow({
   const typeColor = jobTypes.find((t) => t.id === task.jobTypeId)?.color || "#c4c4c4";
   const typeLabel = jobTypes.find((t) => t.id === task.jobTypeId)?.label || "Type";
 
-  const containerStyle = isDragging
-    ? `flex border-b items-center h-10 ${
+  const hasDates = task.start !== null && task.start !== undefined;
+  const safeDuration = Math.max(1, Number(task.duration || 1));
+  const endIndex = hasDates ? task.start + safeDuration - 1 : null;
+  const showRange = hasDates && safeDuration > 1;
+
+  const isRowDragging = Boolean(isDraggingProp);
+  const containerStyle = isRowDragging
+    ? `flex border-b items-center h-10 relative group ${
         darkMode ? "bg-blue-500/10 border-blue-500/50" : "bg-blue-50 border-blue-300"
       } border-dashed opacity-50`
-    : `flex border-b transition-colors items-center h-10 group ${
+    : `flex border-b transition-colors items-center h-10 relative group ${
         darkMode ? "border-[#2b2c32] hover:bg-[#202336] bg-[#1c213e]" : "border-[#eceff8] hover:bg-[#f0f0f0] bg-white"
       }`;
 
@@ -202,14 +204,19 @@ export default function TaskRow({
       className={containerStyle}
       draggable="true"
       onDragStart={(e) => {
-        if (["INPUT", "SELECT", "BUTTON"].includes(e.target.tagName) || e.target.closest(".no-drag")) {
+        if (
+          ["INPUT", "SELECT", "BUTTON", "TEXTAREA"].includes(e.target.tagName) ||
+          e.target.closest(".no-drag")
+        ) {
           e.preventDefault();
           return;
         }
         if (onDragStart) onDragStart(e, isSubitem ? "subitem" : "task", task.id);
       }}
       onDragOver={onDragOver}
-      onDrop={onDrop}
+      onDrop={(e) => {
+        if (onDrop) onDrop(e, isSubitem ? "subitem" : "task", task.id);
+      }}
       onDragEnd={onDragEnd}
     >
       <div
@@ -338,22 +345,24 @@ export default function TaskRow({
 
           <div
             className={`w-48 h-full flex items-center justify-center px-4 cursor-pointer relative ${darkMode ? "hover:bg-white/5" : ""}`}
-            onClick={(e) =>
+            onClick={(e) => {
+              e.stopPropagation();
               setDatePickerOpen({
                 projectId,
-                taskId: task.id,
+                taskId: isSubitem ? parentId : task.id,
                 subitemId: isSubitem ? task.id : null,
                 start: task.start,
                 duration: task.duration,
                 el: e.currentTarget,
-              })
-            }
+              });
+            }}
           >
-            {task.start !== null ? (
-  <span className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-    {formatDayIndex(task.start)} – {formatDayIndex(task.start + task.duration)}
-  </span>
-) : (
+            {hasDates ? (
+              <span className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                {formatDayIndex(task.start)}
+                {showRange ? ` – ${formatDayIndex(endIndex)}` : ""}
+              </span>
+            ) : (
   <div
     className={`px-2 py-1 rounded border border-dashed text-[10px] ${
       darkMode
@@ -363,7 +372,7 @@ export default function TaskRow({
   >
     Set Dates
   </div>
-)}
+            )}
 
           </div>
         </>
