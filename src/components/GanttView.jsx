@@ -50,8 +50,13 @@ const GanttView = (props) => {
     setDatePickerOpen,
     onStatusSelect,
     onTypeSelect,
-    onEditLabels,
+    onEditStatusLabels,
+    onEditTypeLabels,
+    onAddStatusLabel,
+    onAddTypeLabel,
   } = props;
+
+  const SHOW_ADD_ITEM_ROW = false;
 
   const getTaskColor = (task) => {
     if (colorBy === "status") {
@@ -107,7 +112,7 @@ const GanttView = (props) => {
         style={{ width: `calc(20rem + ${visibleDays.length * zoomLevel}px)` }}
       >
         <div
-          className={`w-80 border-r p-3 font-medium text-sm pl-6 sticky left-0 z-50 flex-shrink-0 ${
+          className={`w-80 border-r p-3 font-medium text-sm pl-6 sticky left-0 z-[200] flex-shrink-0 ${
             darkMode
               ? "bg-[#1c213e] border-[#2b2c32] text-gray-300"
               : "bg-[#f9fafc] border-[#d0d4e4] text-gray-500"
@@ -208,7 +213,7 @@ const GanttView = (props) => {
                       onDrop={(e) => handleGroupDrop(e, project.id, group.id)}
                     >
                       <div
-                        className={`w-80 border-r px-4 flex items-center gap-2 sticky left-0 z-40 cursor-pointer flex-shrink-0 transition-colors ${
+                        className={`w-80 border-r px-4 flex items-center gap-2 sticky left-0 z-[200] cursor-pointer flex-shrink-0 transition-colors ${
                           darkMode ? "border-[#2b2c32] text-gray-200" : "border-[#d0d4e4] text-gray-700"
                         }`}
                         onClick={() => toggleGroupCollapse(group.id)}
@@ -225,6 +230,22 @@ const GanttView = (props) => {
                           {group.name}
                         </span>
                         <span className="text-xs opacity-50 ml-2 font-normal">({groupTasks.length})</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addTaskToGroup(project.id, group.id, "New Item");
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          aria-label="Add item"
+                          className={`ml-auto p-1 rounded transition-colors ${
+                            darkMode
+                              ? "text-gray-200 hover:bg-white/10"
+                              : "text-gray-600 hover:bg-black/5"
+                          }`}
+                        >
+                          <Plus size={14} />
+                        </button>
                       </div>
                         <div className="relative flex-1 h-full">
                           <div className="absolute inset-0 flex pointer-events-none z-0">
@@ -286,7 +307,10 @@ const GanttView = (props) => {
                           setDatePickerOpen,
                           onStatusSelect,
                           onTypeSelect,
-                          onEditLabels,
+                          onEditStatusLabels,
+                          onEditTypeLabels,
+                          onAddStatusLabel,
+                          onAddTypeLabel,
                           reorderDrag,
                         };
 
@@ -351,7 +375,7 @@ const GanttView = (props) => {
                               style={{ height: `${rowHeight}px` }}
                             >
                               <div
-                                className={`w-80 border-r flex-shrink-0 sticky left-0 z-30 ${
+                                className={`w-80 border-r flex-shrink-0 sticky left-0 z-[200] ${
                                   darkMode
                                     ? "border-[#2b2c32] bg-inherit text-gray-300"
                                     : "border-[#d0d4e4] bg-inherit text-gray-800"
@@ -384,7 +408,7 @@ const GanttView = (props) => {
                                 </div>
                                 {rowMarkerStyle && (
                                   <div
-                                    className="absolute pointer-events-none z-30 rounded-md"
+                                    className="absolute pointer-events-none z-10 rounded-md"
                                     style={{ ...rowMarkerStyle, ...getWeekendMarkerFrameStyle() }}
                                   />
                                 )}
@@ -509,7 +533,7 @@ const GanttView = (props) => {
                                     }`}
                                   >
                                     <div
-                                      className={`w-80 border-r flex-shrink-0 sticky left-0 z-30 ${
+                                      className={`w-80 border-r flex-shrink-0 sticky left-0 z-[200] ${
                                         darkMode
                                           ? "border-[#2b2c32] bg-inherit text-gray-400"
                                           : "border-[#d0d4e4] bg-inherit text-gray-500"
@@ -541,7 +565,7 @@ const GanttView = (props) => {
                                       </div>
                                       {subRowMarkerStyle && (
                                         <div
-                                          className="absolute pointer-events-none z-30 rounded-md"
+                                          className="absolute pointer-events-none z-10 rounded-md"
                                           style={{ ...subRowMarkerStyle, ...getWeekendMarkerFrameStyle() }}
                                         />
                                       )}
@@ -614,7 +638,7 @@ const GanttView = (props) => {
                           </React.Fragment>
                         );
                       })}
-                    {!isGroupCollapsed && (
+                    {SHOW_ADD_ITEM_ROW && !isGroupCollapsed && (
                       <div
                         className={`flex border-b relative ${
                           darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"
@@ -622,7 +646,7 @@ const GanttView = (props) => {
                         style={{ height: `${rowHeight}px` }}
                       >
                         <div
-                          className={`w-80 border-r flex-shrink-0 sticky left-0 z-30 flex items-center px-4 ${
+                          className={`w-80 border-r flex-shrink-0 sticky left-0 z-[200] flex items-center px-4 ${
                             darkMode ? "border-[#2b2c32] bg-[#181b34]" : "border-[#d0d4e4] bg-white"
                           }`}
                         >
