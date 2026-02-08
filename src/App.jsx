@@ -8,6 +8,7 @@ import {
   Moon, Sun, CornerDownRight, Trash2, Palette, GripHorizontal, Pipette, CheckCircle2,
   Calendar as CalendarIcon, CalendarOff, Layers, Tag, Eye, Target, Download, Upload
 } from 'lucide-react';
+import { addDaysToKey, diffDays, formatDateKey, fromLocalDateKey, getTodayKey, isDateKey, toLocalDateKey } from "./utils/date";
 
 // ==================================================================================
 // 1. FIREBASE SETUP (Vite + Firestore + Anonymous Auth)
@@ -84,59 +85,19 @@ const PAST_DAYS = 60;
 const FUTURE_DAYS = 365;
 const TIMELINE_TOTAL_DAYS = PAST_DAYS + FUTURE_DAYS;
 
-// --- TIMELINE BASE DATE (local calendar anchor, with migration) ---
+// --- TIMELINE BASE DATE (absolute date keys, anchored to real today) ---
+const TODAY_KEY = getTodayKey();
+const TODAY = fromLocalDateKey(TODAY_KEY) || new Date();
 
-const BASE_DATE_KEY = "pmai_baseDate";
-
-// Format Date -> YYYY-MM-DD (local)
-const toLocalDateKey = (d = new Date()) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+const dateKeyFromRelativeIndex = (relIndex) => {
+  if (relIndex === null || relIndex === undefined) return null;
+  return addDaysToKey(TODAY_KEY, relIndex);
 };
 
-// Parse YYYY-MM-DD -> local midnight Date
-const fromLocalDateKey = (key) => {
-  const [y, m, d] = String(key).split("-").map((x) => Number(x));
-  if (!y || !m || !d) return null;
-  const dt = new Date(y, m - 1, d);
-  return Number.isNaN(dt.getTime()) ? null : dt;
+const relativeIndexFromDateKey = (dateKey) => {
+  if (!dateKey) return null;
+  return diffDays(TODAY_KEY, dateKey);
 };
-
-const getBaseDate = () => {
-  try {
-    const saved = window.localStorage.getItem(BASE_DATE_KEY);
-
-    // ✅ New format: YYYY-MM-DD
-    if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) {
-      const dt = fromLocalDateKey(saved);
-      if (dt) return dt;
-    }
-
-    // ✅ Old format: ISO string (migration)
-    if (saved) {
-      const parsed = new Date(saved);
-      if (!Number.isNaN(parsed.getTime())) {
-        const migratedKey = toLocalDateKey(parsed);
-        window.localStorage.setItem(BASE_DATE_KEY, migratedKey);
-        const dt = fromLocalDateKey(migratedKey);
-        if (dt) return dt;
-      }
-    }
-
-    // Fresh
-    const todayKey = toLocalDateKey(new Date());
-    window.localStorage.setItem(BASE_DATE_KEY, todayKey);
-    return fromLocalDateKey(todayKey) || new Date();
-  } catch {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  }
-};
-
-// IMPORTANT: use TODAY everywhere instead of new Date()
-const TODAY = getBaseDate();
 
 
 
@@ -158,14 +119,14 @@ const INITIAL_PROJECTS = [
     ],
     tasks: [
       { 
-        id: 't1', groupId: 'g1', name: 'Discovery Phase', start: 0, duration: 15, progress: 100, status: 'done', assignee: 'Sarah', priority: 'High', jobTypeId: 'research',
+        id: 't1', groupId: 'g1', name: 'Discovery Phase', start: dateKeyFromRelativeIndex(0), duration: 15, progress: 100, status: 'done', assignee: 'Sarah', priority: 'High', jobTypeId: 'research',
         subitems: [
-           { id: 's1', name: 'Stakeholder Interviews', status: 'done', assignee: 'Sarah', start: 0, duration: 5, jobTypeId: 'research' },
-           { id: 's2', name: 'Requirement Gathering', status: 'working', assignee: 'Mike', start: 5, duration: 10, jobTypeId: 'planning' }
+           { id: 's1', name: 'Stakeholder Interviews', status: 'done', assignee: 'Sarah', start: dateKeyFromRelativeIndex(0), duration: 5, jobTypeId: 'research' },
+           { id: 's2', name: 'Requirement Gathering', status: 'working', assignee: 'Mike', start: dateKeyFromRelativeIndex(5), duration: 10, jobTypeId: 'planning' }
         ]
       },
-      { id: 't2', groupId: 'g1', name: 'Wireframing', start: 16, duration: 20, progress: 60, status: 'working', assignee: 'Mike', priority: 'Medium', jobTypeId: 'design', subitems: [] },
-      { id: 't3', groupId: 'g2', name: 'UI Design', start: 30, duration: 30, progress: 0, status: 'pending', assignee: 'Jessica', priority: 'High', jobTypeId: 'design', subitems: [] },
+      { id: 't2', groupId: 'g1', name: 'Wireframing', start: dateKeyFromRelativeIndex(16), duration: 20, progress: 60, status: 'working', assignee: 'Mike', priority: 'Medium', jobTypeId: 'design', subitems: [] },
+      { id: 't3', groupId: 'g2', name: 'UI Design', start: dateKeyFromRelativeIndex(30), duration: 30, progress: 0, status: 'pending', assignee: 'Jessica', priority: 'High', jobTypeId: 'design', subitems: [] },
       { id: 't4', groupId: 'g2', name: 'Frontend Dev', start: null, duration: null, progress: 0, status: 'pending', assignee: 'Dev Team', priority: 'High', jobTypeId: 'dev', subitems: [] },
     ]
   }
@@ -181,17 +142,8 @@ const getLocalMidnight = (date) => {
 };
 
 const getRelativeFromDate = (date) => {
-  const d = getLocalMidnight(date);
-  const diffTime = d - TODAY;
-  return Math.round(diffTime / (1000 * 60 * 60 * 24));
-};
-
-
-const getFutureDate = (daysToAdd) => {
-  if (daysToAdd === null || daysToAdd === undefined) return null;
-  const date = new Date(TODAY);
-  date.setDate(TODAY.getDate() + daysToAdd);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const key = toLocalDateKey(getLocalMidnight(date));
+  return diffDays(TODAY_KEY, key);
 };
 
 const generateTimelineData = () => {
@@ -354,6 +306,37 @@ function useProjectData() {
   // ✅ switched to hybrid (localStorage + Firestore)
   const [projects, setProjects] = useHybridState('pmai_projects', INITIAL_PROJECTS, 'projects');
 
+  useEffect(() => {
+    if (!projects || !Array.isArray(projects)) return;
+    let needsMigration = false;
+    const baseKeyRaw = typeof window !== "undefined" ? window.localStorage.getItem("pmai_baseDate") : null;
+    const baseKey = isDateKey(baseKeyRaw) ? baseKeyRaw : toLocalDateKey(new Date());
+
+    const migrateItem = (item) => {
+      if (!item) return item;
+      if (typeof item.start === "number") {
+        needsMigration = true;
+        return { ...item, start: addDaysToKey(baseKey, item.start) };
+      }
+      return item;
+    };
+
+    const nextProjects = projects.map((p) => ({
+      ...p,
+      tasks: (p.tasks || []).map((t) => ({
+        ...migrateItem(t),
+        subitems: (t.subitems || []).map((s) => migrateItem(s)),
+      })),
+    }));
+
+    if (needsMigration) {
+      setProjects(nextProjects);
+      try {
+        window.localStorage.removeItem("pmai_baseDate");
+      } catch {}
+    }
+  }, [projects, setProjects]);
+
   const updateTaskField = (pid, tid, sid, field, value, isSubitem) => { 
     setProjects(prev => prev.map(p => { 
         if (p.id !== pid) return p; 
@@ -423,7 +406,7 @@ const Sidebar = ({ darkMode, workspaces, dashboards, activeEntityId, setActiveEn
     </div>
 );
 
-const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSettingsMenuOpen, settingsMenuOpen, showWeekends, setShowWeekends, showLabels, setShowLabels, colorBy, setColorBy, zoomLevel, handleZoomChange, rowHeight, setRowHeight, isChatOpen, setIsChatOpen, scrollToToday, updateEntityName, onExport, onExportJson, onImportJson, authUser, onOpenAuth }) => (
+const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSettingsMenuOpen, settingsMenuOpen, showWeekends, onToggleWeekends, showLabels, setShowLabels, colorBy, setColorBy, zoomLevel, handleZoomChange, rowHeight, setRowHeight, isChatOpen, setIsChatOpen, scrollToToday, updateEntityName, onExport, onExportJson, onImportJson, authUser, onOpenAuth }) => (
     <>
         <div className={`h-16 border-b px-8 flex items-center justify-between shrink-0 ${darkMode ? 'border-[#2b2c32] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'}`}>
           <div>
@@ -436,7 +419,7 @@ const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSetting
             {authUser ? (authUser.isAnonymous ? 'Guest' : (authUser.email || 'Account')) : 'Account'}
           </button>
         </div>
-        <div className={`px-8 border-b flex items-center justify-between shrink-0 sticky top-0 z-30 ${darkMode ? 'border-[#2b2c32] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'}`}>
+        <div className={`px-8 border-b flex items-center justify-between shrink-0 sticky top-0 z-[80] ${darkMode ? 'border-[#2b2c32] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'}`}>
            <div className="flex gap-6">
             <button onClick={() => setActiveTab('board')} className={`py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'board' ? 'border-[#0073ea] text-[#0073ea]' : 'border-transparent text-gray-500'}`}>Main Table</button>
             <button onClick={() => setActiveTab('gantt')} className={`py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'gantt' ? 'border-[#0073ea] text-[#0073ea]' : 'border-transparent text-gray-500'}`}>Gantt</button>
@@ -448,9 +431,9 @@ const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSetting
                   <div className="relative">
                      <button onClick={(e) => { e.stopPropagation(); setSettingsMenuOpen(!settingsMenuOpen); }} className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${settingsMenuOpen || !darkMode ? 'bg-white text-gray-700 border-gray-300' : 'bg-[#1c213e] border-[#2b2c32] text-gray-300'}`}><Settings size={14} /> Settings</button>
                      {settingsMenuOpen && (
-                         <div className={`absolute top-full right-0 mt-2 w-56 rounded-lg shadow-xl border z-[100] p-2 animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#2b2c32] border-[#3e3f4b]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+                         <div className={`absolute top-full right-0 mt-2 w-56 rounded-lg shadow-xl border z-[130] p-2 animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#2b2c32] border-[#3e3f4b]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
                              <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide px-2">View Options</div>
-                             <div className={`flex items-center justify-between p-2 rounded cursor-pointer ${darkMode ? 'hover:bg-[#1c213e]' : 'hover:bg-gray-50'}`} onClick={() => setShowWeekends(!showWeekends)}>
+                             <div className={`flex items-center justify-between p-2 rounded cursor-pointer ${darkMode ? 'hover:bg-[#1c213e]' : 'hover:bg-gray-50'}`} onClick={onToggleWeekends}>
                                  <span className={`text-sm ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>Show Weekends</span>
                                  <div className={`w-8 h-4 rounded-full relative transition-colors ${showWeekends ? 'bg-blue-600' : 'bg-gray-400'}`}><div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${showWeekends ? 'translate-x-4' : 'translate-x-0'}`}></div></div>
                              </div>
@@ -560,7 +543,7 @@ const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDat
             return;
         }
         const safeDuration = Math.max(1, Number(datePickerOpen.duration || 1));
-        const nextStart = datePickerOpen.start ?? null;
+        const nextStart = datePickerOpen.start ? relativeIndexFromDateKey(datePickerOpen.start) : null;
         const nextEnd =
             nextStart !== null && nextStart !== undefined ? nextStart + safeDuration - 1 : null;
         setRangeStart(nextStart);
@@ -596,7 +579,7 @@ const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDat
         const safeEnd =
             nextEnd === null || nextEnd === undefined ? nextStart : Math.max(nextEnd, nextStart);
         const nextDuration = Math.max(1, safeEnd - nextStart + 1);
-        updateTaskDate(projectId, taskId, subitemId, nextStart, nextDuration);
+        updateTaskDate(projectId, taskId, subitemId, dateKeyFromRelativeIndex(nextStart), nextDuration);
     };
 
     const handleDateSelect = (relIndex) => {
@@ -667,16 +650,13 @@ const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDat
 
     const getInputValue = (dayIndex) => {
         if (dayIndex === null || dayIndex === undefined) return "";
-        const d = new Date(TODAY);
-        d.setDate(TODAY.getDate() + dayIndex);
-        return toLocalDateKey(d);
+        return dateKeyFromRelativeIndex(dayIndex);
     };
 
     const handleStartInputChange = (value) => {
         if (!value) return handleClear();
-        const dt = fromLocalDateKey(value);
-        if (!dt) return;
-        const relIdx = getRelativeFromDate(dt);
+        const relIdx = relativeIndexFromDateKey(value);
+        if (relIdx === null || relIdx === undefined) return;
         const nextEnd =
             rangeEnd !== null && rangeEnd !== undefined && rangeEnd >= relIdx ? rangeEnd : relIdx;
         setRangeStart(relIdx);
@@ -691,9 +671,8 @@ const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDat
             commitRange(rangeStart, rangeStart);
             return;
         }
-        const dt = fromLocalDateKey(value);
-        if (!dt) return;
-        const relIdx = getRelativeFromDate(dt);
+        const relIdx = relativeIndexFromDateKey(value);
+        if (relIdx === null || relIdx === undefined) return;
         const startIdx = rangeStart !== null && rangeStart !== undefined ? rangeStart : relIdx;
         const endIdx = Math.max(relIdx, startIdx);
         setRangeStart(startIdx);
@@ -708,8 +687,10 @@ const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDat
         displayStart === null || displayStart === undefined
             ? "No dates selected"
             : displayEnd === displayStart
-            ? getFutureDate(displayStart)
-            : `${getFutureDate(displayStart)} – ${getFutureDate(displayEnd)}`;
+            ? formatDateKey(dateKeyFromRelativeIndex(displayStart))
+            : `${formatDateKey(dateKeyFromRelativeIndex(displayStart))} – ${formatDateKey(
+                dateKeyFromRelativeIndex(displayEnd)
+              )}`;
 
     return (
         <>
@@ -892,6 +873,7 @@ export default function ProjectManagerAI() {
   const reorderDragRef = useRef(reorderDrag);
   const [dragState, setDragState] = useState({ isDragging: false, type: null, taskId: null, subitemId: null, projectId: null, startX: 0, originalStart: 0, originalDuration: 0, currentSpan: 0, currentVisualSlot: 0, hasMoved: false, isDeleteMode: false, origin: null });
   const bodyRef = useRef(null);
+  const weekendFocusRef = useRef(null);
 
   // --- DERIVED STATE ---
   const rawDays = useMemo(() => generateTimelineData(), []);
@@ -953,6 +935,123 @@ export default function ProjectManagerAI() {
     return projects.filter(p => activeEntity.includedWorkspaces && activeEntity.includedWorkspaces.includes(p.workspaceId));
   }, [projects, activeEntity]);
 
+  const captureTimelineCenter = () => {
+    if (activeTab !== 'gantt' || !bodyRef.current) return;
+    const container = bodyRef.current;
+    const containerWidth = container.clientWidth;
+    const sidebarWidth = 320;
+    const centerOffset = (containerWidth - sidebarWidth) / 2;
+    const centerX = container.scrollLeft + centerOffset;
+    const visualIndex = Math.round(centerX / zoomLevel);
+    const clampedIndex = Math.max(0, Math.min(visualIndex, visibleDays.length - 1));
+    const dayIndex = visualIndexToDayIndex[clampedIndex];
+    if (dayIndex !== undefined && dayIndex !== null) {
+      weekendFocusRef.current = dayIndex;
+    }
+  };
+
+  const handleToggleWeekends = () => {
+    captureTimelineCenter();
+    setShowWeekends((prev) => !prev);
+  };
+
+  const hiddenWeekendRanges = useMemo(() => {
+    if (showWeekends) return [];
+    const ranges = [];
+    for (let i = 1; i < visibleDays.length; i++) {
+      const prevIndex = visibleDays[i - 1].index;
+      const currIndex = visibleDays[i].index;
+      if (currIndex > prevIndex + 1) {
+        const start = prevIndex + 1;
+        const end = currIndex - 1;
+        ranges.push({
+          start,
+          end,
+          gapAt: currIndex,
+          isTodayGap: 0 >= start && 0 <= end,
+        });
+      }
+    }
+    return ranges;
+  }, [visibleDays, showWeekends]);
+
+  const hiddenWeekendHeaderMarkers = useMemo(() => {
+    if (showWeekends) return {};
+    const markers = {};
+    hiddenWeekendRanges.forEach((range) => {
+      if (range.isTodayGap) {
+        markers[range.gapAt] = true;
+      }
+    });
+    return markers;
+  }, [showWeekends, hiddenWeekendRanges]);
+
+  const hiddenWeekendItemMarkers = useMemo(() => {
+    if (showWeekends) return {};
+    const markers = {};
+    const getItemColor = (item) => {
+      if (!item) return "#c4c4c4";
+      if (colorBy === "status") {
+        return statuses.find((s) => s.id === item.status)?.color || "#c4c4c4";
+      }
+      return jobTypes.find((t) => t.id === item.jobTypeId)?.color || "#c4c4c4";
+    };
+    const findRange = (startIdx, endIdx) =>
+      hiddenWeekendRanges.find((r) => startIdx >= r.start && endIdx <= r.end);
+    const getWeekendSide = (startKey, duration) => {
+      if (!startKey || !duration) return "center";
+      let hasSaturday = false;
+      let hasSunday = false;
+      const span = Math.max(1, Number(duration || 1));
+      for (let i = 0; i < span; i++) {
+        const date = fromLocalDateKey(addDaysToKey(startKey, i));
+        if (!date) continue;
+        const day = date.getDay();
+        if (day === 6) hasSaturday = true;
+        if (day === 0) hasSunday = true;
+      }
+      if (hasSaturday && hasSunday) return "center";
+      if (hasSunday) return "right";
+      if (hasSaturday) return "left";
+      return "center";
+    };
+
+    visibleProjects.forEach((project) => {
+      (project.tasks || []).forEach((task) => {
+        if (!task.start) return;
+        const startIdx = relativeIndexFromDateKey(task.start);
+        if (startIdx === null || startIdx === undefined) return;
+        const duration = Math.max(1, Number(task.duration || 1));
+        const endIdx = startIdx + duration - 1;
+        const range = findRange(startIdx, endIdx);
+        if (range) {
+          markers[task.id] = {
+            gapAt: range.gapAt,
+            color: getItemColor(task),
+            side: getWeekendSide(task.start, duration),
+          };
+        }
+        (task.subitems || []).forEach((sub) => {
+          if (!sub.start) return;
+          const subStartIdx = relativeIndexFromDateKey(sub.start);
+          if (subStartIdx === null || subStartIdx === undefined) return;
+          const subDuration = Math.max(1, Number(sub.duration || 1));
+          const subEndIdx = subStartIdx + subDuration - 1;
+          const subRange = findRange(subStartIdx, subEndIdx);
+          if (subRange) {
+            markers[sub.id] = {
+              gapAt: subRange.gapAt,
+              color: getItemColor(sub),
+              side: getWeekendSide(sub.start, subDuration),
+            };
+          }
+        });
+      });
+    });
+
+    return markers;
+  }, [showWeekends, hiddenWeekendRanges, visibleProjects, colorBy, statuses, jobTypes]);
+
   // --- LOCAL ACTIONS ---
   const createWorkspace = () => { const newId = `w${Date.now()}`; setWorkspaces(prev => [...prev, { id: newId, name: 'New Workspace', type: 'workspace' }]); setActiveEntityId(newId); };
   const createDashboard = () => { const newId = `d${Date.now()}`; setDashboards(prev => [...prev, { id: newId, name: 'New Dashboard', type: 'dashboard', includedWorkspaces: [] }]); setActiveEntityId(newId); };
@@ -987,6 +1086,26 @@ export default function ProjectManagerAI() {
           scrollToToday(false);
       }
   }, [activeTab, zoomLevel]); 
+
+  useLayoutEffect(() => {
+    if (activeTab !== 'gantt') return;
+    const anchorDayIndex = weekendFocusRef.current;
+    if (anchorDayIndex === null || anchorDayIndex === undefined) return;
+    const container = bodyRef.current;
+    if (!container) return;
+    const targetVisualIdx = dayToVisualIndex[anchorDayIndex];
+    if (targetVisualIdx === undefined || targetVisualIdx === null) {
+      weekendFocusRef.current = null;
+      return;
+    }
+    const containerWidth = container.clientWidth;
+    const sidebarWidth = 320;
+    const centerOffset = (containerWidth - sidebarWidth) / 2;
+    const targetX = targetVisualIdx * zoomLevel;
+    const scrollLeft = targetX - centerOffset + (zoomLevel / 2);
+    container.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'auto' });
+    weekendFocusRef.current = null;
+  }, [showWeekends, zoomLevel, dayToVisualIndex, activeTab]);
 
   useEffect(() => {
       if (!auth) return;
@@ -1169,7 +1288,11 @@ export default function ProjectManagerAI() {
         if (subitemId ? task.subitems?.find(s => s.id === subitemId)?.start : task.start) return; 
         const clickX = e.nativeEvent.offsetX; const visualIndex = Math.floor(clickX / zoomLevel); startDayIndex = visualIndexToDayIndex[visualIndex] || 0;
     }
-    setDragState({ isDragging: true, type, taskId: task.id, subitemId, projectId, startX: e.clientX, originalStart: type === 'create' ? startDayIndex : (subitemId ? task.subitems.find(s=>s.id===subitemId).start : task.start), originalDuration: type === 'create' ? 1 : (subitemId ? task.subitems.find(s=>s.id===subitemId).duration : task.duration), currentSpan: 1, hasMoved: false, isDeleteMode: false, origin, currentVisualSlot: 0 });
+    const startKey = type === 'create'
+      ? null
+      : (subitemId ? task.subitems.find(s => s.id === subitemId).start : task.start);
+    const originalStart = type === 'create' ? startDayIndex : relativeIndexFromDateKey(startKey);
+    setDragState({ isDragging: true, type, taskId: task.id, subitemId, projectId, startX: e.clientX, originalStart, originalDuration: type === 'create' ? 1 : (subitemId ? task.subitems.find(s=>s.id===subitemId).duration : task.duration), currentSpan: 1, hasMoved: false, isDeleteMode: false, origin, currentVisualSlot: 0 });
   };
 
   useEffect(() => {
@@ -1198,9 +1321,9 @@ export default function ProjectManagerAI() {
                  if (task.id === dragState.taskId) { 
                      return { ...task, subitems: task.subitems.map(sub => {
                          if (sub.id !== dragState.subitemId) return sub;
-                         if (dragState.type === 'move') {
+                        if (dragState.type === 'move') {
                              const newStart = visualIndexToDayIndex[Math.max(0, origVisStart + deltaVisualSlots)];
-                             if (newStart !== undefined) return { ...sub, start: newStart, duration: calculateCalendarDuration(newStart, origVisEnd - origVisStart, rawDays, showWeekends) };
+                             if (newStart !== undefined) return { ...sub, start: dateKeyFromRelativeIndex(newStart), duration: calculateCalendarDuration(newStart, origVisEnd - origVisStart, rawDays, showWeekends) };
                          } else if (dragState.type === 'resize-right') {
                              const newVisEnd = Math.max(origVisStart + 1, origVisEnd + deltaVisualSlots);
                              return { ...sub, duration: calculateCalendarDuration(dragState.originalStart, newVisEnd - origVisStart, rawDays, showWeekends) };
@@ -1208,7 +1331,7 @@ export default function ProjectManagerAI() {
                              const newVisStart = Math.min(Math.max(0, origVisStart + deltaVisualSlots), origVisEnd - 1);
                              const newStart = visualIndexToDayIndex[newVisStart];
                              const endDay = dragState.originalStart + dragState.originalDuration;
-                             return { ...sub, start: newStart, duration: Math.max(1, endDay - newStart) };
+                             return { ...sub, start: dateKeyFromRelativeIndex(newStart), duration: Math.max(1, endDay - newStart) };
                          }
                          return sub;
                      })};
@@ -1218,7 +1341,7 @@ export default function ProjectManagerAI() {
              if (task.id !== dragState.taskId) return task;
              if (dragState.type === 'move') {
                  const newStart = visualIndexToDayIndex[Math.max(0, origVisStart + deltaVisualSlots)];
-                 if (newStart !== undefined) return { ...task, start: newStart, duration: calculateCalendarDuration(newStart, origVisEnd - origVisStart, rawDays, showWeekends) };
+                 if (newStart !== undefined) return { ...task, start: dateKeyFromRelativeIndex(newStart), duration: calculateCalendarDuration(newStart, origVisEnd - origVisStart, rawDays, showWeekends) };
              } else if (dragState.type === 'resize-right') {
                  const newVisEnd = Math.max(origVisStart + 1, origVisEnd + deltaVisualSlots);
                  return { ...task, duration: calculateCalendarDuration(dragState.originalStart, newVisEnd - origVisStart, rawDays, showWeekends) };
@@ -1226,7 +1349,7 @@ export default function ProjectManagerAI() {
                  const newVisStart = Math.min(Math.max(0, origVisStart + deltaVisualSlots), origVisEnd - 1);
                  const newStart = visualIndexToDayIndex[newVisStart];
                  const endDay = dragState.originalStart + dragState.originalDuration;
-                 return { ...task, start: newStart, duration: Math.max(1, endDay - newStart) };
+                 return { ...task, start: dateKeyFromRelativeIndex(newStart), duration: Math.max(1, endDay - newStart) };
              }
              return task;
           })
@@ -1236,7 +1359,7 @@ export default function ProjectManagerAI() {
     const handleMouseUp = () => {
       if (dragState.isDragging) {
         if (dragState.isDeleteMode) { updateTaskDate(dragState.projectId, dragState.taskId, dragState.subitemId, null, null); }
-        else if (dragState.type === 'create') { updateTaskDate(dragState.projectId, dragState.taskId, dragState.subitemId, dragState.originalStart, calculateCalendarDuration(dragState.originalStart, dragState.currentSpan, rawDays, showWeekends)); }
+        else if (dragState.type === 'create') { updateTaskDate(dragState.projectId, dragState.taskId, dragState.subitemId, dateKeyFromRelativeIndex(dragState.originalStart), calculateCalendarDuration(dragState.originalStart, dragState.currentSpan, rawDays, showWeekends)); }
         setDragState(prev => ({ ...prev, isDragging: false, type: null, isDeleteMode: false }));
       }
     };
@@ -1255,14 +1378,14 @@ export default function ProjectManagerAI() {
         tasks.forEach(task => {
           const statusLabel = statuses.find(s => s.id === task.status)?.label || task.status;
           const jobTypeLabel = jobTypes.find(j => j.id === task.jobTypeId)?.label || task.jobTypeId;
-          const startDate = task.start !== null ? getFutureDate(task.start) : "TBD";
+          const startDate = task.start !== null ? formatDateKey(task.start) : "TBD";
           const clean = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
           csvRows.push([clean(project.name), clean(group.name), clean(task.name), "Task", clean(statusLabel), clean(jobTypeLabel), clean(task.assignee), clean(startDate), task.duration || 0].join(","));
           if (task.subitems && task.subitems.length > 0) {
             task.subitems.forEach(sub => {
                const subStatus = statuses.find(s => s.id === sub.status)?.label || sub.status;
                const subJob = jobTypes.find(j => j.id === sub.jobTypeId)?.label || sub.jobTypeId;
-               const subStart = sub.start !== null ? getFutureDate(sub.start) : "TBD";
+               const subStart = sub.start !== null ? formatDateKey(sub.start) : "TBD";
                csvRows.push([clean(project.name), clean(group.name), clean(`  ↳ ${sub.name}`), "Subitem", clean(subStatus), clean(subJob), clean(sub.assignee), clean(subStart), sub.duration || 0].join(","));
             });
           }
@@ -1307,7 +1430,7 @@ export default function ProjectManagerAI() {
             <AppHeader 
                 activeEntity={activeEntity} activeTab={activeTab} setActiveTab={setActiveTab} darkMode={darkMode}
                 setSettingsMenuOpen={setSettingsMenuOpen} settingsMenuOpen={settingsMenuOpen}
-                showWeekends={showWeekends} setShowWeekends={setShowWeekends} showLabels={showLabels} setShowLabels={setShowLabels}
+                showWeekends={showWeekends} onToggleWeekends={handleToggleWeekends} showLabels={showLabels} setShowLabels={setShowLabels}
                 colorBy={colorBy} setColorBy={setColorBy} zoomLevel={zoomLevel} handleZoomChange={(e) => setZoomLevel(Number(e.target.value))}
                 rowHeight={rowHeight} setRowHeight={setRowHeight} isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen}
                 scrollToToday={scrollToToday} updateEntityName={(v) => { if(activeEntity.type==='workspace') setWorkspaces(p=>p.map(w=>w.id===activeEntity.id?{...w,name:v}:w)); else setDashboards(p=>p.map(d=>d.id===activeEntity.id?{...d,name:v}:d)); }}
@@ -1344,7 +1467,10 @@ export default function ProjectManagerAI() {
                         expandedItems={expandedItems} toggleItemExpand={toggleItemExpand} updateSubitemName={updateSubitemName}
                         setStatusMenuOpen={setStatusMenuOpen} setStatusMenuType={setStatusMenuType} setDatePickerOpen={setDatePickerOpen}
                         onStatusSelect={changeStatus} onTypeSelect={changeJobType} onEditLabels={() => setStatusEditorOpen(true)}
+                        getRelativeIndex={relativeIndexFromDateKey}
                         bodyRef={bodyRef}
+                        hiddenWeekendHeaderMarkers={hiddenWeekendHeaderMarkers}
+                        hiddenWeekendItemMarkers={hiddenWeekendItemMarkers}
                     />
                 )}
             </div>

@@ -9,7 +9,7 @@ import {
   Check,
 } from "lucide-react";
 
-import { formatDayIndex } from "../utils/date";
+import { addDaysToKey, formatDateKey } from "../utils/date";
 
 /**
  * Simple inline editable text component (self-contained).
@@ -177,6 +177,7 @@ export default function TaskRow({
   onEditLabels,
   reorderDrag,
 }) {
+  const dragBlockRef = useRef(false);
   const hasSubitems = task.subitems && task.subitems.length > 0;
 
   const statusColor = statuses.find((s) => s.id === task.status)?.color || "#c4c4c4";
@@ -187,7 +188,7 @@ export default function TaskRow({
 
   const hasDates = task.start !== null && task.start !== undefined;
   const safeDuration = Math.max(1, Number(task.duration || 1));
-  const endIndex = hasDates ? task.start + safeDuration - 1 : null;
+  const endKey = hasDates ? addDaysToKey(task.start, safeDuration - 1) : null;
   const showRange = hasDates && safeDuration > 1;
 
   const isRowDragging = Boolean(isDraggingProp);
@@ -203,7 +204,25 @@ export default function TaskRow({
     <div
       className={containerStyle}
       draggable="true"
+      onMouseDownCapture={(e) => {
+        const target = e.target;
+        const isInteractive =
+          ["INPUT", "SELECT", "BUTTON", "TEXTAREA"].includes(target.tagName) ||
+          target.closest(".no-drag") ||
+          target.getAttribute("contenteditable") === "true";
+        dragBlockRef.current = Boolean(isInteractive);
+      }}
+      onMouseUp={() => {
+        dragBlockRef.current = false;
+      }}
+      onMouseLeave={() => {
+        dragBlockRef.current = false;
+      }}
       onDragStart={(e) => {
+        if (dragBlockRef.current) {
+          e.preventDefault();
+          return;
+        }
         if (
           ["INPUT", "SELECT", "BUTTON", "TEXTAREA"].includes(e.target.tagName) ||
           e.target.closest(".no-drag")
@@ -359,8 +378,8 @@ export default function TaskRow({
           >
             {hasDates ? (
               <span className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-                {formatDayIndex(task.start)}
-                {showRange ? ` – ${formatDayIndex(endIndex)}` : ""}
+                {formatDateKey(task.start)}
+                {showRange ? ` – ${formatDateKey(endKey)}` : ""}
               </span>
             ) : (
   <div

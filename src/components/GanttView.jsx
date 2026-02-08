@@ -27,6 +27,9 @@ const GanttView = (props) => {
     handleRowDragEnd,
     handleGroupDragOver,
     handleGroupDrop,
+    getRelativeIndex,
+    hiddenWeekendHeaderMarkers = {},
+    hiddenWeekendItemMarkers = {},
     reorderDrag,
     selectedItems,
     toggleSelection,
@@ -56,6 +59,39 @@ const GanttView = (props) => {
     }
     return jobTypes.find((t) => t.id === task.jobTypeId)?.color || "#c4c4c4";
   };
+
+  const getHeaderMarkerStyle = (isActive) => {
+    if (!isActive) return null;
+    return {
+      background: "#3b82f6",
+      boxShadow: "0 0 8px rgba(59,130,246,0.9), 0 0 16px rgba(59,130,246,0.6)",
+      transform: "translateX(-50%)",
+    };
+  };
+
+  const getRowMarkerStyle = (marker) => {
+    if (!marker || !marker.color) return null;
+    const gapVisual = dayToVisualIndex?.[marker.gapAt];
+    if (gapVisual === undefined || gapVisual === null) return null;
+    const width = Math.max(3, Math.round(zoomLevel * 0.2));
+    let left = gapVisual * zoomLevel;
+    if (marker.side === "left") left -= width;
+    else if (marker.side === "center") left -= width / 2;
+    left = Math.max(0, left);
+    return {
+      left: `${left}px`,
+      width: `${width}px`,
+      background: marker.color,
+      boxShadow: `0 0 10px ${marker.color}`,
+    };
+  };
+
+  const getWeekendMarkerFrameStyle = () => ({
+    height: "70%",
+    top: "50%",
+    transform: "translateY(-50%)",
+    border: darkMode ? "1px solid rgba(10,12,24,0.65)" : "1px solid rgba(255,255,255,0.75)",
+  });
 
   return (
     <div
@@ -99,6 +135,7 @@ const GanttView = (props) => {
           <div className="flex h-10">
             {visibleDays.map((day, i) => {
               const showWeekRange = zoomLevel < 20 && (day.isMonday || i === 0);
+              const headerMarkerStyle = getHeaderMarkerStyle(hiddenWeekendHeaderMarkers?.[day.index]);
               return (
                 <div
                   key={i}
@@ -115,6 +152,12 @@ const GanttView = (props) => {
                   } ${day.isToday ? "bg-blue-600 text-white" : ""}`}
                   style={{ width: `${zoomLevel}px` }}
                 >
+                  {headerMarkerStyle && (
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-[3px] pointer-events-none z-20 rounded-r-sm"
+                      style={headerMarkerStyle}
+                    />
+                  )}
                   {showWeekRange && (
                     <div className="absolute top-0 left-0 w-max pl-1 text-[10px] font-bold whitespace-nowrap z-10 pointer-events-none opacity-50">
                       {day.weekLabel}
@@ -183,12 +226,12 @@ const GanttView = (props) => {
                         </span>
                         <span className="text-xs opacity-50 ml-2 font-normal">({groupTasks.length})</span>
                       </div>
-                      <div className="relative flex-1 h-full">
-                        <div className="absolute inset-0 flex pointer-events-none z-0">
+                        <div className="relative flex-1 h-full">
+                          <div className="absolute inset-0 flex pointer-events-none z-0">
                           {props.visibleDays.map((day, i) => (
                             <div
                               key={i}
-                              className={`h-full border-r ${
+                              className={`h-full border-r relative ${
                                 darkMode ? "border-white/5" : "border-[#eceff8]"
                               } ${day.isWeekend ? "bg-black/20" : "bg-transparent"} ${
                                 day.isToday ? "bg-blue-500/10" : ""
@@ -200,14 +243,7 @@ const GanttView = (props) => {
                                   : ""
                               }`}
                               style={{ width: `${zoomLevel}px`, minWidth: `${zoomLevel}px` }}
-                            >
-                              {day.isToday && (
-                                <div className="absolute top-0 bottom-0 left-0 w-0.5 bg-blue-500 z-10 opacity-50"></div>
-                              )}
-                              {day.isEndOfWeekToday && (
-                                <div className="absolute top-0 bottom-0 right-0 w-0.5 bg-blue-500 z-10"></div>
-                              )}
-                            </div>
+                            />
                           ))}
                         </div>
                       </div>
@@ -219,6 +255,9 @@ const GanttView = (props) => {
                         const hasSubitems = task.subitems && task.subitems.length > 0;
                         const isDragging = reorderDrag.active && reorderDrag.dragId === task.id;
                         const isDeleting = dragState.isDeleteMode && dragState.taskId === task.id && !dragState.subitemId;
+                        const taskStartIndex = getRelativeIndex(task.start);
+                        const rowMarker = hiddenWeekendItemMarkers?.[task.id];
+                        const rowMarkerStyle = getRowMarkerStyle(rowMarker);
 
                         const taskRowProps = {
                           task,
@@ -256,8 +295,10 @@ const GanttView = (props) => {
                           const validItems = task.subitems
                             .map((sub) => {
                               if (sub.start === null) return null;
-                              const start = dayToVisualIndex[sub.start];
-                              const endDayIndex = sub.start + sub.duration;
+                              const subStartIndex = getRelativeIndex(sub.start);
+                              if (subStartIndex === null || subStartIndex === undefined) return null;
+                              const start = dayToVisualIndex[subStartIndex];
+                              const endDayIndex = subStartIndex + sub.duration;
                               let end = dayToVisualIndex[endDayIndex];
                               if (end === undefined) end = visibleDays.length;
                               if (start === undefined) return null;
@@ -328,7 +369,7 @@ const GanttView = (props) => {
                                   {visibleDays.map((day, i) => (
                                     <div
                                       key={i}
-                                      className={`h-full border-r ${
+                                      className={`h-full border-r relative ${
                                         darkMode ? "border-white/5" : "border-[#eceff8]"
                                       } ${day.isWeekend ? "bg-black/20" : "bg-transparent"} ${
                                         !showWeekends && i > 0 && day.index > visibleDays[i - 1].index + 1
@@ -341,6 +382,12 @@ const GanttView = (props) => {
                                     ></div>
                                   ))}
                                 </div>
+                                {rowMarkerStyle && (
+                                  <div
+                                    className="absolute pointer-events-none z-30 rounded-md"
+                                    style={{ ...rowMarkerStyle, ...getWeekendMarkerFrameStyle() }}
+                                  />
+                                )}
                                 {dragState.type === "create" &&
                                   dragState.taskId === task.id &&
                                   !dragState.subitemId && (
@@ -405,15 +452,16 @@ const GanttView = (props) => {
                                     </div>
                                   ))}
 
-                                {task.start !== null && !hasSubitems && !isDeleting && (
+                                {task.start !== null && taskStartIndex !== null && taskStartIndex !== undefined && !hasSubitems && !isDeleting && (
                                   <div
                                     className={`absolute top-1/2 -translate-y-1/2 h-3/4 rounded-md shadow-sm flex items-center px-0 text-[9px] cursor-move group z-10 border overflow-hidden ${
                                       darkMode ? "border-[#181b34]" : "border-white"
                                     }`}
                                     style={{
-                                      left: `${dayToVisualIndex[task.start] * zoomLevel}px`,
+                                      left: `${dayToVisualIndex[taskStartIndex] * zoomLevel}px`,
                                       width: `${
-                                        (dayToVisualIndex[task.start + task.duration] - dayToVisualIndex[task.start]) * zoomLevel
+                                        (dayToVisualIndex[taskStartIndex + task.duration] - dayToVisualIndex[taskStartIndex]) *
+                                        zoomLevel
                                       }px`,
                                       backgroundColor: getTaskColor(task),
                                     }}
@@ -440,6 +488,9 @@ const GanttView = (props) => {
                               task.subitems.map((sub) => {
                                 const isSubDragging = reorderDrag.active && reorderDrag.dragId === sub.id;
                                 const isSubDeleting = dragState.isDeleteMode && dragState.subitemId === sub.id;
+                                const subStartIndex = getRelativeIndex(sub.start);
+                                const subRowMarker = hiddenWeekendItemMarkers?.[sub.id];
+                                const subRowMarkerStyle = getRowMarkerStyle(subRowMarker);
                                 const subRowProps = {
                                   ...taskRowProps,
                                   task: sub,
@@ -475,7 +526,7 @@ const GanttView = (props) => {
                                         {visibleDays.map((day, i) => (
                                           <div
                                             key={i}
-                                            className={`h-full border-r ${
+                                            className={`h-full border-r relative ${
                                               darkMode ? "border-white/5" : "border-[#eceff8]"
                                             } ${day.isWeekend ? "bg-black/20" : "bg-transparent"} ${
                                               !showWeekends && i > 0 && day.index > visibleDays[i - 1].index + 1
@@ -488,6 +539,12 @@ const GanttView = (props) => {
                                           ></div>
                                         ))}
                                       </div>
+                                      {subRowMarkerStyle && (
+                                        <div
+                                          className="absolute pointer-events-none z-30 rounded-md"
+                                          style={{ ...subRowMarkerStyle, ...getWeekendMarkerFrameStyle() }}
+                                        />
+                                      )}
                                       {dragState.type === "create" && dragState.subitemId === sub.id && (
                                         <div
                                           className="absolute top-1/2 -translate-y-1/2 h-2/3 rounded-md shadow-sm border-2 border-dashed border-blue-400 bg-blue-400/20 z-10 pointer-events-none"
@@ -512,15 +569,20 @@ const GanttView = (props) => {
                                             </div>
                                           </div>
                                         )}
-                                      {sub.start !== null && !isSubDeleting && (
+                                      {sub.start !== null &&
+                                        subStartIndex !== null &&
+                                        subStartIndex !== undefined &&
+                                        !isSubDeleting && (
                                         <div
                                           className={`absolute top-1/2 -translate-y-1/2 h-3/4 rounded-md shadow-sm z-10 border overflow-hidden flex items-center ${
                                             darkMode ? "border-[#181b34]" : "border-white"
                                           }`}
                                           style={{
-                                            left: `${dayToVisualIndex[sub.start] * zoomLevel}px`,
+                                            left: `${dayToVisualIndex[subStartIndex] * zoomLevel}px`,
                                             width: `${
-                                              (dayToVisualIndex[sub.start + sub.duration] - dayToVisualIndex[sub.start]) * zoomLevel
+                                              (dayToVisualIndex[subStartIndex + sub.duration] -
+                                                dayToVisualIndex[subStartIndex]) *
+                                              zoomLevel
                                             }px`,
                                             backgroundColor: getTaskColor(sub),
                                           }}
@@ -586,7 +648,7 @@ const GanttView = (props) => {
                             {visibleDays.map((day, i) => (
                               <div
                                 key={i}
-                                className={`h-full border-r ${
+                                className={`h-full border-r relative ${
                                   darkMode ? "border-white/5" : "border-[#eceff8]"
                                 } ${day.isWeekend ? "bg-black/20" : "bg-transparent"} ${
                                   !showWeekends && i > 0 && day.index > visibleDays[i - 1].index + 1
@@ -594,9 +656,9 @@ const GanttView = (props) => {
                                       ? "border-l-2 border-l-[#3e3f4b]"
                                       : "border-l-2 border-l-gray-300"
                                     : ""
-                                }`}
+                                } ${day.isToday ? "bg-blue-500/10" : ""}`}
                                 style={{ width: `${zoomLevel}px`, minWidth: `${zoomLevel}px` }}
-                              ></div>
+                              />
                             ))}
                           </div>
                         </div>
