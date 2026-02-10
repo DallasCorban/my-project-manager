@@ -275,9 +275,14 @@ const GanttView = (props) => {
                       groupTasks.map((task) => {
                         const isExpanded = expandedItems.includes(task.id);
                         const hasSubitems = task.subitems && task.subitems.length > 0;
+                        const hasRenderableSubitems = (task.subitems || []).some((sub) => {
+                          const idx = getRelativeIndex(sub.start);
+                          return idx !== null && idx !== undefined;
+                        });
                         const isDragging = reorderDrag.active && reorderDrag.dragId === task.id;
                         const isDeleting = dragState.isDeleteMode && dragState.taskId === task.id && !dragState.subitemId;
                         const taskStartIndex = getRelativeIndex(task.start);
+                        const taskDuration = Math.max(1, Number(task.duration || 1));
                         const rowMarker = hiddenWeekendItemMarkers?.[task.id];
                         const rowMarkerStyle = getRowMarkerStyle(rowMarker);
 
@@ -324,7 +329,8 @@ const GanttView = (props) => {
                               const subStartIndex = getRelativeIndex(sub.start);
                               if (subStartIndex === null || subStartIndex === undefined) return null;
                               const start = dayToVisualIndex[subStartIndex];
-                              const endDayIndex = subStartIndex + sub.duration;
+                              const safeDuration = Math.max(1, Number(sub.duration || 1));
+                              const endDayIndex = subStartIndex + safeDuration;
                               let end = dayToVisualIndex[endDayIndex];
                               if (end === undefined) end = visibleDays.length;
                               if (start === undefined) return null;
@@ -336,7 +342,7 @@ const GanttView = (props) => {
                                 id: sub.id,
                                 name: sub.name,
                                 originalObj: sub,
-                                duration: sub.duration,
+                                duration: safeDuration,
                               };
                             })
                             .filter(Boolean);
@@ -478,17 +484,25 @@ const GanttView = (props) => {
                                     </div>
                                   ))}
 
-                                {task.start !== null && taskStartIndex !== null && taskStartIndex !== undefined && !hasSubitems && !isDeleting && (
+                                {task.start !== null &&
+                                  taskStartIndex !== null &&
+                                  taskStartIndex !== undefined &&
+                                  !hasRenderableSubitems &&
+                                  !isDeleting && (
+                                  (() => {
+                                    const startVisual = dayToVisualIndex[taskStartIndex];
+                                    if (startVisual === undefined || startVisual === null) return null;
+                                    const endVisual =
+                                      dayToVisualIndex[taskStartIndex + taskDuration] ?? visibleDays.length;
+                                    const barWidth = Math.max((endVisual - startVisual) * zoomLevel, zoomLevel);
+                                    return (
                                   <div
                                     className={`absolute top-1/2 -translate-y-1/2 h-3/4 rounded-md shadow-sm flex items-center px-0 text-[9px] cursor-move group z-10 border overflow-hidden ${
                                       darkMode ? "border-[#181b34]" : "border-white"
                                     }`}
                                     style={{
-                                      left: `${dayToVisualIndex[taskStartIndex] * zoomLevel}px`,
-                                      width: `${
-                                        (dayToVisualIndex[taskStartIndex + task.duration] - dayToVisualIndex[taskStartIndex]) *
-                                        zoomLevel
-                                      }px`,
+                                      left: `${startVisual * zoomLevel}px`,
+                                      width: `${barWidth}px`,
                                       backgroundColor: getTaskColor(task),
                                     }}
                                     onMouseDown={(e) => handleMouseDown(e, task, project.id, "move", null, "parent")}
@@ -507,6 +521,8 @@ const GanttView = (props) => {
                                       onMouseDown={(e) => handleMouseDown(e, task, project.id, "resize-right", null, "parent")}
                                     ></div>
                                   </div>
+                                    );
+                                  })()
                                 )}
                               </div>
                             </div>
@@ -515,6 +531,7 @@ const GanttView = (props) => {
                                 const isSubDragging = reorderDrag.active && reorderDrag.dragId === sub.id;
                                 const isSubDeleting = dragState.isDeleteMode && dragState.subitemId === sub.id;
                                 const subStartIndex = getRelativeIndex(sub.start);
+                                const subDuration = Math.max(1, Number(sub.duration || 1));
                                 const subRowMarker = hiddenWeekendItemMarkers?.[sub.id];
                                 const subRowMarkerStyle = getRowMarkerStyle(subRowMarker);
                                 const subRowProps = {
@@ -598,18 +615,20 @@ const GanttView = (props) => {
                                       {sub.start !== null &&
                                         subStartIndex !== null &&
                                         subStartIndex !== undefined &&
-                                        !isSubDeleting && (
+                                        !isSubDeleting && (() => {
+                                          const startVisual = dayToVisualIndex[subStartIndex];
+                                          if (startVisual === undefined || startVisual === null) return null;
+                                          const endVisual =
+                                            dayToVisualIndex[subStartIndex + subDuration] ?? visibleDays.length;
+                                          const barWidth = Math.max((endVisual - startVisual) * zoomLevel, zoomLevel);
+                                          return (
                                         <div
                                           className={`absolute top-1/2 -translate-y-1/2 h-3/4 rounded-md shadow-sm z-10 border overflow-hidden flex items-center ${
                                             darkMode ? "border-[#181b34]" : "border-white"
                                           }`}
                                           style={{
-                                            left: `${dayToVisualIndex[subStartIndex] * zoomLevel}px`,
-                                            width: `${
-                                              (dayToVisualIndex[subStartIndex + sub.duration] -
-                                                dayToVisualIndex[subStartIndex]) *
-                                              zoomLevel
-                                            }px`,
+                                            left: `${startVisual * zoomLevel}px`,
+                                            width: `${barWidth}px`,
                                             backgroundColor: getTaskColor(sub),
                                           }}
                                           onMouseDown={(e) => handleMouseDown(e, task, project.id, "move", sub.id, "expanded")}
@@ -632,7 +651,8 @@ const GanttView = (props) => {
                                             }
                                           ></div>
                                         </div>
-                                      )}
+                                          );
+                                        })()}
                                     </div>
                                   </div>
                                 );
