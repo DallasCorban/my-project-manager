@@ -54,6 +54,7 @@ const GanttView = (props) => {
     onEditTypeLabels,
     onAddStatusLabel,
     onAddTypeLabel,
+    onOpenUpdates,
   } = props;
 
   const SHOW_ADD_ITEM_ROW = false;
@@ -311,6 +312,7 @@ const GanttView = (props) => {
                           onEditTypeLabels,
                           onAddStatusLabel,
                           onAddTypeLabel,
+                          onOpenUpdates,
                           reorderDrag,
                         };
 
