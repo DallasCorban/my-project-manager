@@ -55,6 +55,7 @@ const GanttView = (props) => {
     onAddStatusLabel,
     onAddTypeLabel,
     onOpenUpdates,
+    canEditProject,
   } = props;
 
   const SHOW_ADD_ITEM_ROW = false;
@@ -119,7 +120,7 @@ const GanttView = (props) => {
               : "bg-[#f9fafc] border-[#d0d4e4] text-gray-500"
           }`}
         >
-          Project / Task
+          Board / Item
         </div>
         <div className="flex flex-col flex-1">
           <div className={`flex h-8 border-b ${darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"}`}>
@@ -187,12 +188,27 @@ const GanttView = (props) => {
 
       <div style={{ width: `calc(20rem + ${visibleDays.length * zoomLevel}px)` }}>
         {visibleProjects.map((project) => {
+          const canEdit = canEditProject ? canEditProject(project.id) : true;
           const projectGroups = project.groups || [{ id: "default", name: "Main Group", color: "#579bfc" }];
           return (
             <div
               key={project.id}
               className={`border-b group/project ${darkMode ? "border-[#2b2c32] bg-[#181b34]" : "border-[#eceff8] bg-white"}`}
             >
+              <div
+                className={`flex border-b ${darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"}`}
+                style={{ height: `${Math.max(34, rowHeight - 2)}px` }}
+              >
+                <div
+                  className={`w-80 border-r px-4 sticky left-0 z-[200] flex items-center gap-2 flex-shrink-0 ${
+                    darkMode ? "border-[#2b2c32] bg-[#151726] text-gray-200" : "border-[#d0d4e4] bg-[#f9fafc] text-gray-800"
+                  }`}
+                >
+                  <span className="text-[10px] uppercase tracking-wide opacity-60">Board</span>
+                  <span className="text-sm font-semibold truncate">{project.name || "Untitled Board"}</span>
+                </div>
+                <div className={`flex-1 ${darkMode ? "bg-[#151726]" : "bg-[#f9fafc]"}`} />
+              </div>
               {projectGroups.map((group) => {
                 const groupTasks = project.tasks.filter(
                   (t) => t.groupId === group.id || (!t.groupId && group.id === "default")
@@ -235,12 +251,16 @@ const GanttView = (props) => {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (!canEdit) return;
                             addTaskToGroup(project.id, group.id, "New Item");
                           }}
                           onMouseDown={(e) => e.stopPropagation()}
                           aria-label="Add item"
+                          disabled={!canEdit}
                           className={`ml-auto p-1 rounded transition-colors ${
-                            darkMode
+                            !canEdit
+                              ? "text-gray-400/60 cursor-not-allowed"
+                              : darkMode
                               ? "text-gray-200 hover:bg-white/10"
                               : "text-gray-600 hover:bg-black/5"
                           }`}
@@ -291,7 +311,8 @@ const GanttView = (props) => {
                           projectId: project.id,
                           isSubitem: false,
                           isDragging,
-                          onDragStart: (e) => handleRowDragStart(e, "task", task.id),
+                          onDragStart: (e) => canEdit && handleRowDragStart(e, "task", task.id, project.id),
+                          canEdit,
                           onDragOver: (e) => handleRowDragOver(e, "task", task.id),
                           onDrop: handleRowDrop,
                           onDragEnd: handleRowDragEnd,
@@ -313,10 +334,10 @@ const GanttView = (props) => {
                           setDatePickerOpen,
                           onStatusSelect,
                           onTypeSelect,
-                          onEditStatusLabels,
-                          onEditTypeLabels,
-                          onAddStatusLabel,
-                          onAddTypeLabel,
+                          onEditStatusLabels: () => onEditStatusLabels?.(project.id),
+                          onEditTypeLabels: () => onEditTypeLabels?.(project.id),
+                          onAddStatusLabel: (label, color) => onAddStatusLabel?.(project.id, label, color),
+                          onAddTypeLabel: (label, color) => onAddTypeLabel?.(project.id, label, color),
                           onOpenUpdates,
                           reorderDrag,
                         };
@@ -395,7 +416,10 @@ const GanttView = (props) => {
 
                               <div
                                 className="relative flex-1 h-full"
-                                onMouseDown={(e) => handleMouseDown(e, task, project.id, "create", null, "parent")}
+                                onMouseDown={(e) => {
+                                  if (!canEdit) return;
+                                  handleMouseDown(e, task, project.id, "create", null, "parent");
+                                }}
                               >
                                 <div className="absolute inset-0 flex pointer-events-none z-0">
                                   {visibleDays.map((day, i) => (
@@ -466,15 +490,24 @@ const GanttView = (props) => {
                                         zIndex: 20 + item.laneIndex,
                                         cursor: "move",
                                       }}
-                                      onMouseDown={(e) => handleMouseDown(e, task, project.id, "move", item.id, "parent")}
+                                      onMouseDown={(e) => {
+                                        if (!canEdit) return;
+                                        handleMouseDown(e, task, project.id, "move", item.id, "parent");
+                                      }}
                                     >
                                       <div
                                         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-black/20 z-30"
-                                        onMouseDown={(e) => handleMouseDown(e, task, project.id, "resize-left", item.id, "parent")}
+                                        onMouseDown={(e) => {
+                                          if (!canEdit) return;
+                                          handleMouseDown(e, task, project.id, "resize-left", item.id, "parent");
+                                        }}
                                       ></div>
                                       <div
                                         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-black/20 z-30"
-                                        onMouseDown={(e) => handleMouseDown(e, task, project.id, "resize-right", item.id, "parent")}
+                                        onMouseDown={(e) => {
+                                          if (!canEdit) return;
+                                          handleMouseDown(e, task, project.id, "resize-right", item.id, "parent");
+                                        }}
                                       ></div>
                                       {zoomLevel > 15 && showLabels && (
                                         <span className="truncate select-none pointer-events-none font-medium text-[9px] text-white pl-2 pr-1 block w-full text-left">
@@ -505,7 +538,10 @@ const GanttView = (props) => {
                                       width: `${barWidth}px`,
                                       backgroundColor: getTaskColor(task),
                                     }}
-                                    onMouseDown={(e) => handleMouseDown(e, task, project.id, "move", null, "parent")}
+                                    onMouseDown={(e) => {
+                                      if (!canEdit) return;
+                                      handleMouseDown(e, task, project.id, "move", null, "parent");
+                                    }}
                                   >
                                     {zoomLevel > 15 && showLabels && (
                                       <span className="truncate select-none pointer-events-none font-medium block w-full text-white text-left pl-2 pr-1">
@@ -514,11 +550,17 @@ const GanttView = (props) => {
                                     )}
                                     <div
                                       className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-black/10 rounded-l-md"
-                                      onMouseDown={(e) => handleMouseDown(e, task, project.id, "resize-left", null, "parent")}
+                                      onMouseDown={(e) => {
+                                        if (!canEdit) return;
+                                        handleMouseDown(e, task, project.id, "resize-left", null, "parent");
+                                      }}
                                     ></div>
                                     <div
                                       className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-black/10 rounded-r-md"
-                                      onMouseDown={(e) => handleMouseDown(e, task, project.id, "resize-right", null, "parent")}
+                                      onMouseDown={(e) => {
+                                        if (!canEdit) return;
+                                        handleMouseDown(e, task, project.id, "resize-right", null, "parent");
+                                      }}
                                     ></div>
                                   </div>
                                     );
@@ -540,7 +582,8 @@ const GanttView = (props) => {
                                   parentId: task.id,
                                   isSubitem: true,
                                   isDragging: isSubDragging,
-                                  onDragStart: (e) => handleRowDragStart(e, "subitem", sub.id),
+                                  onDragStart: (e) => canEdit && handleRowDragStart(e, "subitem", sub.id, project.id),
+                                  canEdit,
                                   onDragOver: (e) => handleRowDragOver(e, "subitem", sub.id),
                                 };
 
@@ -563,7 +606,10 @@ const GanttView = (props) => {
                                     </div>
                                     <div
                                       className="relative flex-1 h-full"
-                                      onMouseDown={(e) => handleMouseDown(e, task, project.id, "create", sub.id, "expanded")}
+                                      onMouseDown={(e) => {
+                                        if (!canEdit) return;
+                                        handleMouseDown(e, task, project.id, "create", sub.id, "expanded");
+                                      }}
                                     >
                                       <div className="absolute inset-0 flex pointer-events-none z-0">
                                         {visibleDays.map((day, i) => (
@@ -631,7 +677,10 @@ const GanttView = (props) => {
                                             width: `${barWidth}px`,
                                             backgroundColor: getTaskColor(sub),
                                           }}
-                                          onMouseDown={(e) => handleMouseDown(e, task, project.id, "move", sub.id, "expanded")}
+                                          onMouseDown={(e) => {
+                                            if (!canEdit) return;
+                                            handleMouseDown(e, task, project.id, "move", sub.id, "expanded");
+                                          }}
                                         >
                                           {zoomLevel > 15 && showLabels && (
                                             <span className="truncate select-none pointer-events-none font-medium text-[9px] text-white pl-2 pr-1 block w-full text-left">
@@ -641,13 +690,13 @@ const GanttView = (props) => {
                                           <div
                                             className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-black/20 rounded-l-sm z-30"
                                             onMouseDown={(e) =>
-                                              handleMouseDown(e, task, project.id, "resize-left", sub.id, "expanded")
+                                              canEdit && handleMouseDown(e, task, project.id, "resize-left", sub.id, "expanded")
                                             }
                                           ></div>
                                           <div
                                             className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-black/20 rounded-r-sm z-30"
                                             onMouseDown={(e) =>
-                                              handleMouseDown(e, task, project.id, "resize-right", sub.id, "expanded")
+                                              canEdit && handleMouseDown(e, task, project.id, "resize-right", sub.id, "expanded")
                                             }
                                           ></div>
                                         </div>
@@ -678,11 +727,15 @@ const GanttView = (props) => {
                           <input
                             type="text"
                             placeholder="+ Add Item"
+                            disabled={!canEdit}
                             className={`bg-transparent outline-none text-sm w-full ${
-                              darkMode ? "text-gray-400 placeholder-gray-600" : "text-gray-500 placeholder-gray-400"
+                              !canEdit
+                                ? darkMode ? "text-gray-600 placeholder-gray-700" : "text-gray-400 placeholder-gray-400"
+                                : darkMode ? "text-gray-400 placeholder-gray-600" : "text-gray-500 placeholder-gray-400"
                             }`}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && e.target.value.trim()) {
+                                if (!canEdit) return;
                                 addTaskToGroup(project.id, group.id, e.target.value);
                                 e.target.value = "";
                               }
