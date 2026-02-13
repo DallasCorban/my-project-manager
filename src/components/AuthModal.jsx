@@ -2,8 +2,11 @@ import React, { useEffect, useState } from "react";
 import {
   EmailAuthProvider,
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   linkWithCredential,
+  linkWithPopup,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
 } from "firebase/auth";
 
@@ -54,6 +57,31 @@ export default function AuthModal({ open, onClose, auth, user, darkMode }) {
       onClose?.();
     } catch (err) {
       setError(err?.message || "Authentication failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    if (!auth) {
+      setError("Firebase auth is not available.");
+      return;
+    }
+    setError("");
+    setBusy(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      if (mode === "upgrade") {
+        if (!auth.currentUser) throw new Error("No active user session.");
+        await linkWithPopup(auth.currentUser, provider);
+      } else {
+        await signInWithPopup(auth, provider);
+      }
+      setPassword("");
+      setError("");
+      onClose?.();
+    } catch (err) {
+      setError(err?.message || "Google sign-in failed.");
     } finally {
       setBusy(false);
     }
@@ -167,6 +195,16 @@ export default function AuthModal({ open, onClose, auth, user, darkMode }) {
               className="w-full px-4 py-2 rounded-md text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
             >
               {mode === "upgrade" ? "Upgrade to Account" : mode === "signup" ? "Create Account" : "Sign In"}
+            </button>
+            <button
+              type="button"
+              onClick={handleGoogleAuth}
+              disabled={busy}
+              className={`w-full px-4 py-2 rounded-md text-sm font-semibold border ${
+                darkMode ? "border-[#2b2c32] hover:bg-white/5" : "border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              Continue with Google
             </button>
 
             <div className="text-xs text-gray-400">

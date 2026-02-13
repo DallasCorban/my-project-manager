@@ -1,0 +1,212 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function roleRank(role) {
+      return role == "owner" ? 5
+        : role == "admin" ? 4
+        : role == "editor" ? 3
+        : role == "contributor" ? 2
+        : role == "viewer" ? 1
+        : 0;
+    }
+
+    function projectOwner(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy;
+    }
+
+    function isProjectOwnerByLookup(projectId) {
+      return isSignedIn() && projectOwner(projectId) == request.auth.uid;
+    }
+
+    function memberPath(projectId, uid) {
+      return /databases/$(database)/documents/projects/$(projectId)/members/$(uid);
+    }
+
+    function hasMemberDoc(projectId) {
+      return exists(memberPath(projectId, request.auth.uid));
+    }
+
+    function memberData(projectId) {
+      return get(memberPath(projectId, request.auth.uid)).data;
+    }
+
+    function invitePath(projectId, inviteId) {
+      return /databases/$(database)/documents/projects/$(projectId)/invites/$(inviteId);
+    }
+
+    function requestHasEmail() {
+      return isSignedIn() && request.auth.token.email is string;
+    }
+
+    function inviteData(projectId, inviteId) {
+      return get(invitePath(projectId, inviteId)).data;
+    }
+
+    function contractorStillActive(projectId) {
+      return !(memberData(projectId).role == "contractor")
+        || !(memberData(projectId).accessUntil is timestamp)
+        || memberData(projectId).accessUntil > request.time;
+    }
+
+    function isActiveMember(projectId) {
+      return isSignedIn()
+        && hasMemberDoc(projectId)
+        && memberData(projectId).status == "active"
+        && contractorStillActive(projectId);
+    }
+
+    function effectiveMemberRole(projectId) {
+      return memberData(projectId).role == "contractor"
+        ? memberData(projectId).baseRole
+        : memberData(projectId).role;
+    }
+
+    function hasProjectRole(projectId, minRole) {
+      return isActiveMember(projectId)
+        && roleRank(effectiveMemberRole(projectId)) >= roleRank(minRole);
+    }
+
+    function canReadProject(projectId) {
+      return isActiveMember(projectId)
+        || isProjectOwnerByLookup(projectId);
+    }
+
+    function canManageMembers(projectId) {
+      return hasProjectRole(projectId, "admin")
+        || isProjectOwnerByLookup(projectId);
+    }
+
+    function isInvitee(projectId, inviteId) {
+      return requestHasEmail()
+        && exists(invitePath(projectId, inviteId))
+        && inviteData(projectId, inviteId).status == "pending"
+        && inviteData(projectId, inviteId).email is string
+        && inviteData(projectId, inviteId).email == request.auth.token.email;
+    }
+
+    function isInviteDocForSignedInEmail() {
+      return requestHasEmail()
+        && resource.data.status == "pending"
+        && resource.data.email is string
+        && resource.data.email == request.auth.token.email;
+    }
+
+    function fileAccessMinRole() {
+      return resource.data.access is map
+        && resource.data.access.minRole is string
+        ? resource.data.access.minRole
+        : "viewer";
+    }
+
+    match /artifacts/{appId}/users/{userId}/{collectionName}/{docId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /projects/{projectId} {
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow read: if isSignedIn()
+        && (
+          resource.data.createdBy == request.auth.uid
+          || isActiveMember(projectId)
+        );
+      allow update, delete: if isSignedIn()
+        && (
+          resource.data.createdBy == request.auth.uid
+          || hasProjectRole(projectId, "admin")
+        );
+    }
+
+    match /projects/{projectId}/state/{stateId} {
+      allow read: if canReadProject(projectId);
+      allow create, update, delete: if hasProjectRole(projectId, "contributor")
+        || canManageMembers(projectId);
+    }
+
+    match /projects/{projectId}/members/{memberUid} {
+      allow read: if (isSignedIn() && (
+          request.auth.uid == memberUid
+          || resource.data.uid == request.auth.uid
+        ))
+        || canManageMembers(projectId);
+      allow create: if canManageMembers(projectId)
+        || (
+          request.auth.uid == memberUid
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.inviteId is string
+          && isInvitee(projectId, request.resource.data.inviteId)
+        );
+      allow update: if canManageMembers(projectId);
+      allow delete: if canManageMembers(projectId);
+    }
+
+    // Collection-group lookup used by the app to discover memberships.
+    match /{path=**}/members/{memberUid} {
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == memberUid
+          || (resource.data.uid is string && resource.data.uid == request.auth.uid)
+        );
+    }
+
+    match /projects/{projectId}/invites/{inviteId} {
+      allow read: if canManageMembers(projectId)
+        || isInviteDocForSignedInEmail();
+      allow create, delete: if canManageMembers(projectId);
+      allow update: if canManageMembers(projectId)
+        || (
+          isInviteDocForSignedInEmail()
+          && resource.data.status == "pending"
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.baseRole == resource.data.baseRole
+          && request.resource.data.token == resource.data.token
+          && request.resource.data.status == "accepted"
+          && request.resource.data.acceptedBy == request.auth.uid
+        );
+    }
+
+    // Collection-group lookup used by invite auto-accept.
+    match /{path=**}/invites/{inviteId} {
+      allow read: if requestHasEmail()
+        && resource.data.status == "pending"
+        && resource.data.email is string
+        && resource.data.email == request.auth.token.email;
+    }
+
+    match /projects/{projectId}/files/{fileId} {
+      allow read: if canReadProject(projectId)
+        && (
+          hasProjectRole(projectId, fileAccessMinRole())
+          || canManageMembers(projectId)
+        );
+      allow create: if hasProjectRole(projectId, "contributor")
+        || canManageMembers(projectId);
+      allow delete: if hasProjectRole(projectId, "contributor")
+        || canManageMembers(projectId);
+      allow update: if (
+          hasProjectRole(projectId, "contributor")
+          || canManageMembers(projectId)
+        )
+        && (
+          request.resource.data.access == resource.data.access
+          || hasProjectRole(projectId, "admin")
+          || canManageMembers(projectId)
+        );
+    }
+
+    match /projects/{projectId}/accessRequests/{requestUid} {
+      allow create: if isSignedIn() && request.auth.uid == requestUid;
+      allow read: if canManageMembers(projectId) || (isSignedIn() && request.auth.uid == requestUid);
+      allow update, delete: if canManageMembers(projectId);
+    }
+
+    match /mail/{mailId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if false;
+    }
+  }
+}

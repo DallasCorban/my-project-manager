@@ -9,13 +9,13 @@ import {
   Check,
 } from "lucide-react";
 
-import { addDaysToKey, formatDateKey } from "../utils/date";
+import { addDaysToKey, formatDateKey, normalizeDateKey } from "../utils/date";
 
 /**
  * Simple inline editable text component (self-contained).
  * Keeps the old App.jsx "event-like" onChange signature: onChange({ target: { value } })
  */
-function EditableText({ value, onChange, className = "", style, placeholder }) {
+function EditableText({ value, onChange, className = "", style, placeholder, readOnly = false }) {
   const spanRef = useRef(null);
   const [width, setWidth] = useState("auto");
 
@@ -40,108 +40,272 @@ function EditableText({ value, onChange, className = "", style, placeholder }) {
         value={value ?? ""}
         onChange={onChange}
         placeholder={placeholder}
+        readOnly={readOnly}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
         draggable={false}
-        className={`bg-transparent border border-transparent hover:border-gray-400/50 rounded px-1 -ml-1 transition-all outline-none cursor-text truncate ${className}`}
+        className={`bg-transparent border border-transparent rounded px-1 -ml-1 transition-all outline-none truncate ${
+          readOnly ? "cursor-default" : "cursor-text hover:border-gray-400/50"
+        } ${className}`}
         style={{ ...(style || {}), width }}
       />
     </div>
   );
 }
 
-const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit }) => {
+const MONDAY_PALETTE = [
+  "#00c875",
+  "#9cd326",
+  "#cab641",
+  "#ffcb00",
+  "#fdab3d",
+  "#ff642e",
+  "#e2445c",
+  "#ff007f",
+  "#ff5ac4",
+  "#ffcead",
+  "#a25ddc",
+  "#784bd1",
+  "#579bfc",
+  "#0086c0",
+  "#595ad4",
+  "#037f4c",
+  "#00ca72",
+  "#3b85f6",
+  "#175a63",
+  "#333333",
+  "#7f5f3f",
+  "#dff0ff",
+  "#304575",
+  "#7f8c8d",
+  "#c4c4c4",
+  "#808080",
+  "#111111",
+  "#b5c0d0",
+];
+
+const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit, onAddLabel }) => {
+  const [query, setQuery] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newColor, setNewColor] = useState(MONDAY_PALETTE[statuses.length % MONDAY_PALETTE.length] || "#579bfc");
+
+  const filtered = statuses.filter((s) => s.label.toLowerCase().includes(query.trim().toLowerCase()));
+
+  const commitAdd = () => {
+    const label = newLabel.trim();
+    if (!label || !onAddLabel) return;
+    onAddLabel(label, newColor);
+    setNewLabel("");
+    setQuery("");
+    setNewColor(MONDAY_PALETTE[(statuses.length + 1) % MONDAY_PALETTE.length] || "#579bfc");
+  };
+
   return (
     <div
-      className={`rounded-md border shadow-lg overflow-hidden ${
-        darkMode ? "bg-[#111827] border-[#2b2c32]" : "bg-white border-[#eceff8]"
+      className={`w-64 rounded-2xl shadow-2xl border overflow-hidden ${
+        darkMode ? "bg-[#161a33] border-[#2b2c32]" : "bg-white border-gray-200"
       }`}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="p-2 flex items-center justify-between gap-2">
-        <div className={`text-xs font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
-          Status
-        </div>
-        <button
-          className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
-            darkMode ? "bg-white/5 hover:bg-white/10 text-gray-200" : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-          }`}
-          onClick={() => onEdit?.("status")}
-          type="button"
-        >
-          <Edit2 size={12} />
-          Edit
-        </button>
+      <div className={`px-4 pt-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+        Status
       </div>
-
-      <div className="max-h-64 overflow-auto">
-        {statuses.map((s) => {
+      <div className="px-3 pb-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search status…"
+          className={`w-full h-8 px-2.5 rounded-md text-xs outline-none border ${
+            darkMode ? "bg-[#0f1224] border-[#2b2c32] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400"
+          }`}
+        />
+      </div>
+      <div className="py-1 max-h-56 overflow-y-auto">
+        {filtered.length === 0 && (
+          <div className={`px-3 py-4 text-xs text-center ${darkMode ? "text-gray-500" : "text-gray-400"}`}>No matches</div>
+        )}
+        {filtered.map((s) => {
           const isCurrent = s.id === currentStatusId;
           return (
-            <button
+            <div
               key={s.id}
-              className={`w-full px-3 py-2 flex items-center gap-2 text-left text-xs transition ${
-                darkMode ? "hover:bg-white/5 text-gray-200" : "hover:bg-gray-50 text-gray-800"
-              }`}
               onClick={() => onSelect?.(s.id)}
-              type="button"
+              className={`mx-2 my-0.5 px-2.5 py-2 text-xs font-medium cursor-pointer flex items-center gap-2 rounded-lg transition-colors ${
+                isCurrent
+                  ? darkMode
+                    ? "bg-blue-500/20 text-white"
+                    : "bg-blue-50 text-blue-700"
+                  : darkMode
+                  ? "hover:bg-[#0f1224] text-gray-200"
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}
             >
-              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+              <div className="w-3.5 h-3.5 rounded-sm shrink-0 ring-1 ring-white/20" style={{ backgroundColor: s.color }}></div>
               <span className="flex-1">{s.label}</span>
-              {isCurrent && <Check size={14} className="opacity-70" />}
-            </button>
+              {isCurrent && <Check size={12} className="opacity-70" />}
+            </div>
           );
         })}
       </div>
+      <div className={`px-3 py-3 border-t ${darkMode ? "border-[#2b2c32]" : "border-gray-100"}`}>
+        <div className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+          Add Label
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitAdd();
+            }}
+            placeholder="New status…"
+            className={`flex-1 h-8 px-2.5 rounded-md text-xs outline-none border ${
+              darkMode ? "bg-[#0f1224] border-[#2b2c32] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400"
+            }`}
+          />
+          <input
+            type="color"
+            value={newColor}
+            onChange={(e) => setNewColor(e.target.value)}
+            className="w-8 h-8 rounded border-0 bg-transparent cursor-pointer"
+          />
+        </div>
+        <button
+          onClick={commitAdd}
+          className={`mt-2 w-full h-8 rounded-md text-xs font-semibold transition-colors ${
+            darkMode ? "bg-blue-600/90 hover:bg-blue-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"
+          }`}
+          type="button"
+        >
+          Add Status
+        </button>
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit?.();
+        }}
+        className={`w-full px-4 py-2.5 text-[11px] font-semibold border-t flex items-center gap-2 transition-colors ${
+          darkMode ? "border-[#2b2c32] text-blue-300 hover:bg-[#0f1224]" : "border-gray-100 text-blue-600 hover:bg-gray-50"
+        }`}
+        type="button"
+      >
+        <Edit2 size={12} /> Manage Status Labels
+      </button>
     </div>
   );
 };
 
-const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit }) => {
+const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onAddLabel }) => {
+  const [query, setQuery] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newColor, setNewColor] = useState(MONDAY_PALETTE[jobTypes.length % MONDAY_PALETTE.length] || "#579bfc");
+
+  const filtered = jobTypes.filter((t) => t.label.toLowerCase().includes(query.trim().toLowerCase()));
+
+  const commitAdd = () => {
+    const label = newLabel.trim();
+    if (!label || !onAddLabel) return;
+    onAddLabel(label, newColor);
+    setNewLabel("");
+    setQuery("");
+    setNewColor(MONDAY_PALETTE[(jobTypes.length + 1) % MONDAY_PALETTE.length] || "#579bfc");
+  };
+
   return (
     <div
-      className={`rounded-md border shadow-lg overflow-hidden ${
-        darkMode ? "bg-[#111827] border-[#2b2c32]" : "bg-white border-[#eceff8]"
+      className={`w-64 rounded-2xl shadow-2xl border overflow-hidden ${
+        darkMode ? "bg-[#161a33] border-[#2b2c32]" : "bg-white border-gray-200"
       }`}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="p-2 flex items-center justify-between gap-2">
-        <div className={`text-xs font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
-          Type
-        </div>
-        <button
-          className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
-            darkMode ? "bg-white/5 hover:bg-white/10 text-gray-200" : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-          }`}
-          onClick={() => onEdit?.("type")}
-          type="button"
-        >
-          <Edit2 size={12} />
-          Edit
-        </button>
+      <div className={`px-4 pt-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+        Type
       </div>
-
-      <div className="max-h-64 overflow-auto">
-        {jobTypes.map((t) => {
+      <div className="px-3 pb-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search type…"
+          className={`w-full h-8 px-2.5 rounded-md text-xs outline-none border ${
+            darkMode ? "bg-[#0f1224] border-[#2b2c32] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400"
+          }`}
+        />
+      </div>
+      <div className="py-1 max-h-56 overflow-y-auto">
+        {filtered.length === 0 && (
+          <div className={`px-3 py-4 text-xs text-center ${darkMode ? "text-gray-500" : "text-gray-400"}`}>No matches</div>
+        )}
+        {filtered.map((t) => {
           const isCurrent = t.id === currentTypeId;
           return (
-            <button
+            <div
               key={t.id}
-              className={`w-full px-3 py-2 flex items-center gap-2 text-left text-xs transition ${
-                darkMode ? "hover:bg-white/5 text-gray-200" : "hover:bg-gray-50 text-gray-800"
-              }`}
               onClick={() => onSelect?.(t.id)}
-              type="button"
+              className={`mx-2 my-0.5 px-2.5 py-2 text-xs font-medium cursor-pointer flex items-center gap-2 rounded-lg transition-colors ${
+                isCurrent
+                  ? darkMode
+                    ? "bg-blue-500/20 text-white"
+                    : "bg-blue-50 text-blue-700"
+                  : darkMode
+                  ? "hover:bg-[#0f1224] text-gray-200"
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}
             >
-              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+              <div className="w-3.5 h-3.5 rounded-sm shrink-0 ring-1 ring-white/20" style={{ backgroundColor: t.color }}></div>
               <span className="flex-1">{t.label}</span>
-              {isCurrent && <Check size={14} className="opacity-70" />}
-            </button>
+              {isCurrent && <Check size={12} className="opacity-70" />}
+            </div>
           );
         })}
       </div>
+      <div className={`px-3 py-3 border-t ${darkMode ? "border-[#2b2c32]" : "border-gray-100"}`}>
+        <div className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+          Add Label
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitAdd();
+            }}
+            placeholder="New type…"
+            className={`flex-1 h-8 px-2.5 rounded-md text-xs outline-none border ${
+              darkMode ? "bg-[#0f1224] border-[#2b2c32] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400"
+            }`}
+          />
+          <input
+            type="color"
+            value={newColor}
+            onChange={(e) => setNewColor(e.target.value)}
+            className="w-8 h-8 rounded border-0 bg-transparent cursor-pointer"
+          />
+        </div>
+        <button
+          onClick={commitAdd}
+          className={`mt-2 w-full h-8 rounded-md text-xs font-semibold transition-colors ${
+            darkMode ? "bg-blue-600/90 hover:bg-blue-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"
+          }`}
+          type="button"
+        >
+          Add Type
+        </button>
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit?.();
+        }}
+        className={`w-full px-4 py-2.5 text-[11px] font-semibold border-t flex items-center gap-2 transition-colors ${
+          darkMode ? "border-[#2b2c32] text-blue-300 hover:bg-[#0f1224]" : "border-gray-100 text-blue-600 hover:bg-gray-50"
+        }`}
+        type="button"
+      >
+        <Edit2 size={12} /> Manage Type Labels
+      </button>
     </div>
   );
 };
@@ -174,8 +338,14 @@ export default function TaskRow({
   setDatePickerOpen,
   onStatusSelect,
   onTypeSelect,
-  onEditLabels,
+  onEditStatusLabels,
+  onEditTypeLabels,
+  onAddStatusLabel,
+  onAddTypeLabel,
+  boardColumns,
+  onOpenUpdates,
   reorderDrag,
+  canEdit = true,
 }) {
   const dragBlockRef = useRef(false);
   const hasSubitems = task.subitems && task.subitems.length > 0;
@@ -186,10 +356,26 @@ export default function TaskRow({
   const typeColor = jobTypes.find((t) => t.id === task.jobTypeId)?.color || "#c4c4c4";
   const typeLabel = jobTypes.find((t) => t.id === task.jobTypeId)?.label || "Type";
 
-  const hasDates = task.start !== null && task.start !== undefined;
+  const normalizedStart = normalizeDateKey(task.start);
+  const hasDates = Boolean(normalizedStart);
   const safeDuration = Math.max(1, Number(task.duration || 1));
-  const endKey = hasDates ? addDaysToKey(task.start, safeDuration - 1) : null;
+  const endKey = hasDates ? addDaysToKey(normalizedStart, safeDuration - 1) : null;
   const showRange = hasDates && safeDuration > 1;
+  const boardCol = activeTab === "board" ? (boardColumns || {
+    select: 40,
+    item: 450,
+    person: 112,
+    status: 144,
+    type: 144,
+    date: 192,
+  }) : {
+    select: 40,
+    item: 450,
+    person: 112,
+    status: 144,
+    type: 144,
+    date: 192,
+  };
 
   const isRowDragging = Boolean(isDraggingProp);
   const containerStyle = isRowDragging
@@ -203,7 +389,19 @@ export default function TaskRow({
   return (
     <div
       className={containerStyle}
-      draggable="true"
+      draggable={canEdit}
+      onClick={(e) => {
+        if (dragBlockRef.current) return;
+        const target = e.target;
+        const isInteractive =
+          ["INPUT", "SELECT", "BUTTON", "TEXTAREA"].includes(target.tagName) ||
+          target.closest(".no-drag") ||
+          target.getAttribute("contenteditable") === "true";
+        if (isInteractive) return;
+        if (onOpenUpdates) {
+          onOpenUpdates(projectId, isSubitem ? parentId : task.id, isSubitem ? task.id : null);
+        }
+      }}
       onMouseDownCapture={(e) => {
         const target = e.target;
         const isInteractive =
@@ -219,6 +417,10 @@ export default function TaskRow({
         dragBlockRef.current = false;
       }}
       onDragStart={(e) => {
+        if (!canEdit) {
+          e.preventDefault();
+          return;
+        }
         if (dragBlockRef.current) {
           e.preventDefault();
           return;
@@ -230,18 +432,19 @@ export default function TaskRow({
           e.preventDefault();
           return;
         }
-        if (onDragStart) onDragStart(e, isSubitem ? "subitem" : "task", task.id);
+        if (onDragStart) onDragStart(e, isSubitem ? "subitem" : "task", task.id, projectId);
       }}
       onDragOver={onDragOver}
       onDrop={(e) => {
-        if (onDrop) onDrop(e, isSubitem ? "subitem" : "task", task.id);
+        if (onDrop) onDrop(e, isSubitem ? "subitem" : "task", task.id, projectId);
       }}
       onDragEnd={onDragEnd}
     >
       <div
-        className={`w-10 border-r h-full flex items-center justify-center relative no-drag ${
+        className={`border-r h-full flex items-center justify-center relative no-drag min-w-0 ${
           darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"
         }`}
+        style={{ width: boardCol.select }}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
@@ -251,14 +454,18 @@ export default function TaskRow({
           }`}
           onClick={(e) => {
             e.stopPropagation();
-            onToggle(task.id);
+            if (!canEdit) return;
+            onToggle(task.id, projectId);
           }}
         >
           {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
         </div>
       </div>
 
-      <div className={`w-[450px] border-r h-full flex items-center px-4 relative ${darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"}`}>
+      <div
+        className={`border-r h-full flex items-center px-4 relative min-w-0 ${darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"}`}
+        style={{ width: boardCol.item }}
+      >
         <div className={`flex items-center gap-2 w-full ${isSubitem ? "pl-10" : ""}`}>
           {isSubitem && <CornerDownRight size={12} className="text-gray-400 shrink-0" />}
 
@@ -275,11 +482,15 @@ export default function TaskRow({
 
           <EditableText
             value={task.name}
-            onChange={(e) =>
-              isSubitem
-                ? updateSubitemName(projectId, parentId, task.id, e.target.value)
-                : updateTaskName(projectId, task.id, e.target.value)
+            onChange={
+              canEdit
+                ? (e) =>
+                    isSubitem
+                      ? updateSubitemName(projectId, parentId, task.id, e.target.value)
+                      : updateTaskName(projectId, task.id, e.target.value)
+                : undefined
             }
+            readOnly={!canEdit}
             className={`text-sm ${darkMode ? "text-gray-200" : "text-[#323338]"}`}
           />
 
@@ -291,9 +502,13 @@ export default function TaskRow({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (!canEdit) return;
                   onAddSubitem(projectId, task.id);
                 }}
-                className="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-blue-600 transition-colors"
+                className={`p-1 rounded transition-colors ${
+                  canEdit ? "hover:bg-gray-200 text-gray-400 hover:text-blue-600" : "text-gray-500/60 cursor-not-allowed"
+                }`}
+                disabled={!canEdit}
               >
                 <Plus size={14} />
               </button>
@@ -304,68 +519,89 @@ export default function TaskRow({
 
       {activeTab === "board" && (
         <>
-          <div className={`w-28 border-r h-full flex items-center justify-center ${darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"}`}>
+          <div
+            className={`border-r h-full flex items-center justify-center min-w-0 ${darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"}`}
+            style={{ width: boardCol.person }}
+          >
             <div className="w-6 h-6 rounded-full bg-gray-400 text-[10px] flex items-center justify-center text-white border-2 border-transparent shadow-sm">
               {task.assignee?.charAt(0)}
             </div>
           </div>
 
-          <div className={`w-36 border-r h-full flex items-center justify-center px-2 relative ${darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"}`}>
+          <div
+            className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"}`}
+            style={{ width: boardCol.status }}
+          >
             <div
               onClick={(e) => {
                 e.stopPropagation();
+                if (!canEdit) return;
                 setStatusMenuOpen(task.id);
                 setStatusMenuType("status");
               }}
-              className="w-full h-8 flex items-center justify-center text-xs font-medium text-white rounded-sm cursor-pointer transition hover:opacity-90"
+              className={`w-full h-8 flex items-center justify-center text-xs font-medium text-white rounded-sm overflow-hidden ${
+                canEdit ? "cursor-pointer transition hover:opacity-90" : "cursor-default opacity-90"
+              }`}
               style={{ backgroundColor: statusColor }}
             >
-              {statusLabel}
+              <span className="truncate w-full text-center px-2">{statusLabel}</span>
             </div>
 
-            {statusMenuOpen === task.id && statusMenuType === "status" && (
+            {canEdit && statusMenuOpen === task.id && statusMenuType === "status" && (
               <div className="absolute top-full w-full left-0 z-[100]">
                 <StatusDropdown
                   statuses={statuses}
                   currentStatusId={task.status}
                   onSelect={(id) => onStatusSelect(projectId, task.id, isSubitem ? task.id : null, id)}
                   darkMode={darkMode}
-                  onEdit={onEditLabels}
-                />
-              </div>
-            )}
-          </div>
-
-          <div className={`w-36 border-r h-full flex items-center justify-center px-2 relative ${darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"}`}>
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                setStatusMenuOpen(task.id);
-                setStatusMenuType("type");
-              }}
-              className="w-full h-8 flex items-center justify-center text-xs font-medium text-white rounded-sm cursor-pointer transition hover:opacity-90"
-              style={{ backgroundColor: typeColor }}
-            >
-              {typeLabel}
-            </div>
-
-            {statusMenuOpen === task.id && statusMenuType === "type" && (
-              <div className="absolute top-full w-full left-0 z-[100]">
-                <TypeDropdown
-                  jobTypes={jobTypes}
-                  currentTypeId={task.jobTypeId}
-                  onSelect={(id) => onTypeSelect(projectId, task.id, isSubitem ? task.id : null, id)}
-                  darkMode={darkMode}
-                  onEdit={onEditLabels}
+                  onEdit={onEditStatusLabels}
+                  onAddLabel={onAddStatusLabel}
                 />
               </div>
             )}
           </div>
 
           <div
-            className={`w-48 h-full flex items-center justify-center px-4 cursor-pointer relative ${darkMode ? "hover:bg-white/5" : ""}`}
+            className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${darkMode ? "border-[#2b2c32]" : "border-[#eceff8]"}`}
+            style={{ width: boardCol.type }}
+          >
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!canEdit) return;
+                setStatusMenuOpen(task.id);
+                setStatusMenuType("type");
+              }}
+              className={`w-full h-8 flex items-center justify-center text-xs font-medium text-white rounded-sm overflow-hidden ${
+                canEdit ? "cursor-pointer transition hover:opacity-90" : "cursor-default opacity-90"
+              }`}
+              style={{ backgroundColor: typeColor }}
+            >
+              <span className="truncate w-full text-center px-2">{typeLabel}</span>
+            </div>
+
+            {canEdit && statusMenuOpen === task.id && statusMenuType === "type" && (
+              <div className="absolute top-full w-full left-0 z-[100]">
+                <TypeDropdown
+                  jobTypes={jobTypes}
+                  currentTypeId={task.jobTypeId}
+                  onSelect={(id) => onTypeSelect(projectId, task.id, isSubitem ? task.id : null, id)}
+                  darkMode={darkMode}
+                  onEdit={onEditTypeLabels}
+                  onAddLabel={onAddTypeLabel}
+                />
+              </div>
+            )}
+          </div>
+
+          <div
+            className={`h-full flex items-center justify-center px-4 relative min-w-0 ${
+              canEdit ? "cursor-pointer" : "cursor-default"
+            } ${darkMode ? "hover:bg-white/5" : ""}`}
+            style={{ width: boardCol.date }}
             onClick={(e) => {
               e.stopPropagation();
+              if (!canEdit) return;
               setDatePickerOpen({
                 projectId,
                 taskId: isSubitem ? parentId : task.id,
@@ -377,8 +613,8 @@ export default function TaskRow({
             }}
           >
             {hasDates ? (
-              <span className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-                {formatDateKey(task.start)}
+              <span className={`text-xs truncate text-center ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                {formatDateKey(normalizedStart)}
                 {showRange ? ` – ${formatDateKey(endKey)}` : ""}
               </span>
             ) : (
