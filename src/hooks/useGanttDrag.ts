@@ -1,8 +1,13 @@
 // useGanttDrag — handles Gantt bar drag interactions (move, resize, create).
-// All drag math works in visual-slot space during the drag and only converts
-// to calendar dates when committing updates.  Lookup tables and callbacks live
-// in refs so the mousemove / mouseup listeners are registered exactly once per
-// drag and never torn down mid-interaction.
+//
+// KEY DESIGN:  The bar's visual position during drag is computed purely from
+// the drag-start snapshot + mouse delta.  This avoids the feedback loop:
+//   mousemove → store update → re-render → recalculate position from store
+// which causes jitter when the visual↔calendar conversions aren't perfectly
+// invertible (especially with hidden weekends).
+//
+// The drag state includes `visualLeft` and `visualWidth` (in pixels) which
+// GanttTaskRow uses directly instead of computing from the store.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DragState, TimelineDay } from '../types/timeline';
@@ -22,6 +27,8 @@ const INITIAL_DRAG: DragState = {
   hasMoved: false,
   isDeleteMode: false,
   origin: null,
+  visualLeft: 0,
+  visualWidth: 0,
 };
 
 interface UseGanttDragOptions {
@@ -42,22 +49,9 @@ interface UseGanttDragOptions {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-/** Count visual slots between two raw day indices. */
-function visualSpanBetween(
-  fromRaw: number,
-  toRaw: number,
-  d2v: Record<number, number>,
-): number {
-  const vs = d2v[fromRaw];
-  const ve = d2v[toRaw];
-  if (vs === undefined || ve === undefined) return Math.abs(toRaw - fromRaw);
-  return ve - vs;
-}
-
 /**
  * Walk forward from a raw day index by `visualSlots` visible slots and return
- * the raw day index we land on.  When weekends are hidden this correctly skips
- * them so one visual slot always equals one visible column.
+ * the raw day index we land on.
  */
 function rawIndexAfterVisualSlots(
   startRaw: number,
@@ -70,19 +64,6 @@ function rawIndexAfterVisualSlots(
   const targetVis = startVis + visualSlots;
   const raw = v2d[targetVis];
   return raw ?? startRaw + visualSlots;
-}
-
-/**
- * Convert a raw-day-index start + a calendar duration into its visual width
- * (number of visible columns the bar spans).
- */
-function calendarDurationToVisualWidth(
-  startRaw: number,
-  calDuration: number,
-  d2v: Record<number, number>,
-): number {
-  const endRaw = startRaw + calDuration;
-  return visualSpanBetween(startRaw, endRaw, d2v);
 }
 
 /**
@@ -114,8 +95,8 @@ export function useGanttDrag({
   const dragRef = useRef(dragState);
   dragRef.current = dragState;
 
-  // Keep mutable refs for everything the mousemove handler needs so that the
-  // effect dependency list is stable (only `dragState.isDragging`).
+  // Mutable refs — the mousemove handler reads from these so the effect
+  // dependency list stays stable (only `dragState.isDragging`).
   const zoomRef = useRef(zoomLevel);
   zoomRef.current = zoomLevel;
 
@@ -136,9 +117,14 @@ export function useGanttDrag({
 
   const todayKey = useRef(getTodayKey());
 
-  // Snapshot of visual-slot positions at drag start so they stay constant for
-  // the entire drag even if re-renders happen.
-  const snapRef = useRef({ origVisStart: 0, origVisWidth: 0 });
+  // Snapshot captured at mousedown — never changes during a single drag gesture.
+  const snapRef = useRef({
+    origVisStart: 0,   // visual slot index of bar start
+    origVisWidth: 0,   // visual slot count of bar width
+    frozenZoom: 0,     // px/slot at drag start
+    frozenD2V: {} as Record<number, number>,
+    frozenV2D: {} as Record<number, number>,
+  });
 
   /**
    * Start a drag operation on a Gantt bar or empty area.
@@ -161,8 +147,8 @@ export function useGanttDrag({
       const v2d = v2dRef.current;
       const zoom = zoomRef.current;
 
-      let originalStart = 0;          // raw day index
-      let originalDuration = existingDuration || 1;  // calendar days
+      let originalStart = 0;                           // raw day index
+      let originalDuration = existingDuration || 1;    // calendar days
 
       if (type === 'create') {
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -174,10 +160,28 @@ export function useGanttDrag({
         originalStart = getRelativeIndex(existingStartKey);
       }
 
-      // Snapshot visual positions at drag-start so they stay constant.
+      // Compute the visual-slot positions from the *current* mapping and
+      // freeze them so the entire drag gesture uses a single consistent mapping.
       const origVisStart = d2v[originalStart] ?? 0;
-      const origVisWidth = calendarDurationToVisualWidth(originalStart, originalDuration, d2v);
-      snapRef.current = { origVisStart, origVisWidth: Math.max(1, origVisWidth) };
+      const endRaw = originalStart + originalDuration;
+      let origVisEnd = d2v[endRaw];
+      if (origVisEnd === undefined) {
+        // End falls on a hidden weekend — probe forward
+        for (let probe = endRaw + 1; probe <= endRaw + 3; probe++) {
+          if (d2v[probe] !== undefined) { origVisEnd = d2v[probe]; break; }
+        }
+        if (origVisEnd === undefined) origVisEnd = origVisStart + originalDuration;
+      }
+      const origVisWidth = Math.max(1, origVisEnd - origVisStart);
+
+      // Freeze the mapping tables so they can't shift mid-drag
+      snapRef.current = {
+        origVisStart,
+        origVisWidth,
+        frozenZoom: zoom,
+        frozenD2V: { ...d2v },
+        frozenV2D: { ...v2d },
+      };
 
       setDragState({
         isDragging: true,
@@ -193,6 +197,8 @@ export function useGanttDrag({
         hasMoved: false,
         isDeleteMode: false,
         origin,
+        visualLeft: origVisStart * zoom,
+        visualWidth: origVisWidth * zoom,
       });
     },
     [getRelativeIndex],
@@ -206,14 +212,15 @@ export function useGanttDrag({
       const ds = dragRef.current;
       if (!ds.isDragging || !ds.type || !ds.projectId || !ds.taskId) return;
 
-      const zoom = zoomRef.current;
-      const d2v = d2vRef.current;
-      const v2d = v2dRef.current;
+      const snap = snapRef.current;
+      const zoom = snap.frozenZoom;           // use frozen zoom
+      const d2v = snap.frozenD2V;             // use frozen mapping
+      const v2d = snap.frozenV2D;
 
       const deltaVisual = Math.round((e.clientX - ds.startX) / zoom);
       if (deltaVisual === ds.currentVisualSlot && ds.hasMoved) return;
 
-      const { origVisStart, origVisWidth } = snapRef.current;
+      const { origVisStart, origVisWidth } = snap;
 
       // ── Create ────────────────────────────────────────────────────
       if (ds.type === 'create') {
@@ -223,20 +230,20 @@ export function useGanttDrag({
           currentSpan: newSpan,
           currentVisualSlot: deltaVisual,
           hasMoved: deltaVisual !== 0,
+          visualLeft: origVisStart * zoom,
+          visualWidth: newSpan * zoom,
         }));
         return;
       }
 
-      let newStartRaw: number = ds.originalStart;
+      let newVisStart: number = origVisStart;
       let newVisWidth: number = origVisWidth;
       let isDelete = false;
 
       // ── Move ──────────────────────────────────────────────────────
       if (ds.type === 'move') {
-        const newVisStart = Math.max(0, origVisStart + deltaVisual);
-        newStartRaw = v2d[newVisStart] ?? ds.originalStart;
-        // The visual width stays the same — recalculate calendar duration
-        // from the new start position to preserve visual size.
+        newVisStart = Math.max(0, origVisStart + deltaVisual);
+        // Visual width is unchanged — the bar slides without changing size
         newVisWidth = origVisWidth;
       }
 
@@ -249,23 +256,22 @@ export function useGanttDrag({
           isDelete = true;
           newVisWidth = 1;
         }
-        newStartRaw = ds.originalStart;
+        newVisStart = origVisStart;
       }
 
       // ── Resize left ──────────────────────────────────────────────
       if (ds.type === 'resize-left') {
         const origVisEnd = origVisStart + origVisWidth;
-        const newVisStart = origVisStart + deltaVisual;
-        const clampedVisStart = Math.max(0, Math.min(origVisEnd - 1, newVisStart));
-        newStartRaw = v2d[clampedVisStart] ?? ds.originalStart;
-        newVisWidth = origVisEnd - clampedVisStart;
+        newVisStart = Math.max(0, Math.min(origVisEnd - 1, origVisStart + deltaVisual));
+        newVisWidth = origVisEnd - newVisStart;
         if (newVisWidth < 1) {
           isDelete = true;
           newVisWidth = 1;
         }
       }
 
-      // Convert visual width → calendar duration
+      // ── Convert visual → calendar for the store (background persistence) ──
+      const newStartRaw = v2d[newVisStart] ?? ds.originalStart;
       const calDuration = visualWidthToCalendarDuration(newStartRaw, newVisWidth, v2d, d2v);
       const newStartKey = addDaysToKey(todayKey.current, newStartRaw);
 
@@ -278,6 +284,8 @@ export function useGanttDrag({
         currentVisualSlot: deltaVisual,
         hasMoved: true,
         isDeleteMode: isDelete,
+        visualLeft: newVisStart * zoom,
+        visualWidth: Math.max(newVisWidth * zoom, zoom),
       }));
     };
 
@@ -288,8 +296,9 @@ export function useGanttDrag({
         return;
       }
 
-      const d2v = d2vRef.current;
-      const v2d = v2dRef.current;
+      const snap = snapRef.current;
+      const d2v = snap.frozenD2V;
+      const v2d = snap.frozenV2D;
 
       if (ds.isDeleteMode) {
         updateRef.current(ds.projectId, ds.taskId, ds.subitemId, null, null);
@@ -300,7 +309,7 @@ export function useGanttDrag({
         const duration = visualWidthToCalendarDuration(startDayIndex, ds.currentSpan, v2d, d2v);
         updateRef.current(ds.projectId, ds.taskId, ds.subitemId, startKey, duration);
       }
-      // For move / resize the updates were applied continuously.
+      // For move / resize the store was already updated continuously.
 
       setDragState(INITIAL_DRAG);
     };
@@ -312,7 +321,7 @@ export function useGanttDrag({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-    // Only re-register when a drag starts/stops — everything else is in refs.
+    // Only re-register when a drag starts/stops — everything else is in refs/snap.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragState.isDragging]);
 

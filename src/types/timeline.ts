@@ -25,6 +25,10 @@ export interface DragState {
   hasMoved: boolean;
   isDeleteMode: boolean;
   origin: 'parent' | 'expanded' | null;
+  /** Pixel position of the bar's left edge during drag (avoids store round-trip) */
+  visualLeft: number;
+  /** Pixel width of the bar during drag (avoids store round-trip) */
+  visualWidth: number;
 }
 
 export interface ReorderDrag {

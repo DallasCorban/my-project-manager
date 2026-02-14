@@ -97,10 +97,26 @@ export function GanttTaskRow({
   const hasDates = Boolean(normalizedStart);
   const taskDuration = Math.max(1, Number(task.duration || 1));
 
+  // Check if THIS bar is currently being dragged (move/resize).
+  // For parent tasks: dragState.taskId === task.id && subitemId === null
+  // For subitems: dragState.subitemId === task.id (task here IS the subitem)
+  const isThisBarDragging =
+    dragState.isDragging &&
+    dragState.type !== 'create' &&
+    dragState.hasMoved &&
+    (isSubitem
+      ? dragState.subitemId === task.id
+      : dragState.taskId === task.id && dragState.subitemId === null);
+
   let barLeft = 0;
   let barWidth = 0;
 
-  if (hasDates && normalizedStart) {
+  if (isThisBarDragging) {
+    // During drag: use the drag handler's pixel-perfect visual position
+    // directly. This avoids the store→render round-trip that causes jitter.
+    barLeft = dragState.visualLeft;
+    barWidth = dragState.visualWidth;
+  } else if (hasDates && normalizedStart) {
     const relIdx = getRelativeIndex(normalizedStart);
     const startVisual = dayToVisualIndex[relIdx] ?? 0;
 
