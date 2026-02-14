@@ -103,7 +103,22 @@ export function GanttTaskRow({
   if (hasDates && normalizedStart) {
     const relIdx = getRelativeIndex(normalizedStart);
     const startVisual = dayToVisualIndex[relIdx] ?? 0;
-    const endVisual = dayToVisualIndex[relIdx + taskDuration] ?? startVisual + taskDuration;
+
+    // Find end visual index — walk forward to find the closest mapped day
+    // at or after the raw end index.  This handles the case where the end
+    // day falls on a hidden weekend.
+    const rawEnd = relIdx + taskDuration;
+    let endVisual: number | undefined = dayToVisualIndex[rawEnd];
+    if (endVisual === undefined) {
+      for (let probe = rawEnd + 1; probe <= rawEnd + 3; probe++) {
+        if (dayToVisualIndex[probe] !== undefined) {
+          endVisual = dayToVisualIndex[probe];
+          break;
+        }
+      }
+      if (endVisual === undefined) endVisual = startVisual + taskDuration;
+    }
+
     barLeft = startVisual * zoomLevel;
     barWidth = Math.max((endVisual - startVisual) * zoomLevel, zoomLevel);
   }

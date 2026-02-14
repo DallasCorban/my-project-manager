@@ -53,7 +53,7 @@ export function GanttBar({
     <div
       className={`absolute top-1/2 -translate-y-1/2 ${barHeight} rounded-md flex items-center
         shadow-sm cursor-grab active:cursor-grabbing select-none
-        transition-opacity ${isDeleteMode ? 'opacity-30' : 'opacity-100'}
+        ${isDeleteMode ? 'opacity-30' : 'opacity-100'}
         ${darkMode ? 'border border-[#181b34]' : 'border border-white/50'}`}
       style={{
         left,

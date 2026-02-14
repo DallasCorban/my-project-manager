@@ -41,7 +41,18 @@ export function GanttSubitemStack({
         const relIdx = getRelativeIndex(s.start as string);
         const dur = Math.max(1, Number(s.duration || 1));
         const startVis = dayToVisualIndex[relIdx] ?? 0;
-        const endVis = dayToVisualIndex[relIdx + dur] ?? startVis + dur;
+        // Find end visual index — probe forward if end falls on a hidden weekend
+        const rawEnd = relIdx + dur;
+        let endVis: number | undefined = dayToVisualIndex[rawEnd];
+        if (endVis === undefined) {
+          for (let probe = rawEnd + 1; probe <= rawEnd + 3; probe++) {
+            if (dayToVisualIndex[probe] !== undefined) {
+              endVis = dayToVisualIndex[probe];
+              break;
+            }
+          }
+          if (endVis === undefined) endVis = startVis + dur;
+        }
         return { subitem: s, start: startVis, end: endVis };
       })
       .sort((a, b) => a.start - b.start);
