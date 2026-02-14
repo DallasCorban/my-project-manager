@@ -443,6 +443,98 @@ export function useProjectData() {
         })),
       );
     },
+
+    /** Reorder tasks within a group via splice-based move. */
+    reorderTasks: (pid: string, groupId: string, fromIndex: number, toIndex: number): void => {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== pid) return p;
+          const groupTasks = p.tasks.filter((t) => t.groupId === groupId);
+          const otherTasks = p.tasks.filter((t) => t.groupId !== groupId);
+          const [moved] = groupTasks.splice(fromIndex, 1);
+          if (!moved) return p;
+          groupTasks.splice(toIndex, 0, moved);
+          return { ...p, tasks: [...otherTasks, ...groupTasks] };
+        }),
+      );
+    },
+
+    /** Move a task from one group to another at a specific index. */
+    moveTaskToGroup: (
+      pid: string,
+      taskId: string,
+      _fromGroupId: string,
+      toGroupId: string,
+      toIndex: number,
+    ): void => {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== pid) return p;
+          const task = p.tasks.find((t) => t.id === taskId);
+          if (!task) return p;
+          const remaining = p.tasks.filter((t) => t.id !== taskId);
+          const movedTask = { ...task, groupId: toGroupId };
+          const targetGroupTasks = remaining.filter((t) => t.groupId === toGroupId);
+          const otherTasks = remaining.filter((t) => t.groupId !== toGroupId);
+          targetGroupTasks.splice(toIndex, 0, movedTask);
+          return { ...p, tasks: [...otherTasks, ...targetGroupTasks] };
+        }),
+      );
+    },
+
+    /** Reorder subitems within a task. */
+    reorderSubitems: (pid: string, taskId: string, fromIndex: number, toIndex: number): void => {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== pid) return p;
+          return {
+            ...p,
+            tasks: p.tasks.map((t) => {
+              if (t.id !== taskId) return t;
+              const subs = [...t.subitems];
+              const [moved] = subs.splice(fromIndex, 1);
+              if (!moved) return t;
+              subs.splice(toIndex, 0, moved);
+              return { ...t, subitems: subs };
+            }),
+          };
+        }),
+      );
+    },
+
+    /** Duplicate selected items. */
+    duplicateItems: (ids: Set<string>): void => {
+      setProjects((prev) =>
+        prev.map((p) => {
+          const newTasks: Item[] = [];
+          const updatedTasks = p.tasks.map((t) => {
+            const newSubs = t.subitems.filter((s) => ids.has(s.id)).map((s) => ({
+              ...s,
+              id: `s${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              name: `${s.name} (copy)`,
+            }));
+            const updatedTask = newSubs.length > 0
+              ? { ...t, subitems: [...t.subitems, ...newSubs] }
+              : t;
+
+            if (ids.has(t.id)) {
+              newTasks.push({
+                ...t,
+                id: `t${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                name: `${t.name} (copy)`,
+                subitems: t.subitems.map((s) => ({
+                  ...s,
+                  id: `s${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                })),
+              });
+            }
+
+            return updatedTask;
+          });
+          return { ...p, tasks: [...updatedTasks, ...newTasks] };
+        }),
+      );
+    },
   };
 
   return { projects, setProjects, ...actions };

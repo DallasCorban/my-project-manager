@@ -3,6 +3,7 @@
 // Right side: bar area with day grid + GanttBar + creation preview.
 // Ported from GanttView.jsx lines 406-569 (parent) and 597-705 (subitem).
 
+import { Plus } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { GanttBar } from './GanttBar';
 import { GanttSubitemStack } from './GanttSubitemStack';
@@ -49,6 +50,7 @@ interface GanttTaskRowProps {
   onStatusSelect: (statusId: string) => void;
   onTypeSelect: (typeId: string) => void;
   onOpenUpdates?: () => void;
+  onAddSubitem?: (projectId: string, taskId: string) => void;
 }
 
 export function GanttTaskRow({
@@ -78,6 +80,7 @@ export function GanttTaskRow({
   onStatusSelect: _onStatusSelect,
   onTypeSelect: _onTypeSelect,
   onOpenUpdates,
+  onAddSubitem,
 }: GanttTaskRowProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const expandedItems = useUIStore((s) => s.expandedItems);
@@ -134,7 +137,7 @@ export function GanttTaskRow({
 
   return (
     <div
-      className={`flex relative ${
+      className={`flex relative group ${
         isDragging ? 'opacity-50' : ''
       } ${
         darkMode
@@ -176,6 +179,24 @@ export function GanttTaskRow({
             className="shrink-0 w-2 h-2 rounded-full"
             style={{ backgroundColor: getTaskColor(task) }}
           />
+
+          {/* Add subitem button (visible on hover for non-subitems) */}
+          {!isSubitem && canEdit && onAddSubitem && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSubitem(projectId, task.id);
+              }}
+              className={`shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
+                darkMode
+                  ? 'hover:bg-white/10 text-gray-400'
+                  : 'hover:bg-gray-200 text-gray-400'
+              }`}
+              title="Add subitem"
+            >
+              <Plus size={12} />
+            </button>
+          )}
         </div>
       </div>
 

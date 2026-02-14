@@ -4,14 +4,22 @@
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectData } from '../../stores/projectStore';
 import { useWorkspaceData } from '../../stores/workspaceStore';
+import { getProjectPermissions } from '../../stores/memberStore';
 import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
 import { BoardView } from '../board/BoardView';
 import { GanttView } from '../gantt/GanttView';
+import { UpdatesPanel } from '../panels/UpdatesPanel';
+import { MembersModal } from '../panels/MembersModal';
+import { SelectionTray } from '../shared/SelectionTray';
+import { DatePickerPopup } from '../shared/DatePickerPopup';
 
 export function AppShell() {
   const darkMode = useUIStore((s) => s.darkMode);
   const activeTab = useUIStore((s) => s.activeTab);
+  const updatesPanelTarget = useUIStore((s) => s.updatesPanelTarget);
+  const closeUpdatesPanel = useUIStore((s) => s.closeUpdatesPanel);
+  const selectedItems = useUIStore((s) => s.selectedItems);
 
   const {
     projects,
@@ -22,6 +30,10 @@ export function AppShell() {
     changeStatus,
     changeJobType,
     addTaskToGroup,
+    addSubitem,
+    addUpdate,
+    addReply,
+    toggleChecklistItem,
   } = useProjectData();
   const {
     workspaces,
@@ -97,6 +109,7 @@ export function AppShell() {
           entityType="workspace"
           onUpdateEntityName={handleUpdateEntityName}
           canEditEntityName={true}
+          activeProjectId={activeProject?.id ?? null}
         />
 
         {/* View content */}
@@ -119,6 +132,7 @@ export function AppShell() {
               onChangeStatus={(pid, tid, sid, val) => changeStatus(pid, tid, sid, val)}
               onChangeJobType={(pid, tid, sid, val) => changeJobType(pid, tid, sid, val)}
               onAddTaskToGroup={(pid, gid) => addTaskToGroup(pid, gid)}
+              onAddSubitem={(pid, tid) => addSubitem(pid, tid)}
             />
           )
         ) : (
@@ -134,6 +148,70 @@ export function AppShell() {
           </div>
         )}
       </div>
+
+      {/* Updates Panel (slide-over) */}
+      {updatesPanelTarget && activeProject && (() => {
+        const { taskId, subitemId, projectId } = updatesPanelTarget;
+        const task = activeProject.tasks.find((t) => t.id === taskId);
+        if (!task) return null;
+        const isSubitem = Boolean(subitemId);
+        const subitem = subitemId ? task.subitems.find((s) => s.id === subitemId) : null;
+        const targetName = isSubitem ? (subitem?.name || '') : task.name;
+        const updates = isSubitem ? (subitem?.updates || []) : (task.updates || []);
+        const files = isSubitem ? (subitem?.files || []) : (task.files || []);
+        const permissions = getProjectPermissions(projectId);
+
+        return (
+          <UpdatesPanel
+            taskName={targetName}
+            parentName={isSubitem ? task.name : undefined}
+            isSubitem={isSubitem}
+            updates={updates}
+            files={files}
+            permissions={permissions}
+            onClose={closeUpdatesPanel}
+            onAddUpdate={(payload) => {
+              const update = {
+                id: `u${Date.now()}`,
+                text: payload.text,
+                checklist: payload.checklist,
+                author: 'You',
+                createdAt: new Date().toISOString(),
+                replies: [],
+              };
+              addUpdate(projectId, taskId, subitemId, update);
+            }}
+            onAddReply={(updateId, text) => {
+              const reply = {
+                id: `r${Date.now()}`,
+                text,
+                author: 'You',
+                createdAt: new Date().toISOString(),
+              };
+              addReply(projectId, taskId, subitemId, updateId, reply);
+            }}
+            onToggleChecklistItem={(updateId, itemId) => {
+              toggleChecklistItem(projectId, taskId, subitemId, updateId, itemId);
+            }}
+          />
+        );
+      })()}
+
+      {/* Members Modal */}
+      {activeProject && (
+        <MembersModal
+          projectId={activeProject.id}
+          projectName={activeProject.name}
+        />
+      )}
+
+      {/* Selection Tray */}
+      {activeProject && selectedItems.size > 0 && (
+        <SelectionTray projectId={activeProject.id} />
+      )}
+
+      {/* Date Picker Popup */}
+      <DatePickerPopup />
     </div>
   );
 }

@@ -1,7 +1,9 @@
 // GanttSubitemStack — renders collapsed subitem bars in horizontal lanes within a parent row.
+// Shows normal-sized bars with proper stacking and tooltips.
 // Ported from GanttView.jsx lines 345-390 (lane algorithm) and 474-518 (rendering).
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { useUIStore } from '../../stores/uiStore';
 import type { Subitem } from '../../types/item';
 
 interface SubitemLane {
@@ -28,6 +30,9 @@ export function GanttSubitemStack({
   dayToVisualIndex,
   getColor,
 }: GanttSubitemStackProps) {
+  const darkMode = useUIStore((s) => s.darkMode);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
   const { lanes, maxLanes } = useMemo(() => {
     // Filter subitems that have dates
     const dated = subitems
@@ -46,7 +51,6 @@ export function GanttSubitemStack({
     const result: SubitemLane[] = [];
 
     for (const item of dated) {
-      // Find first lane where this item fits
       let assignedLane = -1;
       for (let l = 0; l < laneEnds.length; l++) {
         if (laneEnds[l] <= item.start) {
@@ -73,30 +77,56 @@ export function GanttSubitemStack({
 
   if (lanes.length === 0) return null;
 
+  const barHeight = 16;
+  const laneSpacing = 20;
+  const totalHeight = maxLanes * laneSpacing;
+  const baseOffset = (rowHeight - totalHeight) / 2;
+
   return (
-    <div className="absolute inset-0 pointer-events-none">
+    <div className="absolute inset-0">
       {lanes.map((item) => {
         const left = item.startVisual * zoomLevel;
         const width = Math.max(item.widthVisual * zoomLevel, zoomLevel * 0.5);
-        const barHeight = 3;
-        // Center lanes vertically within the row
-        const laneSpacing = 6;
-        const totalHeight = maxLanes * laneSpacing;
-        const topOffset = (rowHeight - totalHeight) / 2 + item.laneIndex * laneSpacing;
+        const topOffset = baseOffset + item.laneIndex * laneSpacing + (laneSpacing - barHeight) / 2;
+        const isHovered = hoveredId === item.subitem.id;
 
         return (
           <div
             key={item.subitem.id}
-            className="absolute rounded-sm"
+            className={`absolute rounded-sm cursor-pointer transition-all duration-100 ${
+              isHovered ? 'ring-2 ring-white/40 z-10' : ''
+            } ${darkMode ? 'border border-[#181b34]' : 'border border-white/30'}`}
             style={{
               left,
               width,
               top: topOffset,
               height: barHeight,
               backgroundColor: getColor(item.subitem),
-              opacity: 0.7,
+              opacity: isHovered ? 1 : 0.8,
             }}
-          />
+            onMouseEnter={() => setHoveredId(item.subitem.id)}
+            onMouseLeave={() => setHoveredId(null)}
+          >
+            {/* Label (if bar wide enough) */}
+            {width > 40 && zoomLevel > 15 && (
+              <span className="text-[8px] text-white px-1 truncate leading-[16px] pointer-events-none">
+                {item.subitem.name}
+              </span>
+            )}
+
+            {/* Tooltip on hover */}
+            {isHovered && (
+              <div
+                className={`absolute -top-7 left-0 px-2 py-0.5 rounded text-[10px] whitespace-nowrap shadow-md z-50 ${
+                  darkMode
+                    ? 'bg-[#0f1224] text-gray-200 border border-[#2b2c32]'
+                    : 'bg-gray-800 text-white'
+                }`}
+              >
+                {item.subitem.name}
+              </div>
+            )}
+          </div>
         );
       })}
     </div>

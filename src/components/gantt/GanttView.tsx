@@ -33,6 +33,7 @@ interface GanttViewProps {
   onChangeStatus: (pid: string, tid: string, sid: string | null, val: string) => void;
   onChangeJobType: (pid: string, tid: string, sid: string | null, val: string) => void;
   onAddTaskToGroup: (pid: string, gid: string) => void;
+  onAddSubitem?: (pid: string, tid: string, name?: string) => void;
 }
 
 const INITIAL_REORDER: ReorderDrag = {
@@ -59,6 +60,7 @@ export function GanttView({
   onChangeStatus,
   onChangeJobType,
   onAddTaskToGroup,
+  onAddSubitem,
 }: GanttViewProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const collapsedGroups = useUIStore((s) => s.collapsedGroups);
@@ -190,9 +192,23 @@ export function GanttView({
     return () => clearTimeout(timer);
   }, [scrollToToday]);
 
-  // Zoom controls
-  const handleZoomIn = () => setZoomLevel(Math.min(80, zoomLevel + 4));
-  const handleZoomOut = () => setZoomLevel(Math.max(8, zoomLevel - 4));
+  // Viewport-centered zoom: calculate center day before zoom, restore after
+  const handleZoomChange = useCallback((newZoom: number) => {
+    const body = bodyRef.current;
+    if (!body) {
+      setZoomLevel(newZoom);
+      return;
+    }
+    // Find center day index before zoom
+    const viewportCenter = body.scrollLeft + body.clientWidth / 2 - 320; // 320 = label column width
+    const centerDayIdx = viewportCenter / zoomLevel;
+    setZoomLevel(newZoom);
+    // After React re-renders, scroll to keep center day centered
+    requestAnimationFrame(() => {
+      const newCenter = centerDayIdx * newZoom;
+      body.scrollLeft = newCenter - body.clientWidth / 2 + 320;
+    });
+  }, [zoomLevel, setZoomLevel]);
 
   // Get tasks for a group
   const getGroupTasks = (group: Group): Item[] =>
@@ -210,36 +226,39 @@ export function GanttView({
             : 'bg-white border-[#eceff8]'
         }`}
       >
-        {/* Zoom */}
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handleZoomOut}
-            className={`p-1 rounded transition-colors ${
-              darkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
-            }`}
-            title="Zoom out"
-          >
-            <ZoomOut size={16} />
-          </button>
-          <span className={`text-xs w-8 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            {zoomLevel}
-          </span>
-          <button
-            onClick={handleZoomIn}
-            className={`p-1 rounded transition-colors ${
-              darkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
-            }`}
-            title="Zoom in"
-          >
-            <ZoomIn size={16} />
-          </button>
+        {/* Zoom slider */}
+        <div className="flex items-center gap-2">
+          <ZoomOut size={14} className={darkMode ? 'text-gray-500' : 'text-gray-400'} />
+          <input
+            type="range"
+            min={12}
+            max={80}
+            step={1}
+            value={zoomLevel}
+            onChange={(e) => handleZoomChange(Number(e.target.value))}
+            className="w-24 h-1.5 accent-blue-500 cursor-pointer"
+            title={`Zoom: ${zoomLevel}px/day`}
+          />
+          <ZoomIn size={14} className={darkMode ? 'text-gray-500' : 'text-gray-400'} />
         </div>
 
         <div className={`w-px h-4 ${darkMode ? 'bg-[#2b2c32]' : 'bg-gray-200'}`} />
 
-        {/* Weekends toggle */}
+        {/* Weekends toggle — preserves scroll center */}
         <button
-          onClick={toggleWeekends}
+          onClick={() => {
+            const body = bodyRef.current;
+            if (body) {
+              const viewportCenter = body.scrollLeft + body.clientWidth / 2 - 320;
+              const centerDayIdx = viewportCenter / zoomLevel;
+              toggleWeekends();
+              requestAnimationFrame(() => {
+                body.scrollLeft = centerDayIdx * zoomLevel - body.clientWidth / 2 + 320;
+              });
+            } else {
+              toggleWeekends();
+            }
+          }}
           className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
             showWeekends
               ? darkMode
@@ -465,6 +484,7 @@ export function GanttView({
                               projectId: project.id,
                             })
                           }
+                          onAddSubitem={onAddSubitem ? (pid, tid) => onAddSubitem(pid, tid) : undefined}
                         />
 
                         {/* Expanded subitems */}

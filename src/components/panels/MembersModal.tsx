@@ -6,6 +6,7 @@ import { X, Users, Shield, Clock } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useMemberStore } from '../../stores/memberStore';
 import { getProjectPermissions } from '../../stores/memberStore';
+
 import {
   getMemberEffectiveRole,
   getMemberAccessUntil,
@@ -13,6 +14,8 @@ import {
 } from '../../services/permissions';
 import { ROLE_OPTIONS } from '../../config/constants';
 import type { Member } from '../../types/member';
+
+const EMPTY_MEMBERS: Member[] = [];
 
 interface MembersModalProps {
   projectId: string;
@@ -24,7 +27,7 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
   const membersModalOpen = useUIStore((s) => s.membersModalOpen);
   const setMembersModalOpen = useUIStore((s) => s.setMembersModalOpen);
 
-  const members = useMemberStore((s) => s.membersByProject[projectId] || []);
+  const members = useMemberStore((s) => s.membersByProject[projectId] ?? EMPTY_MEMBERS);
   const permissions = getProjectPermissions(projectId);
   const canManage = permissions.canManageMembers;
 

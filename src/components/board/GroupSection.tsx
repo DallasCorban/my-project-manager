@@ -1,5 +1,6 @@
 // A single group within the board view: header + task rows.
 
+import { useState, useRef } from 'react';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { GroupHeaderRow } from './GroupHeaderRow';
@@ -23,12 +24,12 @@ interface GroupSectionProps {
   onUpdateSubitemName: (taskId: string, subitemId: string, name: string) => void;
   onStatusSelect: (taskId: string, subitemId: string | null, statusId: string) => void;
   onTypeSelect: (taskId: string, subitemId: string | null, typeId: string) => void;
-  onAddTaskToGroup: () => void;
+  onAddTaskToGroup: (name?: string) => void;
   onAddSubitem: (projectId: string, taskId: string) => void;
-  onEditStatusLabels: () => void;
-  onEditTypeLabels: () => void;
   onAddStatusLabel: (label: string, color: string) => void;
   onAddTypeLabel: (label: string, color: string) => void;
+  onRemoveStatusLabel?: (id: string) => void;
+  onRemoveTypeLabel?: (id: string) => void;
   onOpenDatePicker: (taskId: string, subitemId: string | null) => void;
   onOpenUpdates: (taskId: string, subitemId: string | null) => void;
   reorderDrag: ReorderDrag | null;
@@ -54,10 +55,10 @@ export function GroupSection({
   onTypeSelect,
   onAddTaskToGroup,
   onAddSubitem,
-  onEditStatusLabels,
-  onEditTypeLabels,
   onAddStatusLabel,
   onAddTypeLabel,
+  onRemoveStatusLabel,
+  onRemoveTypeLabel,
   onOpenDatePicker,
   onOpenUpdates,
   reorderDrag,
@@ -74,7 +75,31 @@ export function GroupSection({
   const selectedItems = useUIStore((s) => s.selectedItems);
   const toggleSelection = useUIStore((s) => s.toggleSelection);
 
+  // Inline add item state
+  const [isAdding, setIsAdding] = useState(false);
+  const [addText, setAddText] = useState('');
+  const addInputRef = useRef<HTMLInputElement>(null);
+
   const isCollapsed = collapsedGroups.includes(group.id);
+
+  const handleAddSubmit = () => {
+    const name = addText.trim();
+    if (name) {
+      onAddTaskToGroup(name);
+      setAddText('');
+      // Keep input focused for rapid entry
+      setTimeout(() => addInputRef.current?.focus(), 0);
+    }
+  };
+
+  const handleAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleAddSubmit();
+    } else if (e.key === 'Escape') {
+      setIsAdding(false);
+      setAddText('');
+    }
+  };
 
   return (
     <div className="mb-6">
@@ -104,7 +129,7 @@ export function GroupSection({
       {/* Table contents */}
       {!isCollapsed && (
         <div
-          className={`rounded-lg border overflow-hidden ${
+          className={`rounded-lg border ${
             darkMode ? 'border-[#2b2c32]' : 'border-[#d0d4e4]'
           }`}
           style={{ borderLeftColor: group.color, borderLeftWidth: 3 }}
@@ -126,10 +151,10 @@ export function GroupSection({
                 onUpdateName={(v) => onUpdateTaskName(task.id, v)}
                 onStatusSelect={(sid) => onStatusSelect(task.id, null, sid)}
                 onTypeSelect={(tid) => onTypeSelect(task.id, null, tid)}
-                onEditStatusLabels={onEditStatusLabels}
-                onEditTypeLabels={onEditTypeLabels}
                 onAddStatusLabel={onAddStatusLabel}
                 onAddTypeLabel={onAddTypeLabel}
+                onRemoveStatusLabel={onRemoveStatusLabel}
+                onRemoveTypeLabel={onRemoveTypeLabel}
                 onOpenDatePicker={() => onOpenDatePicker(task.id, null)}
                 onOpenUpdates={() => onOpenUpdates(task.id, null)}
                 boardColumns={boardColumns}
@@ -157,10 +182,10 @@ export function GroupSection({
                     onUpdateName={(v) => onUpdateSubitemName(task.id, sub.id, v)}
                     onStatusSelect={(sid) => onStatusSelect(task.id, sub.id, sid)}
                     onTypeSelect={(tid) => onTypeSelect(task.id, sub.id, tid)}
-                    onEditStatusLabels={onEditStatusLabels}
-                    onEditTypeLabels={onEditTypeLabels}
                     onAddStatusLabel={onAddStatusLabel}
                     onAddTypeLabel={onAddTypeLabel}
+                    onRemoveStatusLabel={onRemoveStatusLabel}
+                    onRemoveTypeLabel={onRemoveTypeLabel}
                     onOpenDatePicker={() => onOpenDatePicker(task.id, sub.id)}
                     onOpenUpdates={() => onOpenUpdates(task.id, sub.id)}
                     boardColumns={boardColumns}
@@ -175,18 +200,47 @@ export function GroupSection({
             </div>
           ))}
 
-          {/* Add item row */}
+          {/* Add item row — inline input */}
           {canEdit && (
             <div
-              className={`flex items-center h-10 px-4 cursor-pointer transition-colors ${
+              className={`flex items-center h-10 px-4 transition-colors ${
                 darkMode
                   ? 'hover:bg-[#202336] text-gray-500'
                   : 'hover:bg-gray-50 text-gray-400'
               }`}
-              onClick={onAddTaskToGroup}
             >
-              <Plus size={14} className="mr-2" />
-              <span className="text-xs">Add Item</span>
+              {isAdding ? (
+                <div className="flex items-center gap-2 w-full">
+                  <Plus size={14} className="shrink-0" />
+                  <input
+                    ref={addInputRef}
+                    autoFocus
+                    value={addText}
+                    onChange={(e) => setAddText(e.target.value)}
+                    onKeyDown={handleAddKeyDown}
+                    onBlur={() => {
+                      if (!addText.trim()) {
+                        setIsAdding(false);
+                        setAddText('');
+                      }
+                    }}
+                    placeholder="Item name..."
+                    className={`flex-1 h-7 px-2 text-xs rounded outline-none border ${
+                      darkMode
+                        ? 'bg-[#181b34] border-[#2b2c32] text-gray-200 placeholder-gray-500'
+                        : 'bg-white border-gray-200 text-gray-700 placeholder-gray-400'
+                    }`}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => setIsAdding(true)}
+                >
+                  <Plus size={14} />
+                  <span className="text-xs">Add Item</span>
+                </div>
+              )}
             </div>
           )}
         </div>

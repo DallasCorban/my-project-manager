@@ -2,7 +2,7 @@
 // Ported from src/components/TaskRow.jsx.
 
 import { useRef } from 'react';
-import { CheckSquare, Square, CornerDownRight, ChevronRight, Plus } from 'lucide-react';
+import { CheckSquare, Square, CornerDownRight, ChevronRight, Plus, MessageSquare } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { EditableText } from './EditableText';
 import { LabelDropdown } from './StatusDropdown';
@@ -25,10 +25,10 @@ interface TaskRowProps {
   onUpdateName: (value: string) => void;
   onStatusSelect: (statusId: string) => void;
   onTypeSelect: (typeId: string) => void;
-  onEditStatusLabels?: () => void;
-  onEditTypeLabels?: () => void;
   onAddStatusLabel?: (label: string, color: string) => void;
   onAddTypeLabel?: (label: string, color: string) => void;
+  onRemoveStatusLabel?: (id: string) => void;
+  onRemoveTypeLabel?: (id: string) => void;
   onOpenDatePicker?: () => void;
   onOpenUpdates?: () => void;
   boardColumns: BoardColumns;
@@ -54,10 +54,10 @@ export function TaskRow({
   onUpdateName,
   onStatusSelect,
   onTypeSelect,
-  onEditStatusLabels,
-  onEditTypeLabels,
   onAddStatusLabel,
   onAddTypeLabel,
+  onRemoveStatusLabel,
+  onRemoveTypeLabel,
   onOpenDatePicker,
   onOpenUpdates,
   boardColumns: col,
@@ -76,6 +76,9 @@ export function TaskRow({
   const toggleItemExpand = useUIStore((s) => s.toggleItemExpand);
 
   const dragBlockRef = useRef(false);
+  const statusAnchorRef = useRef<HTMLDivElement>(null);
+  const typeAnchorRef = useRef<HTMLDivElement>(null);
+
   const hasSubitems = 'subitems' in task && task.subitems && task.subitems.length > 0;
 
   const statusColor = statuses.find((s) => s.id === task.status)?.color || '#c4c4c4';
@@ -193,12 +196,27 @@ export function TaskRow({
           />
 
           {!isSubitem && (
-            <div className="flex items-center gap-2 ml-auto no-drag">
+            <div className="flex items-center gap-1 ml-auto no-drag">
               {hasSubitems && (
                 <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 rounded-full">
                   {(task as Item).subitems.length}
                 </span>
               )}
+              {/* Updates open button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenUpdates?.();
+                }}
+                className={`p-1 rounded transition-colors opacity-0 group-hover:opacity-100 ${
+                  darkMode
+                    ? 'hover:bg-white/10 text-gray-400 hover:text-blue-400'
+                    : 'hover:bg-gray-200 text-gray-400 hover:text-blue-600'
+                }`}
+                title="Open updates"
+              >
+                <MessageSquare size={14} />
+              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -231,6 +249,7 @@ export function TaskRow({
 
       {/* Status column */}
       <div
+        ref={statusAnchorRef}
         className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${cellBorder}`}
         style={{ width: col.status }}
       >
@@ -249,25 +268,23 @@ export function TaskRow({
         </div>
 
         {canEdit && statusMenuOpen === task.id && statusMenuType === 'status' && (
-          <div className="absolute top-full w-full left-0 z-[100]">
-            <LabelDropdown
-              labels={statuses}
-              currentId={task.status}
-              onSelect={onStatusSelect}
-              darkMode={darkMode}
-              onEdit={onEditStatusLabels}
-              onAddLabel={onAddStatusLabel}
-              title="Status"
-              addPlaceholder="New status…"
-              addButtonText="Add Status"
-              manageText="Manage Status Labels"
-            />
-          </div>
+          <LabelDropdown
+            labels={statuses}
+            currentId={task.status}
+            onSelect={onStatusSelect}
+            darkMode={darkMode}
+            onAddLabel={onAddStatusLabel}
+            onRemoveLabel={onRemoveStatusLabel}
+            title="Status"
+            addPlaceholder="New status…"
+            anchorRef={statusAnchorRef}
+          />
         )}
       </div>
 
       {/* Type column */}
       <div
+        ref={typeAnchorRef}
         className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${cellBorder}`}
         style={{ width: col.type }}
       >
@@ -286,20 +303,17 @@ export function TaskRow({
         </div>
 
         {canEdit && statusMenuOpen === task.id && statusMenuType === 'type' && (
-          <div className="absolute top-full w-full left-0 z-[100]">
-            <LabelDropdown
-              labels={jobTypes}
-              currentId={task.jobTypeId}
-              onSelect={onTypeSelect}
-              darkMode={darkMode}
-              onEdit={onEditTypeLabels}
-              onAddLabel={onAddTypeLabel}
-              title="Type"
-              addPlaceholder="New type…"
-              addButtonText="Add Type"
-              manageText="Manage Type Labels"
-            />
-          </div>
+          <LabelDropdown
+            labels={jobTypes}
+            currentId={task.jobTypeId}
+            onSelect={onTypeSelect}
+            darkMode={darkMode}
+            onAddLabel={onAddTypeLabel}
+            onRemoveLabel={onRemoveTypeLabel}
+            title="Type"
+            addPlaceholder="New type…"
+            anchorRef={typeAnchorRef}
+          />
         )}
       </div>
 
