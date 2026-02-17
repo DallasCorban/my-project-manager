@@ -494,6 +494,7 @@ export function GanttView({
                               key={sub.id}
                               task={sub}
                               projectId={project.id}
+                              parentTaskId={task.id}
                               isSubitem
                               visibleDays={visibleDays}
                               zoomLevel={zoomLevel}

@@ -1,7 +1,7 @@
 // MembersModal — project member management modal.
 // Shows current members, roles, and allows admins to manage access.
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Users, Shield, Clock } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useMemberStore } from '../../stores/memberStore';
@@ -12,6 +12,8 @@ import {
   getMemberAccessUntil,
   isMemberActive,
 } from '../../services/permissions';
+import { updateMemberRole } from '../../services/firebase/inviteSync';
+import { ContractorDatePopover } from '../shared/ContractorDatePopover';
 import { ROLE_OPTIONS } from '../../config/constants';
 import type { Member } from '../../types/member';
 
@@ -117,6 +119,7 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
                 <MemberRow
                   key={member.id || member.uid}
                   member={member}
+                  projectId={projectId}
                   canManage={canManage}
                   darkMode={darkMode}
                 />
@@ -140,10 +143,12 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
 
 function MemberRow({
   member,
+  projectId,
   canManage,
   darkMode,
 }: {
   member: Member;
+  projectId: string;
   canManage: boolean;
   darkMode: boolean;
 }) {
@@ -151,6 +156,81 @@ function MemberRow({
   const active = isMemberActive(member);
   const accessUntil = getMemberAccessUntil(member);
   const isContractor = member.role === 'contractor';
+
+  // Contractor date popover state
+  const [contractorPopoverOpen, setContractorPopoverOpen] = useState(false);
+  const [pendingPopoverOpen, setPendingPopoverOpen] = useState(false);
+  const [isNewContractor, setIsNewContractor] = useState(false);
+  const contractorPillRef = useRef<HTMLButtonElement>(null);
+
+  // Auto-open popover after switching to contractor role
+  // (waits for Firestore listener to update the member so the pill renders)
+  useEffect(() => {
+    if (pendingPopoverOpen && isContractor) {
+      setContractorPopoverOpen(true);
+      setPendingPopoverOpen(false);
+    }
+  }, [pendingPopoverOpen, isContractor]);
+
+  const handleRoleChange = async (newRole: string) => {
+    const uid = member.uid || member.id;
+    if (!uid) return;
+
+    if (newRole === 'contractor') {
+      // Switching to contractor: set role to contractor, preserve current role as baseRole
+      await updateMemberRole(projectId, uid, {
+        role: 'contractor',
+        baseRole: effectiveRole,
+      });
+      // Auto-open date popover so admin sets contract dates immediately
+      setIsNewContractor(true);
+      setPendingPopoverOpen(true);
+    } else if (isContractor) {
+      // Changing a contractor's base permission level
+      await updateMemberRole(projectId, uid, {
+        role: 'contractor',
+        baseRole: newRole,
+      });
+    } else {
+      // Normal role change
+      await updateMemberRole(projectId, uid, { role: newRole });
+    }
+  };
+
+  const handleContractorDateApply = async (date: Date) => {
+    const uid = member.uid || member.id;
+    if (!uid) return;
+    // Set to end of day so access lasts through the selected date
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    await updateMemberRole(projectId, uid, { accessUntil: endOfDay });
+    setContractorPopoverOpen(false);
+    setIsNewContractor(false);
+  };
+
+  const handleMakePermanent = async () => {
+    const uid = member.uid || member.id;
+    if (!uid) return;
+    // Promote to their effective role, clear contractor fields
+    await updateMemberRole(projectId, uid, {
+      role: effectiveRole,
+      baseRole: null,
+      accessUntil: null,
+    });
+    setContractorPopoverOpen(false);
+    setIsNewContractor(false);
+  };
+
+  // Contractor pill label and style
+  const contractorPillLabel = !active
+    ? 'Expired'
+    : accessUntil
+      ? `until ${accessUntil.toLocaleDateString()}`
+      : 'Set dates';
+
+  const contractorPillColor = !active
+    ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+    : 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20';
 
   return (
     <div
@@ -174,19 +254,23 @@ function MemberRow({
           }`}>
             {effectiveRole}
           </span>
+          {/* Interactive contractor pill — replaces static contractor badges */}
           {isContractor && (
-            <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
+            <button
+              ref={contractorPillRef}
+              onClick={() => {
+                if (canManage) {
+                  setIsNewContractor(false);
+                  setContractorPopoverOpen(true);
+                }
+              }}
+              className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${contractorPillColor} ${
+                canManage ? 'cursor-pointer' : 'cursor-default'
+              }`}
+            >
               <Clock size={10} />
-              Contractor
-            </span>
-          )}
-          {!active && (
-            <span className="text-[10px] text-red-400">Expired</span>
-          )}
-          {isContractor && accessUntil && (
-            <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-              until {accessUntil.toLocaleDateString()}
-            </span>
+              {contractorPillLabel}
+            </button>
           )}
         </div>
       </div>
@@ -197,20 +281,22 @@ function MemberRow({
           ? 'bg-amber-500/10 text-amber-500'
           : member.role === 'admin'
             ? 'bg-purple-500/10 text-purple-500'
-            : darkMode
-              ? 'bg-white/5 text-gray-400'
-              : 'bg-gray-100 text-gray-500'
+            : isContractor
+              ? 'bg-amber-500/10 text-amber-500'
+              : darkMode
+                ? 'bg-white/5 text-gray-400'
+                : 'bg-gray-100 text-gray-500'
       }`}>
         {member.role === 'owner' && <Shield size={10} />}
-        <span className="capitalize">{member.role}</span>
+        <span className="capitalize">{isContractor ? 'contractor' : member.role}</span>
       </div>
 
-      {/* Role change (admin only, not for owners) */}
+      {/* Role change dropdown (admin only, not for owners) */}
       {canManage && member.role !== 'owner' && (
         <select
           value={effectiveRole}
-          onChange={() => {
-            // TODO: implement role change via Firestore
+          onChange={(e) => {
+            void handleRoleChange(e.target.value);
           }}
           className={`text-xs rounded px-1 py-0.5 border ${
             darkMode
@@ -218,12 +304,31 @@ function MemberRow({
               : 'bg-white text-gray-600 border-gray-200'
           }`}
         >
-          {ROLE_OPTIONS.filter((o) => o.value !== 'owner').map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
+          {ROLE_OPTIONS
+            .filter((o) => o.value !== 'owner')
+            .filter((o) => isContractor ? o.value !== 'contractor' : true)
+            .map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
         </select>
+      )}
+
+      {/* Contractor date popover */}
+      {contractorPopoverOpen && isContractor && (
+        <ContractorDatePopover
+          anchorRef={contractorPillRef}
+          currentDate={accessUntil}
+          isNewContractor={isNewContractor}
+          darkMode={darkMode}
+          onApply={(date) => { void handleContractorDateApply(date); }}
+          onMakePermanent={() => { void handleMakePermanent(); }}
+          onClose={() => {
+            setContractorPopoverOpen(false);
+            setIsNewContractor(false);
+          }}
+        />
       )}
     </div>
   );

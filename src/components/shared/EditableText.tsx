@@ -29,9 +29,15 @@ export function EditableText({
   const [localValue, setLocalValue] = useState(value);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync external value changes
+  // Sync external value changes — but only when there's no pending local edit.
+  // Without this guard, the store's debounced value overwrites what the user
+  // is actively typing (e.g. user types "abc", debounce sends "ab" to store,
+  // store re-renders with value="ab", this effect resets localValue to "ab",
+  // and the "c" disappears).
   useEffect(() => {
-    setLocalValue(value);
+    if (pendingRef.current === null) {
+      setLocalValue(value);
+    }
   }, [value]);
 
   useLayoutEffect(() => {

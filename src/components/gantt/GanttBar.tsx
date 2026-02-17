@@ -30,7 +30,7 @@ export function GanttBar({
   label,
   showLabel,
   zoomLevel,
-  isSubitem = false,
+  isSubitem: _isSubitem = false,
   dragState,
   taskId,
   subitemId,
@@ -47,12 +47,12 @@ export function GanttBar({
 
   const isDeleteMode = isThisBarDragging && dragState.isDeleteMode;
 
-  const barHeight = isSubitem ? 'h-2/3' : 'h-3/4';
+  const barHeight = 'h-3/4'; // Same height for tasks and subitems — visual parity
 
   return (
     <div
       className={`absolute top-1/2 -translate-y-1/2 ${barHeight} rounded-md flex items-center
-        shadow-sm cursor-grab active:cursor-grabbing select-none
+        shadow-sm cursor-grab active:cursor-grabbing select-none pointer-events-auto
         ${isDeleteMode ? 'opacity-30' : 'opacity-100'}
         ${darkMode ? 'border border-[#181b34]' : 'border border-white/50'}`}
       style={{

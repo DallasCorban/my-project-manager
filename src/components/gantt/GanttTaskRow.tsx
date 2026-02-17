@@ -3,7 +3,7 @@
 // Right side: bar area with day grid + GanttBar + creation preview.
 // Ported from GanttView.jsx lines 406-569 (parent) and 597-705 (subitem).
 
-import { Plus } from 'lucide-react';
+import { ChevronRight, Plus } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { GanttBar } from './GanttBar';
 import { GanttSubitemStack } from './GanttSubitemStack';
@@ -15,6 +15,7 @@ import type { StatusLabel, JobTypeLabel } from '../../config/constants';
 interface GanttTaskRowProps {
   task: Item | Subitem;
   projectId: string;
+  parentTaskId?: string;
   isSubitem?: boolean;
   isExpanded?: boolean;
   visibleDays: TimelineDay[];
@@ -56,6 +57,7 @@ interface GanttTaskRowProps {
 export function GanttTaskRow({
   task,
   projectId,
+  parentTaskId,
   isSubitem = false,
   isExpanded: _isExpanded = false,
   visibleDays,
@@ -84,6 +86,7 @@ export function GanttTaskRow({
 }: GanttTaskRowProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const expandedItems = useUIStore((s) => s.expandedItems);
+  const toggleItemExpand = useUIStore((s) => s.toggleItemExpand);
 
   const getTaskColor = (t: Item | Subitem): string => {
     if (colorBy === 'status') {
@@ -161,7 +164,7 @@ export function GanttTaskRow({
   const isDragging =
     reorderDrag?.active && reorderDrag.dragId === task.id;
 
-  const actualRowHeight = isSubitem ? 32 : rowHeight;
+  const actualRowHeight = rowHeight; // Same height for tasks and subitems — visual parity
 
   const hasSubitems = !isSubitem && 'subitems' in task && (task as Item).subitems.length > 0;
   const isCollapsed = hasSubitems && !expandedItems.includes(task.id);
@@ -176,13 +179,11 @@ export function GanttTaskRow({
           : 'border-b border-[#eceff8] hover:bg-[#f5f5f5]'
       }`}
       style={{ height: actualRowHeight }}
-      draggable={canEdit}
-      onDragStart={(e) => onRowDragStart?.(e, isSubitem ? 'subitem' : 'task', task.id, projectId)}
       onDragOver={onRowDragOver}
       onDrop={(e) => onRowDrop?.(e, isSubitem ? 'subitem' : 'task', task.id, projectId)}
       onDragEnd={onRowDragEnd}
     >
-      {/* Left label column — sticky */}
+      {/* Left label column — sticky, draggable for row reorder */}
       <div
         className={`sticky left-0 z-[200] flex items-center shrink-0 border-r overflow-hidden ${
           darkMode
@@ -190,12 +191,31 @@ export function GanttTaskRow({
             : 'bg-white border-[#eceff8]'
         } ${isSubitem ? 'pl-8' : 'pl-3'}`}
         style={{ width: 320, minWidth: 320 }}
+        draggable={canEdit}
+        onDragStart={(e) => onRowDragStart?.(e, isSubitem ? 'subitem' : 'task', task.id, projectId)}
         onClick={(e) => {
           e.stopPropagation();
           onOpenUpdates?.();
         }}
       >
         <div className="flex items-center gap-2 w-full min-w-0">
+          {/* Expand/collapse chevron (parent tasks only) */}
+          {!isSubitem && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                if (hasSubitems) toggleItemExpand(task.id);
+              }}
+              className={`shrink-0 mr-0.5 transition-transform duration-150 ${
+                hasSubitems
+                  ? 'cursor-pointer text-gray-400 hover:text-blue-500'
+                  : 'cursor-default text-gray-300 opacity-30'
+              } ${expandedItems.includes(task.id) ? 'rotate-90' : ''}`}
+            >
+              <ChevronRight size={14} />
+            </div>
+          )}
+
           {/* Task name (truncated) */}
           <span
             className={`text-sm truncate flex-1 min-w-0 ${
@@ -294,43 +314,51 @@ export function GanttTaskRow({
           />
         )}
 
-        {/* Existing bar */}
+        {/* Existing bar — z-10 so it sits above grid but below stacked subitems (z-20+) */}
         {hasDates && (
-          <GanttBar
-            left={barLeft}
-            width={barWidth}
-            color={getTaskColor(task)}
-            label={task.name}
-            showLabel={showLabels}
-            zoomLevel={zoomLevel}
-            isSubitem={isSubitem}
-            dragState={dragState}
-            taskId={isSubitem ? (dragState.taskId || '') : task.id}
-            subitemId={isSubitem ? task.id : null}
-            onMouseDown={(e, type) =>
-              onMouseDown(
-                e,
-                isSubitem ? (dragState.taskId || task.id) : task.id,
-                projectId,
-                type,
-                isSubitem ? task.id : null,
-                isSubitem ? 'expanded' : 'parent',
-                normalizedStart,
-                taskDuration,
-              )
-            }
-          />
+          <div className="absolute inset-0 z-10 pointer-events-none">
+            <GanttBar
+              left={barLeft}
+              width={barWidth}
+              color={getTaskColor(task)}
+              label={task.name}
+              showLabel={showLabels}
+              zoomLevel={zoomLevel}
+              isSubitem={isSubitem}
+              dragState={dragState}
+              taskId={isSubitem ? (parentTaskId || '') : task.id}
+              subitemId={isSubitem ? task.id : null}
+              onMouseDown={(e, type) =>
+                onMouseDown(
+                  e,
+                  isSubitem ? (parentTaskId || task.id) : task.id,
+                  projectId,
+                  type,
+                  isSubitem ? task.id : null,
+                  isSubitem ? 'expanded' : 'parent',
+                  normalizedStart,
+                  taskDuration,
+                )
+              }
+            />
+          </div>
         )}
 
         {/* Collapsed subitem stack */}
         {isCollapsed && hasSubitems && (
           <GanttSubitemStack
             subitems={(task as Item).subitems}
+            parentTaskId={task.id}
+            projectId={projectId}
             zoomLevel={zoomLevel}
             rowHeight={actualRowHeight}
+            showLabels={showLabels}
             getRelativeIndex={getRelativeIndex}
             dayToVisualIndex={dayToVisualIndex}
             getColor={getTaskColor}
+            dragState={dragState}
+            canEdit={canEdit}
+            onMouseDown={onMouseDown}
           />
         )}
       </div>

@@ -1,10 +1,20 @@
 // AppShell — main layout: sidebar + header + content area.
 // Orchestrates workspace/board navigation and renders the active view.
 
+import { useEffect, useRef } from 'react';
 import { useUIStore } from '../../stores/uiStore';
+import { useAuthStore } from '../../stores/authStore';
 import { useProjectData } from '../../stores/projectStore';
 import { useWorkspaceData } from '../../stores/workspaceStore';
-import { getProjectPermissions } from '../../stores/memberStore';
+import {
+  getProjectPermissions,
+  ensureProject,
+  startProjectMembershipListeners,
+  stopProjectMembershipListeners,
+  startMembershipDiscovery,
+  stopMembershipDiscovery,
+} from '../../stores/memberStore';
+import { useMemberStore } from '../../stores/memberStore';
 import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
 import { BoardView } from '../board/BoardView';
@@ -59,7 +69,66 @@ export function AppShell() {
     ? projects.find((p) => p.id === effectiveBoardId)
     : null;
 
-  // Handlers
+  const user = useAuthStore((s) => s.user);
+
+  // ── Membership lifecycle ────────────────────────────────────────────
+
+  // Start membership discovery when the user logs in (finds all projects
+  // the user belongs to). Clean up on logout or unmount.
+  useEffect(() => {
+    if (!user || user.isAnonymous) return;
+    startMembershipDiscovery();
+    return () => stopMembershipDiscovery();
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the active project changes:
+  //  1. Ensure the project exists in Firestore (creates owner membership)
+  //  2. Start membership listeners (loads members list + self-membership)
+  const prevProjectIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const pid = activeProject?.id ?? null;
+    if (pid === prevProjectIdRef.current) return;
+
+    // Stop listeners for previous project
+    if (prevProjectIdRef.current) {
+      stopProjectMembershipListeners(prevProjectIdRef.current);
+    }
+    prevProjectIdRef.current = pid;
+
+    if (!pid || !activeProject || !user || user.isAnonymous) return;
+
+    // Ensure project metadata + owner membership in Firestore
+    void ensureProject(pid, activeProject);
+
+    // Start real-time listeners for members
+    startProjectMembershipListeners(pid);
+
+    return () => stopProjectMembershipListeners(pid);
+  }, [activeProject?.id, user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Compute permissions for active project (reactive — updates when
+  // selfMembershipByProject changes after listeners load).
+  // We use a sentinel to distinguish "not yet loaded" (undefined) from
+  // "loaded but no membership" (null).
+  const MEMBERSHIP_NOT_LOADED = undefined;
+  const selfMembership = useMemberStore((s) => {
+    if (!activeProject?.id) return MEMBERSHIP_NOT_LOADED;
+    const map = s.selfMembershipByProject;
+    return activeProject.id in map ? (map[activeProject.id] ?? null) : MEMBERSHIP_NOT_LOADED;
+  });
+  const membershipLoaded = selfMembership !== MEMBERSHIP_NOT_LOADED;
+  const projectPermissions = activeProject?.id
+    ? getProjectPermissions(activeProject.id)
+    : null;
+  // Allow edits if:
+  //  - membership is loaded and permissions allow it, OR
+  //  - membership hasn't loaded yet but user is logged in (graceful default
+  //    so the creator isn't locked out while Firestore confirms ownership)
+  const canEdit = membershipLoaded
+    ? (projectPermissions?.canEdit ?? false)
+    : (!!user && !user.isAnonymous && !!activeProject);
+
+  // ── Handlers ────────────────────────────────────────────────────────
   const handleCreateWorkspace = () => {
     const id = `w${Date.now()}`;
     setWorkspaces((prev) => [...prev, { id, name: 'New Workspace', type: 'workspace' as const }]);
@@ -70,6 +139,13 @@ export function AppShell() {
     if (!activeWorkspace) return;
     const pid = addProjectToWorkspace(activeWorkspace.id, activeWorkspace.name);
     setActiveBoardId(pid);
+
+    // Eagerly ensure the new project in Firestore so the owner membership
+    // is created immediately (the useEffect will also catch it, but this
+    // avoids any delay).
+    const newProject = projects.find((p) => p.id === pid)
+      ?? { id: pid, workspaceId: activeWorkspace.id, workspaceName: activeWorkspace.name, name: 'New Board', status: 'working' as const, groups: [], tasks: [] };
+    void ensureProject(pid, newProject);
   };
 
   const handleUpdateEntityName = (name: string) => {
@@ -108,7 +184,7 @@ export function AppShell() {
           entityName={activeWorkspace?.name || 'Flow'}
           entityType="workspace"
           onUpdateEntityName={handleUpdateEntityName}
-          canEditEntityName={true}
+          canEditEntityName={canEdit || !activeProject}
           activeProjectId={activeProject?.id ?? null}
         />
 
@@ -121,7 +197,7 @@ export function AppShell() {
               project={activeProject}
               statuses={statuses}
               jobTypes={jobTypes}
-              canEdit={true}
+              canEdit={canEdit}
               onUpdateTaskDate={(pid, tid, sid, start, dur) =>
                 updateTaskDate(pid, tid, sid, start, dur)
               }
@@ -159,7 +235,12 @@ export function AppShell() {
         const targetName = isSubitem ? (subitem?.name || '') : task.name;
         const updates = isSubitem ? (subitem?.updates || []) : (task.updates || []);
         const files = isSubitem ? (subitem?.files || []) : (task.files || []);
-        const permissions = getProjectPermissions(projectId);
+        // Use the already-computed permissions (which gracefully default
+        // to allowing edits while membership is loading).
+        const permissions = projectPermissions ?? getProjectPermissions(projectId);
+        const effectivePerms = !membershipLoaded && user && !user.isAnonymous
+          ? { ...permissions, canEdit: true, canUpload: true, canView: true, canDownload: true }
+          : permissions;
 
         return (
           <UpdatesPanel
@@ -168,7 +249,7 @@ export function AppShell() {
             isSubitem={isSubitem}
             updates={updates}
             files={files}
-            permissions={permissions}
+            permissions={effectivePerms}
             onClose={closeUpdatesPanel}
             onAddUpdate={(payload) => {
               const update = {
