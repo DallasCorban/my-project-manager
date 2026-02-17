@@ -4,7 +4,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
-import { useProjectData } from '../../stores/projectStore';
+import { useProjectContext } from '../../stores/projectStore';
 import { useWorkspaceData } from '../../stores/workspaceStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useBoardColumns } from '../../hooks/useBoardColumns';
@@ -33,7 +33,7 @@ export function BoardView({ project }: BoardViewProps) {
     reorderTasks,
     moveTaskToGroup,
     reorderSubitems,
-  } = useProjectData();
+  } = useProjectContext();
 
   const { statuses, setStatuses, jobTypes, setJobTypes, activeEntityId } = useWorkspaceData();
 

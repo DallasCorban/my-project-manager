@@ -4,7 +4,7 @@
 import { useEffect, useRef } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
-import { useProjectData } from '../../stores/projectStore';
+import { useProjectContext } from '../../stores/projectStore';
 import { useWorkspaceData } from '../../stores/workspaceStore';
 import {
   getProjectPermissions,
@@ -44,7 +44,7 @@ export function AppShell() {
     addUpdate,
     addReply,
     toggleChecklistItem,
-  } = useProjectData();
+  } = useProjectContext();
   const {
     workspaces,
     setWorkspaces,

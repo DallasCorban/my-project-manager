@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
-import { useProjectData } from '../../stores/projectStore';
+import { useProjectContext } from '../../stores/projectStore';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { toLocalDateKey, diffDays } from '../../utils/date';
 
@@ -19,7 +19,7 @@ export function DatePickerPopup() {
   const darkMode = useUIStore((s) => s.darkMode);
   const datePickerOpen = useUIStore((s) => s.datePickerOpen);
   const closeDatePicker = useUIStore((s) => s.closeDatePicker);
-  const { projects, updateTaskDate } = useProjectData();
+  const { projects, updateTaskDate } = useProjectContext();
 
   const popupRef = useRef<HTMLDivElement>(null);
 

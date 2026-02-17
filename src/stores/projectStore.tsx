@@ -1,7 +1,12 @@
 // Project store — projects CRUD with hybrid sync.
 // Ported from App.jsx useProjectData() (lines 518-610).
+//
+// IMPORTANT: useProjectData() must only be called ONCE (in the provider).
+// All other components access it via useProjectContext().
+// Multiple useProjectData() calls create duplicate Firestore listeners
+// and debounce timers that fight each other, causing echo-back jitter.
 
-import { useEffect } from 'react';
+import { createContext, useContext, useEffect, useMemo } from 'react';
 import type { Board } from '../types/board';
 import type { Item, Subitem, Update, Reply } from '../types/item';
 import type { ProjectFile } from '../types/file';
@@ -537,5 +542,42 @@ export function useProjectData() {
     },
   };
 
-  return { projects, setProjects, ...actions };
+  // Stabilize the actions object so context consumers don't re-render
+  // when only `projects` changes (they can select just the actions they need).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableActions = useMemo(() => actions, [setProjects]);
+
+  return { projects, setProjects, ...stableActions };
+}
+
+// --- Context-based singleton access ---
+
+/** Return type of useProjectData for context typing. */
+export type ProjectDataValue = ReturnType<typeof useProjectData>;
+
+const ProjectDataContext = createContext<ProjectDataValue | null>(null);
+
+/**
+ * Provider that calls useProjectData() exactly once and shares the result.
+ * Wrap your app (or AppShell) in this provider.
+ */
+export function ProjectDataProvider({ children }: { children: React.ReactNode }) {
+  const value = useProjectData();
+  return (
+    <ProjectDataContext.Provider value={value}>
+      {children}
+    </ProjectDataContext.Provider>
+  );
+}
+
+/**
+ * Access the shared project data from context.
+ * Must be used inside a <ProjectDataProvider>.
+ */
+export function useProjectContext(): ProjectDataValue {
+  const ctx = useContext(ProjectDataContext);
+  if (!ctx) {
+    throw new Error('useProjectContext must be used inside <ProjectDataProvider>');
+  }
+  return ctx;
 }

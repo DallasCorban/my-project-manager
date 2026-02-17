@@ -2,7 +2,7 @@
 
 import { Trash2, X } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
-import { useProjectData } from '../../stores/projectStore';
+import { useProjectContext } from '../../stores/projectStore';
 
 interface SelectionTrayProps {
   projectId: string;
@@ -12,7 +12,7 @@ export function SelectionTray({ projectId: _projectId }: SelectionTrayProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const selectedItems = useUIStore((s) => s.selectedItems);
   const clearSelection = useUIStore((s) => s.clearSelection);
-  const { deleteSelection } = useProjectData();
+  const { deleteSelection } = useProjectContext();
 
   const count = selectedItems.size;
   if (count === 0) return null;

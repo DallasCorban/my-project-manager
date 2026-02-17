@@ -149,14 +149,6 @@ export function useHybridState<T>(
           if (typeof payload !== 'string') return;
           if (payload === lastKnownPayloadRef.current) return;
 
-          // Suppress echo-back while we have pending or in-flight writes.
-          // Without this guard, the listener can overwrite local state with
-          // stale Firestore data mid-type (e.g. user types "abc", debounced
-          // write sends "ab", Firestore echoes "ab" back, overwrites "abc").
-          if (writeInFlightRef.current || hasPendingRemoteWriteRef.current) {
-            return;
-          }
-
           const next = JSON.parse(payload) as T;
           lastKnownPayloadRef.current = payload;
           dataRef.current = next;
