@@ -107,7 +107,7 @@ export function GanttView({
   }, [showWeekends, visibleDays]);
 
   // Gantt bar drag handling
-  const { dragState, handleMouseDown } = useGanttDrag({
+  const { dragState, handleMouseDown, settledOverrides, clearSettledOverride } = useGanttDrag({
     zoomLevel,
     showWeekends,
     rawDays,
@@ -467,6 +467,8 @@ export function GanttView({
                           getRelativeIndex={getRelativeIndex}
                           dayToVisualIndex={dayToVisualIndex}
                           dragState={dragState}
+                          settledOverrides={settledOverrides}
+                          clearSettledOverride={clearSettledOverride}
                           reorderDrag={reorderDrag}
                           canEdit={canEdit}
                           onMouseDown={handleMouseDown}
@@ -507,6 +509,8 @@ export function GanttView({
                               getRelativeIndex={getRelativeIndex}
                               dayToVisualIndex={dayToVisualIndex}
                               dragState={dragState}
+                              settledOverrides={settledOverrides}
+                              clearSettledOverride={clearSettledOverride}
                               reorderDrag={reorderDrag}
                               canEdit={canEdit}
                               onMouseDown={handleMouseDown}

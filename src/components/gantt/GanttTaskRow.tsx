@@ -11,6 +11,7 @@ import { normalizeDateKey } from '../../utils/date';
 import type { Item, Subitem } from '../../types/item';
 import type { TimelineDay, DragState, ReorderDrag } from '../../types/timeline';
 import type { StatusLabel, JobTypeLabel } from '../../config/constants';
+import type { SettledOverride } from '../../hooks/useGanttDrag';
 
 interface GanttTaskRowProps {
   task: Item | Subitem;
@@ -29,6 +30,8 @@ interface GanttTaskRowProps {
   getRelativeIndex: (dateKey: string | null | undefined) => number | null;
   dayToVisualIndex: Record<number, number>;
   dragState: DragState;
+  settledOverrides: Record<string, SettledOverride>;
+  clearSettledOverride: (key: string) => void;
   reorderDrag: ReorderDrag | null;
   canEdit: boolean;
   onMouseDown: (
@@ -71,6 +74,8 @@ export function GanttTaskRow({
   getRelativeIndex,
   dayToVisualIndex,
   dragState,
+  settledOverrides,
+  clearSettledOverride,
   reorderDrag,
   canEdit,
   onMouseDown,
@@ -114,6 +119,10 @@ export function GanttTaskRow({
   let barLeft = 0;
   let barWidth = 0;
 
+  // Settled override key — matches the key format used in useGanttDrag.
+  const settledKey = isSubitem ? `${parentTaskId}:${task.id}` : task.id;
+  const settled = settledOverrides[settledKey];
+
   if (isThisBarDragging) {
     // During drag: use the drag handler's pixel-perfect visual position
     // directly. This avoids the store→render round-trip that causes jitter.
@@ -143,6 +152,13 @@ export function GanttTaskRow({
         barWidth = Math.max((endVisual - startVisual) * zoomLevel, zoomLevel);
       }
     }
+  }
+
+  // Apply settled override — keeps the drag-end position visible until the
+  // store converges, preventing snap-back from stale Firestore echoes.
+  if (settled && !isThisBarDragging) {
+    barLeft = settled.visualLeft;
+    barWidth = settled.visualWidth;
   }
 
   // Check if this task is being created (drag create preview)
@@ -370,6 +386,8 @@ export function GanttTaskRow({
             dayToVisualIndex={dayToVisualIndex}
             getColor={getTaskColor}
             dragState={dragState}
+            settledOverrides={settledOverrides}
+            clearSettledOverride={clearSettledOverride}
             canEdit={canEdit}
             onMouseDown={onMouseDown}
           />

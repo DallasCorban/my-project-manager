@@ -7,6 +7,21 @@
 //
 // When Firestore is unavailable or permissions are denied,
 // falls back gracefully to localStorage-only mode.
+//
+// ECHO SUPPRESSION STRATEGY:
+// Firestore's onSnapshot fires for both remote AND local writes.  When we
+// write a value via setDoc, the SDK immediately fires the local listener,
+// and later fires again when the server confirms.  During a drag gesture
+// (many rapid writes), the debounce coalesces intermediate values so only
+// the latest is sent — but the server may echo back earlier writes after
+// the fence has dropped.
+//
+// We use a three-layer approach:
+//   1. Write fence — suppress ALL snapshots while writes are pending/in-flight
+//   2. Sent payloads set — remember every payload we've flushed to Firestore
+//      and suppress any snapshot that matches (catches delayed server echoes)
+//   3. lastKnownPayloadRef — the original single-value check (catches the
+//      common case where the echo matches the most recent local value)
 
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -52,6 +67,13 @@ export function useHybridState<T>(
   const lastKnownPayloadRef = useRef<string | null>(null);
   const remoteAccessDeniedRef = useRef(false);
   const unmountedRef = useRef(false);
+  const writeVersionRef = useRef(0);
+
+  // Set of all payloads we've sent to Firestore recently.  Used to detect
+  // delayed server echoes that arrive after the write fence has dropped.
+  // Entries auto-expire after 5 seconds to avoid unbounded memory growth.
+  const sentPayloadsRef = useRef<Set<string>>(new Set());
+  const sentPayloadTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
     dataRef.current = data;
@@ -64,6 +86,12 @@ export function useHybridState<T>(
         clearTimeout(writeTimerRef.current);
         writeTimerRef.current = null;
       }
+      // Clean up sent payload timers
+      for (const timer of sentPayloadTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      sentPayloadTimersRef.current.clear();
+      sentPayloadsRef.current.clear();
     };
   }, []);
 
@@ -91,6 +119,19 @@ export function useHybridState<T>(
     [collectionName, key],
   );
 
+  /** Track a payload we've sent to Firestore, with auto-expiry. */
+  const trackSentPayload = useCallback((payload: string) => {
+    sentPayloadsRef.current.add(payload);
+    // Clear any existing timer for this payload and set a new one
+    const existing = sentPayloadTimersRef.current.get(payload);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      sentPayloadsRef.current.delete(payload);
+      sentPayloadTimersRef.current.delete(payload);
+    }, 5000); // 5s — well beyond any realistic Firestore round-trip
+    sentPayloadTimersRef.current.set(payload, timer);
+  }, []);
+
   const flushRemoteWrite = useCallback(async () => {
     if (writeInFlightRef.current) return;
     if (!user || !canUseRemoteSync()) return;
@@ -100,12 +141,23 @@ export function useHybridState<T>(
 
     writeInFlightRef.current = true;
     hasPendingRemoteWriteRef.current = false;
+    const versionAtFlushStart = writeVersionRef.current;
 
     const docRef = doc(db!, 'artifacts', APP_ID, 'users', user.uid, collectionName, key);
 
     try {
+      // Track this payload BEFORE sending so the onSnapshot from the local
+      // SDK write is already in the set when it fires.
+      trackSentPayload(payload);
+
       await setDoc(docRef, { value: payload }, { merge: true });
-      lastKnownPayloadRef.current = payload;
+
+      // Only update lastKnownPayloadRef if no newer saveData() call happened
+      // while setDoc was in-flight.
+      const superseded = writeVersionRef.current !== versionAtFlushStart;
+      if (!superseded) {
+        lastKnownPayloadRef.current = payload;
+      }
     } catch (err) {
       if (isPermissionDeniedError(err)) {
         markRemoteAccessDenied(`save:${collectionName}/${key}`, err);
@@ -123,7 +175,7 @@ export function useHybridState<T>(
         scheduleRemoteFlush();
       }
     }
-  }, [user, canUseRemoteSync, collectionName, key, markRemoteAccessDenied]);
+  }, [user, canUseRemoteSync, collectionName, key, markRemoteAccessDenied, trackSentPayload]);
 
   const scheduleRemoteFlush = useCallback(() => {
     if (writeTimerRef.current || !canUseRemoteSync()) return;
@@ -147,8 +199,17 @@ export function useHybridState<T>(
         try {
           const payload = snapshot.data()?.value;
           if (typeof payload !== 'string') return;
+
+          // Layer 1: exact match with latest known payload
           if (payload === lastKnownPayloadRef.current) return;
 
+          // Layer 2: write fence — suppress while writes are pending/in-flight
+          if (hasPendingRemoteWriteRef.current || writeInFlightRef.current) return;
+
+          // Layer 3: check if this is a delayed echo of any recently sent payload
+          if (sentPayloadsRef.current.has(payload)) return;
+
+          // Genuine remote update — apply it
           const next = JSON.parse(payload) as T;
           lastKnownPayloadRef.current = payload;
           dataRef.current = next;
@@ -192,7 +253,12 @@ export function useHybridState<T>(
       let payload: string | null = null;
       try {
         payload = JSON.stringify(newValue);
+        writeVersionRef.current += 1;
         lastKnownPayloadRef.current = payload;
+        // Also track the local payload — the debounce will coalesce rapid
+        // writes but an intermediate snapshot might arrive carrying this
+        // exact value.
+        trackSentPayload(payload);
         window.localStorage.setItem(key, payload);
       } catch (err) {
         console.warn('Failed to serialize hybrid state:', err);
@@ -204,7 +270,7 @@ export function useHybridState<T>(
         if (user) scheduleRemoteFlush();
       }
     },
-    [key, canUseRemoteSync, user, scheduleRemoteFlush],
+    [key, canUseRemoteSync, user, scheduleRemoteFlush, trackSentPayload],
   );
 
   return [data, saveData];

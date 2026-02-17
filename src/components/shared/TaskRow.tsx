@@ -1,7 +1,7 @@
 // Task row — shared row component for the board table.
 // Ported from src/components/TaskRow.jsx.
 
-import { useRef } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { CheckSquare, Square, CornerDownRight, ChevronRight, Plus, MessageSquare } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { EditableText } from './EditableText';
@@ -81,10 +81,42 @@ export function TaskRow({
 
   const hasSubitems = 'subitems' in task && task.subitems && task.subitems.length > 0;
 
-  const statusColor = statuses.find((s) => s.id === task.status)?.color || '#c4c4c4';
-  const statusLabel = statuses.find((s) => s.id === task.status)?.label || 'Status';
-  const typeColor = jobTypes.find((t) => t.id === task.jobTypeId)?.color || '#c4c4c4';
-  const typeLabel = jobTypes.find((t) => t.id === task.jobTypeId)?.label || 'Type';
+  // Optimistic label overrides — prevent snap-back from stale Firestore echoes.
+  // The override is held for a fixed window (longer than debounce + network RTT)
+  // rather than cleared on store convergence, because the store briefly converges
+  // then reverts when the Firestore echo arrives.
+  const [optimisticStatus, setOptimisticStatus] = useState<string | null>(null);
+  const [optimisticType, setOptimisticType] = useState<string | null>(null);
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+      if (typeTimerRef.current) clearTimeout(typeTimerRef.current);
+    };
+  }, []);
+
+  const setOptimisticStatusWithTimer = useCallback((id: string) => {
+    setOptimisticStatus(id);
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = setTimeout(() => setOptimisticStatus(null), 1000);
+  }, []);
+
+  const setOptimisticTypeWithTimer = useCallback((id: string) => {
+    setOptimisticType(id);
+    if (typeTimerRef.current) clearTimeout(typeTimerRef.current);
+    typeTimerRef.current = setTimeout(() => setOptimisticType(null), 1000);
+  }, []);
+
+  const effectiveStatus = optimisticStatus ?? task.status;
+  const effectiveType = optimisticType ?? task.jobTypeId;
+
+  const statusColor = statuses.find((s) => s.id === effectiveStatus)?.color || '#c4c4c4';
+  const statusLabel = statuses.find((s) => s.id === effectiveStatus)?.label || 'Status';
+  const typeColor = jobTypes.find((t) => t.id === effectiveType)?.color || '#c4c4c4';
+  const typeLabel = jobTypes.find((t) => t.id === effectiveType)?.label || 'Type';
 
   const normalizedStart = normalizeDateKey(task.start);
   const hasDates = Boolean(normalizedStart);
@@ -270,8 +302,8 @@ export function TaskRow({
         {canEdit && statusMenuOpen === task.id && statusMenuType === 'status' && (
           <LabelDropdown
             labels={statuses}
-            currentId={task.status}
-            onSelect={onStatusSelect}
+            currentId={effectiveStatus}
+            onSelect={(id) => { setOptimisticStatusWithTimer(id); onStatusSelect(id); }}
             darkMode={darkMode}
             onAddLabel={onAddStatusLabel}
             onRemoveLabel={onRemoveStatusLabel}
@@ -305,8 +337,8 @@ export function TaskRow({
         {canEdit && statusMenuOpen === task.id && statusMenuType === 'type' && (
           <LabelDropdown
             labels={jobTypes}
-            currentId={task.jobTypeId}
-            onSelect={onTypeSelect}
+            currentId={effectiveType}
+            onSelect={(id) => { setOptimisticTypeWithTimer(id); onTypeSelect(id); }}
             darkMode={darkMode}
             onAddLabel={onAddTypeLabel}
             onRemoveLabel={onRemoveTypeLabel}

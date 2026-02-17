@@ -82,6 +82,12 @@ function visualWidthToCalendarDuration(
 
 // ── Hook ─────────────────────────────────────────────────────────────────
 
+/** Overrides that persist after a drag ends until the store catches up. */
+export interface SettledOverride {
+  visualLeft: number;
+  visualWidth: number;
+}
+
 export function useGanttDrag({
   zoomLevel,
   showWeekends,
@@ -94,6 +100,11 @@ export function useGanttDrag({
   const [dragState, setDragState] = useState<DragState>(INITIAL_DRAG);
   const dragRef = useRef(dragState);
   dragRef.current = dragState;
+
+  // Settled overrides — keyed by "taskId" or "taskId:subitemId".
+  // Populated on mouseup with the bar's final visual position so rendering
+  // continues to use the drag-derived position until the store agrees.
+  const [settledOverrides, setSettledOverrides] = useState<Record<string, SettledOverride>>({});
 
   // Mutable refs — the mousemove handler reads from these so the effect
   // dependency list stays stable (only `dragState.isDragging`).
@@ -316,6 +327,25 @@ export function useGanttDrag({
       }
       // For move / resize the store was already updated continuously.
 
+      // Settled override — keep the final visual position so the bar doesn't
+      // snap to a stale store value between mouseup and Firestore echo settling.
+      // Held for 1s (well beyond 250ms debounce + network RTT), then auto-cleared.
+      if (ds.hasMoved && !ds.isDeleteMode) {
+        const key = ds.subitemId ? `${ds.taskId}:${ds.subitemId}` : ds.taskId!;
+        setSettledOverrides((prev) => ({
+          ...prev,
+          [key]: { visualLeft: ds.visualLeft, visualWidth: ds.visualWidth },
+        }));
+        setTimeout(() => {
+          setSettledOverrides((prev) => {
+            if (!(key in prev)) return prev;
+            const next = { ...prev };
+            delete next[key];
+            return next;
+          });
+        }, 1000);
+      }
+
       setDragState(INITIAL_DRAG);
     };
 
@@ -330,8 +360,20 @@ export function useGanttDrag({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragState.isDragging]);
 
+  // Clear a settled override once the store-computed position matches.
+  const clearSettledOverride = useCallback((key: string) => {
+    setSettledOverrides((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
   return {
     dragState,
     handleMouseDown,
+    settledOverrides,
+    clearSettledOverride,
   };
 }

@@ -23,6 +23,7 @@ import { GanttBar } from './GanttBar';
 import { normalizeDateKey } from '../../utils/date';
 import type { Item, Subitem } from '../../types/item';
 import type { DragState } from '../../types/timeline';
+import type { SettledOverride } from '../../hooks/useGanttDrag';
 
 /** Vertical step between lanes in px. */
 const LANE_STEP_PX = 6;
@@ -61,6 +62,8 @@ interface GanttSubitemStackProps {
   dayToVisualIndex: Record<number, number>;
   getColor: (item: Item | Subitem) => string;
   dragState: DragState;
+  settledOverrides: Record<string, SettledOverride>;
+  clearSettledOverride: (key: string) => void;
   canEdit: boolean;
   onMouseDown: (
     e: React.MouseEvent,
@@ -212,6 +215,8 @@ export function GanttSubitemStack({
   dayToVisualIndex,
   getColor,
   dragState,
+  settledOverrides,
+  clearSettledOverride: _clearSettledOverride,
   canEdit,
   onMouseDown,
 }: GanttSubitemStackProps) {
@@ -382,12 +387,24 @@ export function GanttSubitemStack({
               ? dragState.taskId === parentTaskId && dragState.subitemId === null
               : dragState.subitemId === bar.id);
 
-          const left = isThisDragging
+          // Settled override key — matches useGanttDrag format
+          const settledKey = bar.isParent
+            ? parentTaskId
+            : `${parentTaskId}:${bar.id}`;
+          const settled = settledOverrides[settledKey];
+
+          let left = isThisDragging
             ? dragState.visualLeft
             : bar.startVisual * zoomLevel;
-          const width = isThisDragging
+          let width = isThisDragging
             ? dragState.visualWidth
             : Math.max(bar.widthVisual * zoomLevel, zoomLevel * 0.5);
+
+          // Apply settled override — auto-clears via timeout in useGanttDrag
+          if (settled && !isThisDragging) {
+            left = settled.visualLeft;
+            width = settled.visualWidth;
+          }
 
           return (
             <div
