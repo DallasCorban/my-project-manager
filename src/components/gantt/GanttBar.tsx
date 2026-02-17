@@ -33,6 +33,8 @@ interface GanttBarProps {
   subitemId: string | null;
   onMouseDown: (e: React.MouseEvent, type: DragState['type']) => void;
   onDelete?: () => void;
+  /** Called when hover state changes — used by stack to promote hovered bar z-order. */
+  onHoverChange?: (hovered: boolean) => void;
 }
 
 export function GanttBar({
@@ -50,6 +52,7 @@ export function GanttBar({
   subitemId,
   onMouseDown,
   onDelete,
+  onHoverChange,
 }: GanttBarProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const [isHovered, setIsHovered] = useState(false);
@@ -83,8 +86,8 @@ export function GanttBar({
         e.stopPropagation();
         onMouseDown(e, 'move');
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => { setIsHovered(true); onHoverChange?.(true); }}
+      onMouseLeave={() => { setIsHovered(false); onHoverChange?.(false); }}
     >
       {/* Left resize handle — 10px wide, extends outside */}
       <div

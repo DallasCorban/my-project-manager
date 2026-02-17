@@ -5,12 +5,19 @@
 // - Parent task bar and subitem bars participate in one combined lane layout.
 // - Lane assignment packs bars into horizontal lanes by start/end overlap.
 // - Per-bar local overlap nudge: each bar computes a vertical offset (offsetY)
-//   from the row center. Bars that don't overlap anything stay centered
-//   (offsetY = 0). Only overlapping groups get nudged up/down.
-// - Bar height is NEVER affected by overlap count. Only offsetY and zIndex change.
-// - Wrappers use pointer-events-none; GanttBar itself uses pointer-events-auto.
+//   from the row center. Bar height is NEVER affected by overlap count.
+//
+// Z-order model (decoupled from lane index):
+// - Overlap clusters (connected components by interval overlap) are identified.
+// - Within each cluster, bars are sorted by interaction priority:
+//   1. Actively dragged bar → highest z
+//   2. Hovered bar → next highest
+//   3. Later-starting bars above earlier-starting bars
+//   4. Shorter bars above longer bars (on start tie)
+//   5. Stable id sort as final tie-breaker
+// - Z-indices are assigned sequentially per cluster with small gaps between.
 
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { GanttBar } from './GanttBar';
 import { normalizeDateKey } from '../../utils/date';
@@ -22,6 +29,9 @@ const LANE_STEP_PX = 6;
 
 /** Max visible lanes before overflow indicator. */
 const MAX_VISIBLE_LANES = 5;
+
+/** Base z-index for stack bars (above grid, create preview, etc.) */
+const BASE_Z = 40;
 
 /** A bar in the unified lane layout — either the parent task or a subitem. */
 interface LaneBar {
@@ -94,6 +104,103 @@ function resolveVisualRange(
   return { start: startVis, end: endVis };
 }
 
+/**
+ * Compute interaction-aware z-order for collapsed bars.
+ * Returns a map of bar id → z-index.
+ *
+ * Z-order rules (lowest → highest):
+ * 1. Earlier-starting bars behind later-starting bars
+ * 2. Longer bars behind shorter bars (on start tie)
+ * 3. Parent behind subitems (on exact tie)
+ * 4. Hovered bar promoted to front of its cluster
+ * 5. Actively dragged bar promoted to absolute front
+ */
+function computeStackOrder(
+  bars: LaneBar[],
+  activeId: string | null,
+  hoverId: string | null,
+): Record<string, number> {
+  if (bars.length === 0) return {};
+
+  // 1) Sort by start for sweep-line cluster build
+  const sorted = [...bars].sort((a, b) => {
+    if (a.startVisual !== b.startVisual) return a.startVisual - b.startVisual;
+    if (a.endVisual !== b.endVisual) return a.endVisual - b.endVisual;
+    return a.id.localeCompare(b.id);
+  });
+
+  // 2) Build overlap clusters (connected components by interval overlap)
+  type ClusteredBar = LaneBar & { clusterId: number; barDuration: number };
+  const clustered: ClusteredBar[] = [];
+  let clusterId = -1;
+  let currentMaxEnd = -Infinity;
+
+  for (const b of sorted) {
+    if (b.startVisual >= currentMaxEnd) {
+      clusterId += 1;
+      currentMaxEnd = b.endVisual;
+    } else {
+      currentMaxEnd = Math.max(currentMaxEnd, b.endVisual);
+    }
+    clustered.push({
+      ...b,
+      clusterId,
+      barDuration: Math.max(1, b.endVisual - b.startVisual),
+    });
+  }
+
+  // 3) Group by cluster
+  const byCluster = new Map<number, ClusteredBar[]>();
+  for (const b of clustered) {
+    const list = byCluster.get(b.clusterId);
+    if (list) list.push(b);
+    else byCluster.set(b.clusterId, [b]);
+  }
+
+  // 4) Assign z per cluster with deterministic ordering
+  const zById: Record<string, number> = {};
+  let cursor = BASE_Z;
+  const clusterIds = Array.from(byCluster.keys()).sort((a, b) => a - b);
+
+  for (const cid of clusterIds) {
+    const clusterBars = byCluster.get(cid)!;
+
+    // Sort back-to-front: lowest z first, highest z last
+    clusterBars.sort((a, b) => {
+      // Interaction priority: dragged/hovered bars go to front (higher z)
+      const rank = (x: ClusteredBar): number => {
+        if (activeId && x.id === activeId) return 3;
+        if (hoverId && x.id === hoverId) return 2;
+        return 1;
+      };
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb) return ra - rb;
+
+      // Later-starting bars in front
+      if (a.startVisual !== b.startVisual) return a.startVisual - b.startVisual;
+
+      // Shorter bars in front on ties
+      if (a.barDuration !== b.barDuration) return b.barDuration - a.barDuration;
+
+      // Parent slightly behind on exact ties
+      if (a.isParent !== b.isParent) return a.isParent ? -1 : 1;
+
+      // Stable deterministic fallback
+      return a.id.localeCompare(b.id);
+    });
+
+    for (const b of clusterBars) {
+      zById[b.id] = cursor++;
+    }
+
+    // Small gap between clusters for readability
+    cursor += 2;
+  }
+
+  return zById;
+}
+
 export function GanttSubitemStack({
   parentTask,
   parentTaskId,
@@ -109,6 +216,7 @@ export function GanttSubitemStack({
   onMouseDown,
 }: GanttSubitemStackProps) {
   const darkMode = useUIStore((s) => s.darkMode);
+  const [hoveredBarId, setHoveredBarId] = useState<string | null>(null);
 
   const lanes = useMemo(() => {
     // Build a combined list of all renderable bars (parent + subitems)
@@ -197,9 +305,6 @@ export function GanttSubitemStack({
     }
 
     // Compute per-bar offsetY from local overlap cluster.
-    // For each bar, find overlapping lane indices → sort → use bar's
-    // position in that sorted list as localLaneIndex.
-    // offsetY = (localLaneIndex - (localLaneCount - 1) / 2) * LANE_STEP_PX
     const result: LaneBar[] = assigned.map((bar) => {
       const overlapLaneSet = new Set<number>();
       for (const other of assigned) {
@@ -231,6 +336,34 @@ export function GanttSubitemStack({
     return result;
   }, [parentTask, getRelativeIndex, dayToVisualIndex, getColor]);
 
+  // Determine actively dragged bar id
+  const activeBarId = useMemo(() => {
+    if (!dragState.isDragging || dragState.type === 'create' || !dragState.hasMoved) return null;
+    // Check if the drag is for a bar in this stack
+    if (dragState.subitemId) return dragState.subitemId;
+    if (dragState.taskId === parentTaskId && dragState.subitemId === null) return parentTaskId;
+    return null;
+  }, [dragState, parentTaskId]);
+
+  // Compute z-order from overlap clusters + interaction state.
+  // Recomputes when lanes, hover, or drag state change.
+  const zById = useMemo(
+    () => computeStackOrder(lanes, activeBarId, hoveredBarId),
+    [lanes, activeBarId, hoveredBarId],
+  );
+
+  // Stable callback factory for hover changes per bar
+  const handleHoverChange = useCallback(
+    (barId: string, hovered: boolean) => {
+      setHoveredBarId((prev) => {
+        if (hovered) return barId;
+        // Only clear if this bar is the one currently hovered
+        return prev === barId ? null : prev;
+      });
+    },
+    [],
+  );
+
   if (lanes.length === 0) return null;
 
   const overflowCount = lanes.filter((l) => l.laneIndex >= MAX_VISIBLE_LANES).length;
@@ -256,15 +389,12 @@ export function GanttSubitemStack({
             ? dragState.visualWidth
             : Math.max(bar.widthVisual * zoomLevel, zoomLevel * 0.5);
 
-          // GanttBar positions itself via top: calc(50% + offsetY) so we just
-          // need a positioned container with the right z-index. No wrapper
-          // sizing or marginTop needed — overlap only affects offsetY.
           return (
             <div
               key={bar.id}
               className="absolute inset-0 pointer-events-none"
               style={{
-                zIndex: 20 + bar.laneIndex,
+                zIndex: zById[bar.id] ?? BASE_Z,
                 overflow: 'visible',
               }}
             >
@@ -280,6 +410,7 @@ export function GanttSubitemStack({
                 dragState={dragState}
                 taskId={parentTaskId}
                 subitemId={bar.subitemId}
+                onHoverChange={(hovered) => handleHoverChange(bar.id, hovered)}
                 onMouseDown={(e, type) => {
                   if (!canEdit) return;
                   onMouseDown(
@@ -304,7 +435,7 @@ export function GanttSubitemStack({
           className={`absolute right-2 bottom-0.5 text-[10px] font-medium ${
             darkMode ? 'text-gray-500' : 'text-gray-400'
           }`}
-          style={{ zIndex: 30 }}
+          style={{ zIndex: BASE_Z + lanes.length + 10 }}
         >
           +{overflowCount} more
         </div>
