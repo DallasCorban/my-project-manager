@@ -37,7 +37,7 @@ interface UseGanttDragOptions {
   rawDays: TimelineDay[];
   dayToVisualIndex: Record<number, number>;
   visualIndexToDayIndex: Record<number, number>;
-  getRelativeIndex: (dateKey: string | null | undefined) => number;
+  getRelativeIndex: (dateKey: string | null | undefined) => number | null;
   onUpdateDate: (
     pid: string,
     tid: string,
@@ -154,15 +154,20 @@ export function useGanttDrag({
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         const offsetX = e.clientX - rect.left;
         const visualIndex = Math.floor(offsetX / zoom);
-        originalStart = v2d[visualIndex] ?? 0;
+        const rawIdx = v2d[visualIndex];
+        if (rawIdx === undefined) return; // clicked outside mapped range
+        originalStart = rawIdx;
         originalDuration = 1;
       } else if (existingStartKey) {
-        originalStart = getRelativeIndex(existingStartKey);
+        const rel = getRelativeIndex(existingStartKey);
+        if (rel === null) return; // unmappable date — skip drag
+        originalStart = rel;
       }
 
       // Compute the visual-slot positions from the *current* mapping and
       // freeze them so the entire drag gesture uses a single consistent mapping.
-      const origVisStart = d2v[originalStart] ?? 0;
+      const origVisStart = d2v[originalStart];
+      if (origVisStart === undefined) return; // start day not in visible range
       const endRaw = originalStart + originalDuration;
       let origVisEnd = d2v[endRaw];
       if (origVisEnd === undefined) {

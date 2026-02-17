@@ -26,7 +26,7 @@ interface GanttTaskRowProps {
   colorBy: 'status' | 'type';
   statuses: StatusLabel[];
   jobTypes: JobTypeLabel[];
-  getRelativeIndex: (dateKey: string | null | undefined) => number;
+  getRelativeIndex: (dateKey: string | null | undefined) => number | null;
   dayToVisualIndex: Record<number, number>;
   dragState: DragState;
   reorderDrag: ReorderDrag | null;
@@ -121,25 +121,28 @@ export function GanttTaskRow({
     barWidth = dragState.visualWidth;
   } else if (hasDates && normalizedStart) {
     const relIdx = getRelativeIndex(normalizedStart);
-    const startVisual = dayToVisualIndex[relIdx] ?? 0;
-
-    // Find end visual index — walk forward to find the closest mapped day
-    // at or after the raw end index.  This handles the case where the end
-    // day falls on a hidden weekend.
-    const rawEnd = relIdx + taskDuration;
-    let endVisual: number | undefined = dayToVisualIndex[rawEnd];
-    if (endVisual === undefined) {
-      for (let probe = rawEnd + 1; probe <= rawEnd + 3; probe++) {
-        if (dayToVisualIndex[probe] !== undefined) {
-          endVisual = dayToVisualIndex[probe];
-          break;
+    if (relIdx !== null) {
+      const startVisual = dayToVisualIndex[relIdx];
+      if (startVisual !== undefined) {
+        // Find end visual index — walk forward to find the closest mapped day
+        // at or after the raw end index.  This handles the case where the end
+        // day falls on a hidden weekend.
+        const rawEnd = relIdx + taskDuration;
+        let endVisual: number | undefined = dayToVisualIndex[rawEnd];
+        if (endVisual === undefined) {
+          for (let probe = rawEnd + 1; probe <= rawEnd + 3; probe++) {
+            if (dayToVisualIndex[probe] !== undefined) {
+              endVisual = dayToVisualIndex[probe];
+              break;
+            }
+          }
+          if (endVisual === undefined) endVisual = startVisual + taskDuration;
         }
-      }
-      if (endVisual === undefined) endVisual = startVisual + taskDuration;
-    }
 
-    barLeft = startVisual * zoomLevel;
-    barWidth = Math.max((endVisual - startVisual) * zoomLevel, zoomLevel);
+        barLeft = startVisual * zoomLevel;
+        barWidth = Math.max((endVisual - startVisual) * zoomLevel, zoomLevel);
+      }
+    }
   }
 
   // Check if this task is being created (drag create preview)
@@ -152,9 +155,11 @@ export function GanttTaskRow({
   let createPreviewLeft = 0;
   let createPreviewWidth = 0;
   if (isCreating) {
-    const origVisStart = dayToVisualIndex[dragState.originalStart] ?? 0;
-    createPreviewLeft = origVisStart * zoomLevel;
-    createPreviewWidth = dragState.currentSpan * zoomLevel;
+    const origVisStart = dayToVisualIndex[dragState.originalStart];
+    if (origVisStart !== undefined) {
+      createPreviewLeft = origVisStart * zoomLevel;
+      createPreviewWidth = dragState.currentSpan * zoomLevel;
+    }
   }
 
   // Determine if row is a drag reorder target
@@ -251,10 +256,11 @@ export function GanttTaskRow({
         </div>
       </div>
 
-      {/* Right bar area — scrollable with timeline */}
+      {/* Right bar area — scrollable with timeline. overflow: visible so
+          offset bars in collapsed stacks aren't clipped at row edges. */}
       <div
         className="relative flex-1 min-w-0"
-        style={{ minWidth: visibleDays.length * zoomLevel }}
+        style={{ minWidth: visibleDays.length * zoomLevel, overflow: 'visible' }}
       >
         {/* Day grid background */}
         <div className="absolute inset-0 flex pointer-events-none">
@@ -303,20 +309,25 @@ export function GanttTaskRow({
           />
         )}
 
-        {/* Create preview (blue dashed) */}
+        {/* Create preview (blue dashed) — uses same fixed px height as bars */}
         {isCreating && (
           <div
-            className="absolute top-1/2 -translate-y-1/2 h-3/4 rounded-sm border-2 border-dashed border-blue-500 bg-blue-500/20 pointer-events-none z-20"
+            className="absolute rounded-sm border-2 border-dashed border-blue-500 bg-blue-500/20 pointer-events-none z-20"
             style={{
               left: createPreviewLeft,
               width: Math.max(createPreviewWidth, zoomLevel),
+              height: Math.max(14, Math.min(24, Math.round(actualRowHeight * 0.72))),
+              top: '50%',
+              transform: 'translateY(-50%)',
             }}
           />
         )}
 
-        {/* Existing bar — z-10 so it sits above grid but below stacked subitems (z-20+) */}
-        {hasDates && (
-          <div className="absolute inset-0 z-10 pointer-events-none">
+        {/* Existing bar — only shown when NOT in collapsed-with-subitems mode.
+            In collapsed mode, GanttSubitemStack renders both parent + subitem bars
+            in a unified lane layout. Bars with unmappable dates are skipped (barWidth=0). */}
+        {barWidth > 0 && !isCollapsed && (
+          <div className="absolute inset-0 z-10 pointer-events-none" style={{ overflow: 'visible' }}>
             <GanttBar
               left={barLeft}
               width={barWidth}
@@ -324,6 +335,8 @@ export function GanttTaskRow({
               label={task.name}
               showLabel={showLabels}
               zoomLevel={zoomLevel}
+              rowHeight={actualRowHeight}
+              verticalOffsetPx={0}
               isSubitem={isSubitem}
               dragState={dragState}
               taskId={isSubitem ? (parentTaskId || '') : task.id}
@@ -344,10 +357,10 @@ export function GanttTaskRow({
           </div>
         )}
 
-        {/* Collapsed subitem stack */}
+        {/* Collapsed stack — unified parent + subitem bar layout */}
         {isCollapsed && hasSubitems && (
           <GanttSubitemStack
-            subitems={(task as Item).subitems}
+            parentTask={task as Item}
             parentTaskId={task.id}
             projectId={projectId}
             zoomLevel={zoomLevel}

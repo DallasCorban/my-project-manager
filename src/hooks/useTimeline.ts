@@ -21,8 +21,8 @@ export interface UseTimelineResult {
   dayToVisualIndex: Record<number, number>;
   /** Map from visual index → raw day index */
   visualIndexToDayIndex: Record<number, number>;
-  /** Get the relative index (from today) for a date key */
-  getRelativeIndex: (dateKey: string | null | undefined) => number;
+  /** Get the relative index (from today) for a date key. Returns null for invalid/missing keys. */
+  getRelativeIndex: (dateKey: string | null | undefined) => number | null;
 }
 
 /**
@@ -75,10 +75,10 @@ export function useTimeline(showWeekends: boolean): UseTimelineResult {
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const msPerDay = 1000 * 60 * 60 * 24;
 
-    return (dateKey: string | null | undefined): number => {
-      if (!dateKey) return 0;
+    return (dateKey: string | null | undefined): number | null => {
+      if (!dateKey) return null;
       const match = String(dateKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (!match) return 0;
+      if (!match) return null;
       const target = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
       return Math.round((target.getTime() - todayMidnight.getTime()) / msPerDay);
     };

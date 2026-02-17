@@ -1,11 +1,20 @@
 // GanttBar — draggable timeline bar for a task or subitem.
 // Handles move, resize-left, resize-right interactions.
 // Larger drag handles (10px) and hover X button for deletion.
+//
+// Height is a fixed pixel value derived from rowHeight (never changes with
+// overlap count). Vertical position uses `top: calc(50% + offsetY)` so that
+// overlap only nudges bars, never resizes them.
 
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import type { DragState } from '../../types/timeline';
+
+/** Clamp a value between min and max. */
+function clamp(val: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, val));
+}
 
 interface GanttBarProps {
   left: number;
@@ -14,6 +23,9 @@ interface GanttBarProps {
   label: string;
   showLabel: boolean;
   zoomLevel: number;
+  rowHeight: number;
+  /** Vertical offset in px from center. 0 = centered, negative = up, positive = down. */
+  verticalOffsetPx?: number;
   isSubitem?: boolean;
   /** Currently active drag state (to show delete mode) */
   dragState: DragState;
@@ -30,6 +42,8 @@ export function GanttBar({
   label,
   showLabel,
   zoomLevel,
+  rowHeight,
+  verticalOffsetPx = 0,
   isSubitem: _isSubitem = false,
   dragState,
   taskId,
@@ -47,17 +61,22 @@ export function GanttBar({
 
   const isDeleteMode = isThisBarDragging && dragState.isDeleteMode;
 
-  const barHeight = 'h-3/4'; // Same height for tasks and subitems — visual parity
+  // Fixed pixel height: ~72% of row height, clamped to a sensible range.
+  // This NEVER changes based on overlap/lane count.
+  const barHeightPx = clamp(Math.round(rowHeight * 0.72), 14, 24);
 
   return (
     <div
-      className={`absolute top-1/2 -translate-y-1/2 ${barHeight} rounded-md flex items-center
+      className={`absolute rounded-md flex items-center
         shadow-sm cursor-grab active:cursor-grabbing select-none pointer-events-auto
         ${isDeleteMode ? 'opacity-30' : 'opacity-100'}
         ${darkMode ? 'border border-[#181b34]' : 'border border-white/50'}`}
       style={{
         left,
         width: Math.max(width, zoomLevel * 0.5),
+        height: barHeightPx,
+        top: `calc(50% + ${verticalOffsetPx}px)`,
+        transform: 'translateY(-50%)',
         backgroundColor: color,
       }}
       onMouseDown={(e) => {

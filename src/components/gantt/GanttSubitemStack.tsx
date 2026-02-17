@@ -1,44 +1,55 @@
-// GanttSubitemStack — renders collapsed subitem bars as interactive stacked
-// GanttBar components within a parent row. Uses the same bar component as
-// tasks for full visual and interaction parity (drag/resize/delete).
+// GanttSubitemStack — renders ALL bars (parent + subitems) for a collapsed
+// parent row as interactive stacked GanttBar components.
 //
-// Stacking approach:
-// - Bars that don't overlap anything sit centered (marginTop: 0).
-// - Bars that overlap others are nudged up/down based on their local overlap
-//   group size, NOT a global lane count. This prevents non-overlapping bars
-//   from shifting when unrelated bars happen to overlap elsewhere.
-// - Wrappers use pointer-events-none so that only the visible bar area
-//   captures mouse events, keeping bars behind others still draggable.
+// Unified overlap model:
+// - Parent task bar and subitem bars participate in one combined lane layout.
+// - Lane assignment packs bars into horizontal lanes by start/end overlap.
+// - Per-bar local overlap nudge: each bar computes a vertical offset (offsetY)
+//   from the row center. Bars that don't overlap anything stay centered
+//   (offsetY = 0). Only overlapping groups get nudged up/down.
+// - Bar height is NEVER affected by overlap count. Only offsetY and zIndex change.
+// - Wrappers use pointer-events-none; GanttBar itself uses pointer-events-auto.
 
 import { useMemo } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { GanttBar } from './GanttBar';
 import { normalizeDateKey } from '../../utils/date';
-import type { Subitem } from '../../types/item';
+import type { Item, Subitem } from '../../types/item';
 import type { DragState } from '../../types/timeline';
 
-interface SubitemLane {
-  subitem: Subitem;
+/** Vertical step between lanes in px. */
+const LANE_STEP_PX = 6;
+
+/** Max visible lanes before overflow indicator. */
+const MAX_VISIBLE_LANES = 5;
+
+/** A bar in the unified lane layout — either the parent task or a subitem. */
+interface LaneBar {
+  id: string;
+  name: string;
+  color: string;
   laneIndex: number;
   startVisual: number;
   endVisual: number;
   widthVisual: number;
-  /** How many lanes are occupied in this bar's overlap group */
-  localLaneCount: number;
+  normalizedStart: string | null;
+  duration: number;
+  isParent: boolean;
+  subitemId: string | null;
+  /** Vertical offset in px from row center. Only nudge, never height. */
+  offsetY: number;
 }
 
-const MAX_VISIBLE_LANES = 5;
-
 interface GanttSubitemStackProps {
-  subitems: Subitem[];
+  parentTask: Item;
   parentTaskId: string;
   projectId: string;
   zoomLevel: number;
   rowHeight: number;
   showLabels: boolean;
-  getRelativeIndex: (dateKey: string | null | undefined) => number;
+  getRelativeIndex: (dateKey: string | null | undefined) => number | null;
   dayToVisualIndex: Record<number, number>;
-  getColor: (item: Subitem) => string;
+  getColor: (item: Item | Subitem) => string;
   dragState: DragState;
   canEdit: boolean;
   onMouseDown: (
@@ -53,12 +64,42 @@ interface GanttSubitemStackProps {
   ) => void;
 }
 
+/**
+ * Resolve a date key to visual start/end positions.
+ * Returns null if the date is unmappable (invalid key or outside visible range).
+ */
+function resolveVisualRange(
+  dateKey: string | null,
+  duration: number,
+  getRelativeIndex: (dateKey: string | null | undefined) => number | null,
+  dayToVisualIndex: Record<number, number>,
+): { start: number; end: number } | null {
+  if (!dateKey) return null;
+  const relIdx = getRelativeIndex(dateKey);
+  if (relIdx === null) return null;
+  const startVis = dayToVisualIndex[relIdx];
+  if (startVis === undefined) return null;
+
+  const rawEnd = relIdx + duration;
+  let endVis: number | undefined = dayToVisualIndex[rawEnd];
+  if (endVis === undefined) {
+    for (let probe = rawEnd + 1; probe <= rawEnd + 3; probe++) {
+      if (dayToVisualIndex[probe] !== undefined) {
+        endVis = dayToVisualIndex[probe];
+        break;
+      }
+    }
+    if (endVis === undefined) endVis = startVis + duration;
+  }
+  return { start: startVis, end: endVis };
+}
+
 export function GanttSubitemStack({
-  subitems,
+  parentTask,
   parentTaskId,
   projectId,
   zoomLevel,
-  rowHeight: _rowHeight,
+  rowHeight,
   showLabels,
   getRelativeIndex,
   dayToVisualIndex,
@@ -70,43 +111,78 @@ export function GanttSubitemStack({
   const darkMode = useUIStore((s) => s.darkMode);
 
   const lanes = useMemo(() => {
-    // Filter subitems that have dates
-    const dated = subitems
-      .filter((s) => s.start)
-      .map((s) => {
-        const relIdx = getRelativeIndex(s.start as string);
-        const dur = Math.max(1, Number(s.duration || 1));
-        const startVis = dayToVisualIndex[relIdx] ?? 0;
-        // Find end visual index — probe forward if end falls on a hidden weekend
-        const rawEnd = relIdx + dur;
-        let endVis: number | undefined = dayToVisualIndex[rawEnd];
-        if (endVis === undefined) {
-          for (let probe = rawEnd + 1; probe <= rawEnd + 3; probe++) {
-            if (dayToVisualIndex[probe] !== undefined) {
-              endVis = dayToVisualIndex[probe];
-              break;
-            }
-          }
-          if (endVis === undefined) endVis = startVis + dur;
-        }
-        return { subitem: s, start: startVis, end: endVis };
-      })
-      .sort((a, b) => a.start - b.start);
+    // Build a combined list of all renderable bars (parent + subitems)
+    type RawBar = {
+      id: string;
+      name: string;
+      color: string;
+      normalizedStart: string | null;
+      duration: number;
+      isParent: boolean;
+      subitemId: string | null;
+      start: number;
+      end: number;
+    };
 
-    // Lane assignment algorithm — pack subitems into horizontal lanes
+    const rawBars: RawBar[] = [];
+
+    // Include parent task bar if it has valid dates
+    const parentNorm = normalizeDateKey(parentTask.start);
+    const parentDur = Math.max(1, Number(parentTask.duration || 1));
+    const parentRange = resolveVisualRange(parentNorm, parentDur, getRelativeIndex, dayToVisualIndex);
+    if (parentRange) {
+      rawBars.push({
+        id: parentTask.id,
+        name: parentTask.name,
+        color: getColor(parentTask),
+        normalizedStart: parentNorm,
+        duration: parentDur,
+        isParent: true,
+        subitemId: null,
+        start: parentRange.start,
+        end: parentRange.end,
+      });
+    }
+
+    // Include subitem bars with valid dates
+    for (const sub of parentTask.subitems) {
+      if (!sub.start) continue;
+      const subNorm = normalizeDateKey(sub.start);
+      const subDur = Math.max(1, Number(sub.duration || 1));
+      const subRange = resolveVisualRange(subNorm, subDur, getRelativeIndex, dayToVisualIndex);
+      if (!subRange) continue;
+
+      rawBars.push({
+        id: sub.id,
+        name: sub.name,
+        color: getColor(sub),
+        normalizedStart: subNorm,
+        duration: subDur,
+        isParent: false,
+        subitemId: sub.id,
+        start: subRange.start,
+        end: subRange.end,
+      });
+    }
+
+    if (rawBars.length === 0) return [];
+
+    // Sort: by start, then end, then parent first for deterministic ties
+    rawBars.sort((a, b) => {
+      if (a.start !== b.start) return a.start - b.start;
+      if (a.end !== b.end) return a.end - b.end;
+      if (a.isParent !== b.isParent) return a.isParent ? -1 : 1;
+      return a.id.localeCompare(b.id);
+    });
+
+    // Lane assignment — pack ALL bars into horizontal lanes
     const laneEnds: number[] = [];
-    const assigned: Array<{
-      subitem: Subitem;
-      laneIndex: number;
-      startVisual: number;
-      endVisual: number;
-      widthVisual: number;
-    }> = [];
+    const assigned: Array<RawBar & { laneIndex: number }> = [];
 
-    for (const item of dated) {
+    for (const bar of rawBars) {
       let assignedLane = -1;
       for (let l = 0; l < laneEnds.length; l++) {
-        if (laneEnds[l] <= item.start) {
+        if (laneEnds[l] <= bar.start) {
           assignedLane = l;
           break;
         }
@@ -115,91 +191,95 @@ export function GanttSubitemStack({
         assignedLane = laneEnds.length;
         laneEnds.push(0);
       }
-      laneEnds[assignedLane] = item.end;
+      laneEnds[assignedLane] = bar.end;
 
-      assigned.push({
-        subitem: item.subitem,
-        laneIndex: assignedLane,
-        startVisual: item.start,
-        endVisual: item.end,
-        widthVisual: item.end - item.start,
-      });
+      assigned.push({ ...bar, laneIndex: assignedLane });
     }
 
-    // Compute local lane count per bar: how many distinct lanes overlap
-    // this bar's time range. This is used instead of global maxLanes so
-    // non-overlapping bars stay centered and unaffected.
-    const result: SubitemLane[] = assigned.map((bar) => {
-      // Find the set of lane indices occupied by bars overlapping this bar
-      const overlappingLanes = new Set<number>();
+    // Compute per-bar offsetY from local overlap cluster.
+    // For each bar, find overlapping lane indices → sort → use bar's
+    // position in that sorted list as localLaneIndex.
+    // offsetY = (localLaneIndex - (localLaneCount - 1) / 2) * LANE_STEP_PX
+    const result: LaneBar[] = assigned.map((bar) => {
+      const overlapLaneSet = new Set<number>();
       for (const other of assigned) {
-        // Two bars overlap if their ranges intersect
-        if (other.startVisual < bar.endVisual && other.endVisual > bar.startVisual) {
-          overlappingLanes.add(other.laneIndex);
+        if (other.start < bar.end && other.end > bar.start) {
+          overlapLaneSet.add(other.laneIndex);
         }
       }
+      const overlapLanes = Array.from(overlapLaneSet).sort((a, b) => a - b);
+      const localLaneCount = Math.min(overlapLanes.length || 1, MAX_VISIBLE_LANES);
+      const localLaneIndex = Math.max(0, overlapLanes.indexOf(bar.laneIndex));
+      const offsetY = (localLaneIndex - (localLaneCount - 1) / 2) * LANE_STEP_PX;
+
       return {
-        ...bar,
-        localLaneCount: Math.min(overlappingLanes.size, MAX_VISIBLE_LANES),
+        id: bar.id,
+        name: bar.name,
+        color: bar.color,
+        laneIndex: bar.laneIndex,
+        startVisual: bar.start,
+        endVisual: bar.end,
+        widthVisual: bar.end - bar.start,
+        normalizedStart: bar.normalizedStart,
+        duration: bar.duration,
+        isParent: bar.isParent,
+        subitemId: bar.subitemId,
+        offsetY,
       };
     });
 
     return result;
-  }, [subitems, getRelativeIndex, dayToVisualIndex]);
+  }, [parentTask, getRelativeIndex, dayToVisualIndex, getColor]);
 
   if (lanes.length === 0) return null;
 
-  // Count overflow (subitems in hidden lanes)
   const overflowCount = lanes.filter((l) => l.laneIndex >= MAX_VISIBLE_LANES).length;
 
   return (
-    <div className="absolute inset-0 z-[5] pointer-events-none">
+    <div className="absolute inset-0 z-[5] pointer-events-none" style={{ overflow: 'visible' }}>
       {lanes
-        .filter((item) => item.laneIndex < MAX_VISIBLE_LANES)
-        .map((item) => {
-          const subDuration = Math.max(1, Number(item.subitem.duration || 1));
-          const normalizedStart = normalizeDateKey(item.subitem.start);
-
-          // Check if this specific subitem is being dragged
+        .filter((bar) => bar.laneIndex < MAX_VISIBLE_LANES)
+        .map((bar) => {
+          // Check if this specific bar is being dragged
           const isThisDragging =
             dragState.isDragging &&
             dragState.type !== 'create' &&
             dragState.hasMoved &&
-            dragState.subitemId === item.subitem.id;
+            (bar.isParent
+              ? dragState.taskId === parentTaskId && dragState.subitemId === null
+              : dragState.subitemId === bar.id);
 
           const left = isThisDragging
             ? dragState.visualLeft
-            : item.startVisual * zoomLevel;
+            : bar.startVisual * zoomLevel;
           const width = isThisDragging
             ? dragState.visualWidth
-            : Math.max(item.widthVisual * zoomLevel, zoomLevel * 0.5);
+            : Math.max(bar.widthVisual * zoomLevel, zoomLevel * 0.5);
 
-          // Per-bar offset using LOCAL lane count (not global maxLanes).
-          // Only overlapping bars get nudged; isolated bars stay centered.
-          //   localLaneCount=1 → marginTop = 0 (centered)
-          //   localLaneCount=2 → lane0: -3px, lane1: +3px
-          //   localLaneCount=3 → lane0: -6px, lane1: 0px, lane2: +6px
-          const marginTop = (item.laneIndex * 6) - ((item.localLaneCount - 1) * 3);
-
+          // GanttBar positions itself via top: calc(50% + offsetY) so we just
+          // need a positioned container with the right z-index. No wrapper
+          // sizing or marginTop needed — overlap only affects offsetY.
           return (
             <div
-              key={item.subitem.id}
+              key={bar.id}
               className="absolute inset-0 pointer-events-none"
               style={{
-                marginTop,
-                zIndex: 20 + item.laneIndex,
+                zIndex: 20 + bar.laneIndex,
+                overflow: 'visible',
               }}
             >
               <GanttBar
                 left={left}
                 width={width}
-                color={getColor(item.subitem)}
-                label={item.subitem.name}
+                color={bar.color}
+                label={bar.name}
                 showLabel={showLabels}
                 zoomLevel={zoomLevel}
+                rowHeight={rowHeight}
+                verticalOffsetPx={bar.offsetY}
                 dragState={dragState}
                 taskId={parentTaskId}
-                subitemId={item.subitem.id}
+                subitemId={bar.subitemId}
                 onMouseDown={(e, type) => {
                   if (!canEdit) return;
                   onMouseDown(
@@ -207,10 +287,10 @@ export function GanttSubitemStack({
                     parentTaskId,
                     projectId,
                     type,
-                    item.subitem.id,
+                    bar.subitemId,
                     'parent',
-                    normalizedStart,
-                    subDuration,
+                    bar.normalizedStart,
+                    bar.duration,
                   );
                 }}
               />
