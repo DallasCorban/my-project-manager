@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAuthStore, initAuth } from '../stores/authStore';
 import { initDarkMode } from '../stores/uiStore';
 import { ProjectDataProvider } from '../stores/projectStore';
+import { WorkspaceDataProvider } from '../stores/workspaceStore';
 import { AppShell } from '../components/layout/AppShell';
 import { AuthModal } from '../components/auth/AuthModal';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -30,8 +31,10 @@ export default function App() {
 
   return (
     <ProjectDataProvider>
-      <AppShell />
-      <AuthModal />
+      <WorkspaceDataProvider>
+        <AppShell />
+        <AuthModal />
+      </WorkspaceDataProvider>
     </ProjectDataProvider>
   );
 }

@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useProjectContext } from '../../stores/projectStore';
-import { useWorkspaceData } from '../../stores/workspaceStore';
+import { useWorkspaceContext } from '../../stores/workspaceStore';
 import {
   getProjectPermissions,
   ensureProject,
@@ -54,7 +54,7 @@ export function AppShell() {
     activeBoardId,
     setActiveEntityId,
     setActiveBoardId,
-  } = useWorkspaceData();
+  } = useWorkspaceContext();
 
   // Derive active workspace
   const activeWorkspace = workspaces.find((w) => w.id === activeEntityId) || workspaces[0];

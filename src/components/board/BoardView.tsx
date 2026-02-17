@@ -5,7 +5,7 @@ import { useState, useCallback, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectContext } from '../../stores/projectStore';
-import { useWorkspaceData } from '../../stores/workspaceStore';
+import { useWorkspaceContext } from '../../stores/workspaceStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useBoardColumns } from '../../hooks/useBoardColumns';
 import { GroupSection } from './GroupSection';
@@ -35,7 +35,7 @@ export function BoardView({ project }: BoardViewProps) {
     reorderSubitems,
   } = useProjectContext();
 
-  const { statuses, setStatuses, jobTypes, setJobTypes, activeEntityId } = useWorkspaceData();
+  const { statuses, setStatuses, jobTypes, setJobTypes, activeEntityId } = useWorkspaceContext();
 
   const boardColumns = useTimelineStore((s) => s.getBoardColumns(activeEntityId));
   const setBoardColumns = useTimelineStore((s) => s.setBoardColumns);
