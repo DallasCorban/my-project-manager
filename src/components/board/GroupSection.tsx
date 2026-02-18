@@ -1,0 +1,250 @@
+// A single group within the board view: header + task rows.
+
+import { useState, useRef } from 'react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { useUIStore } from '../../stores/uiStore';
+import { GroupHeaderRow } from './GroupHeaderRow';
+import { TaskRow } from '../shared/TaskRow';
+import { EditableText } from '../shared/EditableText';
+import type { Board, Group } from '../../types/board';
+import type { Item } from '../../types/item';
+import type { BoardColumns, ReorderDrag } from '../../types/timeline';
+import type { StatusLabel, JobTypeLabel } from '../../config/constants';
+
+interface GroupSectionProps {
+  group: Group;
+  tasks: Item[];
+  project: Board;
+  boardColumns: BoardColumns;
+  statuses: StatusLabel[];
+  jobTypes: JobTypeLabel[];
+  onStartResize: (key: keyof BoardColumns, clientX: number) => void;
+  onUpdateGroupName: (name: string) => void;
+  onUpdateTaskName: (taskId: string, name: string) => void;
+  onUpdateSubitemName: (taskId: string, subitemId: string, name: string) => void;
+  onStatusSelect: (taskId: string, subitemId: string | null, statusId: string) => void;
+  onTypeSelect: (taskId: string, subitemId: string | null, typeId: string) => void;
+  onAddTaskToGroup: (name?: string) => void;
+  onAddSubitem: (projectId: string, taskId: string) => void;
+  onAddStatusLabel: (label: string, color: string) => void;
+  onAddTypeLabel: (label: string, color: string) => void;
+  onRemoveStatusLabel?: (id: string) => void;
+  onRemoveTypeLabel?: (id: string) => void;
+  onOpenDatePicker: (taskId: string, subitemId: string | null) => void;
+  onOpenUpdates: (taskId: string, subitemId: string | null) => void;
+  reorderDrag: ReorderDrag | null;
+  canEdit: boolean;
+  onDragStart?: (e: React.DragEvent, type: string, id: string, pid: string) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent, type: string, id: string, pid: string) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
+}
+
+export function GroupSection({
+  group,
+  tasks,
+  project,
+  boardColumns,
+  statuses,
+  jobTypes,
+  onStartResize,
+  onUpdateGroupName,
+  onUpdateTaskName,
+  onUpdateSubitemName,
+  onStatusSelect,
+  onTypeSelect,
+  onAddTaskToGroup,
+  onAddSubitem,
+  onAddStatusLabel,
+  onAddTypeLabel,
+  onRemoveStatusLabel,
+  onRemoveTypeLabel,
+  onOpenDatePicker,
+  onOpenUpdates,
+  reorderDrag,
+  canEdit,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+}: GroupSectionProps) {
+  const darkMode = useUIStore((s) => s.darkMode);
+  const collapsedGroups = useUIStore((s) => s.collapsedGroups);
+  const toggleGroupCollapse = useUIStore((s) => s.toggleGroupCollapse);
+  const expandedItems = useUIStore((s) => s.expandedItems);
+  const selectedItems = useUIStore((s) => s.selectedItems);
+  const toggleSelection = useUIStore((s) => s.toggleSelection);
+
+  // Inline add item state
+  const [isAdding, setIsAdding] = useState(false);
+  const [addText, setAddText] = useState('');
+  const addInputRef = useRef<HTMLInputElement>(null);
+
+  const isCollapsed = collapsedGroups.includes(group.id);
+
+  const handleAddSubmit = () => {
+    const name = addText.trim();
+    if (name) {
+      onAddTaskToGroup(name);
+      setAddText('');
+      // Keep input focused for rapid entry
+      setTimeout(() => addInputRef.current?.focus(), 0);
+    }
+  };
+
+  const handleAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleAddSubmit();
+    } else if (e.key === 'Escape') {
+      setIsAdding(false);
+      setAddText('');
+    }
+  };
+
+  return (
+    <div className="mb-6">
+      {/* Group header */}
+      <div
+        className={`flex items-center gap-2 px-4 py-2 cursor-pointer rounded-t-lg ${
+          darkMode ? 'hover:bg-[#202336]' : 'hover:bg-gray-50'
+        }`}
+        onClick={() => toggleGroupCollapse(group.id)}
+      >
+        <div
+          className="w-4 h-4 rounded-sm"
+          style={{ backgroundColor: group.color }}
+        />
+        {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+        <EditableText
+          value={group.name}
+          onChange={canEdit ? (v) => onUpdateGroupName(v) : undefined}
+          readOnly={!canEdit}
+          className="text-sm font-bold"
+        />
+        <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+          {tasks.length} items
+        </span>
+      </div>
+
+      {/* Table contents */}
+      {!isCollapsed && (
+        <div
+          className={`rounded-lg border ${
+            darkMode ? 'border-[#2b2c32]' : 'border-[#d0d4e4]'
+          }`}
+          style={{ borderLeftColor: group.color, borderLeftWidth: 3 }}
+        >
+          {/* Column headers */}
+          <GroupHeaderRow boardColumns={boardColumns} onStartResize={onStartResize} />
+
+          {/* Task rows */}
+          {tasks.map((task) => (
+            <div key={task.id}>
+              <TaskRow
+                task={task}
+                projectId={project.id}
+                isSelected={selectedItems.has(task.id)}
+                onToggle={toggleSelection}
+                onAddSubitem={onAddSubitem}
+                statuses={statuses}
+                jobTypes={jobTypes}
+                onUpdateName={(v) => onUpdateTaskName(task.id, v)}
+                onStatusSelect={(sid) => onStatusSelect(task.id, null, sid)}
+                onTypeSelect={(tid) => onTypeSelect(task.id, null, tid)}
+                onAddStatusLabel={onAddStatusLabel}
+                onAddTypeLabel={onAddTypeLabel}
+                onRemoveStatusLabel={onRemoveStatusLabel}
+                onRemoveTypeLabel={onRemoveTypeLabel}
+                onOpenDatePicker={() => onOpenDatePicker(task.id, null)}
+                onOpenUpdates={() => onOpenUpdates(task.id, null)}
+                boardColumns={boardColumns}
+                reorderDrag={reorderDrag}
+                canEdit={canEdit}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDrop={onDrop}
+                onDragEnd={onDragEnd}
+              />
+
+              {/* Expanded subitems */}
+              {expandedItems.includes(task.id) &&
+                task.subitems.map((sub) => (
+                  <TaskRow
+                    key={sub.id}
+                    task={sub}
+                    projectId={project.id}
+                    parentId={task.id}
+                    isSubitem
+                    isSelected={selectedItems.has(sub.id)}
+                    onToggle={toggleSelection}
+                    statuses={statuses}
+                    jobTypes={jobTypes}
+                    onUpdateName={(v) => onUpdateSubitemName(task.id, sub.id, v)}
+                    onStatusSelect={(sid) => onStatusSelect(task.id, sub.id, sid)}
+                    onTypeSelect={(tid) => onTypeSelect(task.id, sub.id, tid)}
+                    onAddStatusLabel={onAddStatusLabel}
+                    onAddTypeLabel={onAddTypeLabel}
+                    onRemoveStatusLabel={onRemoveStatusLabel}
+                    onRemoveTypeLabel={onRemoveTypeLabel}
+                    onOpenDatePicker={() => onOpenDatePicker(task.id, sub.id)}
+                    onOpenUpdates={() => onOpenUpdates(task.id, sub.id)}
+                    boardColumns={boardColumns}
+                    reorderDrag={reorderDrag}
+                    canEdit={canEdit}
+                    onDragStart={onDragStart}
+                    onDragOver={onDragOver}
+                    onDrop={onDrop}
+                    onDragEnd={onDragEnd}
+                  />
+                ))}
+            </div>
+          ))}
+
+          {/* Add item row — inline input */}
+          {canEdit && (
+            <div
+              className={`flex items-center h-10 px-4 transition-colors ${
+                darkMode
+                  ? 'hover:bg-[#202336] text-gray-500'
+                  : 'hover:bg-gray-50 text-gray-400'
+              }`}
+            >
+              {isAdding ? (
+                <div className="flex items-center gap-2 w-full">
+                  <Plus size={14} className="shrink-0" />
+                  <input
+                    ref={addInputRef}
+                    autoFocus
+                    value={addText}
+                    onChange={(e) => setAddText(e.target.value)}
+                    onKeyDown={handleAddKeyDown}
+                    onBlur={() => {
+                      if (!addText.trim()) {
+                        setIsAdding(false);
+                        setAddText('');
+                      }
+                    }}
+                    placeholder="Item name..."
+                    className={`flex-1 h-7 px-2 text-xs rounded outline-none border ${
+                      darkMode
+                        ? 'bg-[#181b34] border-[#2b2c32] text-gray-200 placeholder-gray-500'
+                        : 'bg-white border-gray-200 text-gray-700 placeholder-gray-400'
+                    }`}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => setIsAdding(true)}
+                >
+                  <Plus size={14} />
+                  <span className="text-xs">Add Item</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
