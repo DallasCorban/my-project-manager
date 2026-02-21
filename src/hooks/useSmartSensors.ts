@@ -13,21 +13,22 @@
 //   - Filters droppable candidates to the same type as the active item (task,
 //     subitem, or group) so that a task drag can never accidentally land on a
 //     group droppable and vice-versa.
-//   - Excludes the dragged item's own droppable (self-collision prevention) so
-//     that pointerWithin never returns the active item as its own target when
-//     the pointer is still within the original placeholder rect (upward drags).
-//   - Uses pointerWithin as the primary algorithm: the swap fires as soon as
-//     the pointer enters an adjacent row, eliminating the ~20px overshoot that
-//     closestCenter requires for single-row moves.
-//   - Falls back to closestCenter when the pointer is outside all same-type
-//     droppables (e.g. at the very edge of the scroll container).
+//   - Excludes the dragged item's own droppable (self-collision prevention) to
+//     prevent the algorithm from treating the placeholder as a valid target.
+//   - Uses overlap-threshold detection as the primary algorithm: a swap fires
+//     when the DragOverlay rect overlaps a candidate row by ≥ 25% of that
+//     row's height. This sits between pointerWithin (0% → jitter at boundaries)
+//     and closestCenter (~50% overshoot → feels sluggish). It directly maps to
+//     the intended UX: "when the ghost overlaps the adjacent ticket enough, that
+//     ticket slides out of the way."
+//   - Falls back to closestCenter when no candidate meets the threshold (e.g.
+//     ghost near the scroll edge or between groups).
 
 import {
   PointerSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
-  pointerWithin,
   closestCenter,
 } from '@dnd-kit/core';
 import type { CollisionDetection } from '@dnd-kit/core';
@@ -62,43 +63,72 @@ export function useSortableSensors() {
 /**
  * Custom collision detection for Board + Gantt sortable lists.
  *
- * Three improvements over plain closestCenter:
+ * Implements the "overlap-threshold" algorithm:
+ *   A swap fires when the DragOverlay rect overlaps a candidate row by at
+ *   least OVERLAP_RATIO (25%) of that row's height. This matches the expected
+ *   UX: "when my ghost ticket is overlapping the adjacent ticket by a certain
+ *   amount, that ticket slides to make space."
  *
- * 1. Type-filtered candidates — only droppables of the same type as the
- *    active item (task / subitem / group) are considered. This prevents a
- *    task drag from accidentally resolving against a group droppable (which
- *    spans the full group height) or a subitem droppable.
+ * Why not pointerWithin?  Fires at 0% overlap — the sort can flip back and
+ *   forth if the pointer sits right on a row boundary (jitter).
  *
- * 2. Self-exclusion — the dragged item's own droppable (the placeholder that
- *    stays at the original position) is excluded. Without this, pointerWithin
- *    can return the active item itself as the collision target when dragging
- *    upward (pointer is still within the original placeholder rect), which
- *    causes zero sort change and no shuffle animation for upward drags.
+ * Why not closestCenter?  Fires only when the ghost center crosses the midpoint
+ *   between two row centers (~50% overshoot) — feels sluggish for single-row
+ *   moves.
  *
- * 3. pointerWithin primary strategy — the swap fires as soon as the pointer
- *    physically enters an adjacent row, so a one-row drag only needs the
- *    pointer to cross the row boundary (0 px overshoot) instead of the
- *    ~20 px overshoot required by closestCenter. This is the main fix for
- *    "hard to move just one row" for tasks that have hidden subitems.
+ * Additional safeguards:
+ *   - Type-filtered candidates: a task droppable never resolves against a group
+ *     droppable or subitem droppable, and vice-versa.
+ *   - Self-exclusion: the active item's own droppable (the placeholder left at
+ *     the original position) is never returned as a collision target.
+ *   - closestCenter fallback: used when no candidate meets the overlap threshold
+ *     (e.g. ghost is near the scroll edge or between groups).
  */
-export const sortableCollisionDetection: CollisionDetection = (args) => {
-  const activeType = (args.active.data.current as { type?: string } | undefined)?.type;
 
-  // Filter candidates to only the same type as the dragged item,
-  // and exclude the dragged item's own droppable (self-collision prevention).
-  const sameType = activeType
-    ? args.droppableContainers.filter(
+// Fraction of a row's height the ghost must overlap before the row slides.
+// 0.25 → 10 px for a 40 px row; tweak if the feel needs adjusting.
+const OVERLAP_RATIO = 0.25;
+
+export const sortableCollisionDetection: CollisionDetection = (args) => {
+  const { active, collisionRect, droppableRects, droppableContainers } = args;
+  const activeType = (active.data.current as { type?: string } | undefined)?.type;
+
+  // Filter: same type as the dragged item, exclude its own droppable.
+  const candidates = activeType
+    ? droppableContainers.filter(
         (c) =>
           (c.data.current as { type?: string } | undefined)?.type === activeType &&
-          c.id !== args.active.id,
+          c.id !== active.id,
       )
-    : args.droppableContainers.filter((c) => c.id !== args.active.id);
+    : droppableContainers.filter((c) => c.id !== active.id);
 
-  // Primary: pointer-within — zero overshoot for single-row moves.
-  const within = pointerWithin({ ...args, droppableContainers: sameType });
-  if (within.length > 0) return within;
+  // Overlap-threshold pass: find the candidate that the ghost overlaps the most
+  // while still exceeding the minimum threshold.
+  let bestId: string | null = null;
+  let bestOverlap = 0;
 
-  // Fallback: closest-center when the pointer leaves all same-type droppables
-  // (e.g. dragging near the edge of the scroll area or between groups).
-  return closestCenter({ ...args, droppableContainers: sameType });
+  for (const container of candidates) {
+    const rect = droppableRects.get(container.id);
+    if (!rect) continue;
+
+    // Vertical intersection only — we're sorting a vertical list.
+    const overlapHeight =
+      Math.min(collisionRect.bottom, rect.bottom) - Math.max(collisionRect.top, rect.top);
+
+    if (overlapHeight <= 0) continue;
+
+    const threshold = rect.height * OVERLAP_RATIO;
+    if (overlapHeight >= threshold && overlapHeight > bestOverlap) {
+      bestOverlap = overlapHeight;
+      bestId = String(container.id);
+    }
+  }
+
+  if (bestId !== null) {
+    return [{ id: bestId }];
+  }
+
+  // Fallback: closestCenter when the ghost hasn't overlapped any candidate
+  // enough — handles fast drags and positions near group edges.
+  return closestCenter({ ...args, droppableContainers: candidates });
 };
