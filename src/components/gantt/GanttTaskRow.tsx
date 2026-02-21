@@ -34,6 +34,8 @@ interface GanttTaskRowProps {
   settledOverrides: Record<string, SettledOverride>;
   clearSettledOverride: (key: string) => void;
   canEdit: boolean;
+  /** When true, renders a blue drop-indicator line at the top of the row. */
+  isDropTarget?: boolean;
   onMouseDown: (
     e: React.PointerEvent,
     taskId: string,
@@ -72,6 +74,7 @@ export function GanttTaskRow({
   settledOverrides,
   clearSettledOverride,
   canEdit,
+  isDropTarget = false,
   onMouseDown,
   onUpdateName,
   onStatusSelect: _onStatusSelect,
@@ -195,6 +198,13 @@ export function GanttTaskRow({
       style={{ height: actualRowHeight }}
       {...attributes}
     >
+      {/* Drop indicator — blue line at the top of this row when the dragged item
+          is hovering here. Replaces a transform-based shuffle (which would break
+          position:sticky on the label column). */}
+      {isDropTarget && (
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-blue-500 z-50 pointer-events-none" />
+      )}
+
       {/* Left label column — sticky, spread listeners here to make it the drag handle.
           touch-action:none prevents iOS from intercepting touch as scroll during drag. */}
       <div

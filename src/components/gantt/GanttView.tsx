@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, CheckSquare, Square, Plus, ZoomIn, ZoomOut, CalendarDays, Eye } from 'lucide-react';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
+import type { DragStartEvent, DragEndEvent, DragOverEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectContext } from '../../stores/projectStore';
@@ -150,6 +150,8 @@ export function GanttView({
   // --- dnd-kit row reorder ---
   const sensors = useSortableSensors();
   const [activeId, setActiveId] = useState<string | null>(null);
+  /** ID of the droppable currently under the pointer — used to render the drop indicator. */
+  const [overId, setOverId] = useState<string | null>(null);
 
   // Find the active group or item (task or subitem) for DragOverlay
   const activeGroup: Group | null = activeId
@@ -177,6 +179,11 @@ export function GanttView({
     }
     setActiveId(String(active.id));
   }, [project, collapsedGroups, setCollapsedGroups]);
+
+  /** Tracks which droppable the pointer is currently over for the drop indicator. */
+  const handleDragOver = useCallback(({ over }: DragOverEvent) => {
+    setOverId(over ? String(over.id) : null);
+  }, []);
 
   const handleDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
@@ -251,6 +258,7 @@ export function GanttView({
       }
 
       // Clear last — keeps DragOverlay content alive for the drop animation
+      setOverId(null);
       setActiveId(null);
     },
     [project, reorderGroups, reorderTasks, moveTaskToGroup, reorderSubitems, setCollapsedGroups],
@@ -263,6 +271,7 @@ export function GanttView({
       setCollapsedGroups(allIds.filter((id) => !preGroupDragOpen.current.includes(id)));
       preGroupDragOpen.current = [];
     }
+    setOverId(null);
     setActiveId(null);
   }, [project, setCollapsedGroups]);
 
@@ -332,6 +341,7 @@ export function GanttView({
       sensors={sensors}
       collisionDetection={sortableCollisionDetection}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
@@ -607,6 +617,7 @@ export function GanttView({
                                     projectId={project.id}
                                     isSubitem={false}
                                     isExpanded={isTaskExpanded}
+                                    isDropTarget={activeId !== null && activeId !== task.id && overId === task.id}
                                     visibleDays={visibleDays}
                                     zoomLevel={zoomLevel}
                                     rowHeight={rowHeight}
@@ -648,6 +659,7 @@ export function GanttView({
                                           projectId={project.id}
                                           parentTaskId={task.id}
                                           isSubitem
+                                          isDropTarget={activeId !== null && activeId !== sub.id && overId === sub.id}
                                           visibleDays={visibleDays}
                                           zoomLevel={zoomLevel}
                                           rowHeight={rowHeight}
