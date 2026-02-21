@@ -11,7 +11,7 @@ export function useScrollToToday(
   visibleDays: TimelineDay[],
   zoomLevel: number,
 ) {
-  const scrollToToday = useCallback(() => {
+  const scrollToToday = useCallback((smooth = true) => {
     const el = bodyRef.current;
     if (!el) return;
 
@@ -23,9 +23,9 @@ export function useScrollToToday(
     // Subtract the label column width (320px) then center
     const labelColumnWidth = 320;
     const viewportWidth = containerWidth - labelColumnWidth;
-    const targetScroll = todayPixel - viewportWidth / 2;
+    const targetScroll = Math.max(0, todayPixel - viewportWidth / 2);
 
-    el.scrollLeft = Math.max(0, targetScroll);
+    el.scrollTo({ left: targetScroll, behavior: smooth ? 'smooth' : 'auto' });
   }, [bodyRef, visibleDays, zoomLevel]);
 
   return scrollToToday;

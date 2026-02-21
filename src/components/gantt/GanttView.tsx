@@ -284,7 +284,7 @@ export function GanttView({
   scrollToTodayRef.current = scrollToToday;
   useEffect(() => {
     // Small delay to ensure layout is complete — runs only on mount
-    const timer = setTimeout(() => scrollToTodayRef.current(), 100);
+    const timer = setTimeout(() => scrollToTodayRef.current(false), 100);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -482,7 +482,7 @@ export function GanttView({
           {/* Right section: today button */}
           <div className="flex items-center gap-2">
             <button
-              onClick={scrollToToday}
+              onClick={() => scrollToToday()}
               className={`px-2 py-1 rounded text-xs transition-colors ${
                 darkMode
                   ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
