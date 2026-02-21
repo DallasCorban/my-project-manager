@@ -113,10 +113,12 @@ export function GanttTaskRow({
     disabled: !canEdit,
   });
 
-  // Double-clicking the empty whitespace of the left label column toggles the
-  // updates panel for this row's item.  Interactive children (buttons, checkbox,
-  // contenteditable spans) are excluded via the same guard used in TaskRow.
-  const handleLabelDoubleClick = (e: React.MouseEvent) => {
+  // Single-clicking the empty whitespace of the left label column toggles the
+  // updates panel for this row's item — consistent with Board view's row click.
+  // dnd-kit's PointerSensor only activates after 4 px of movement so a plain
+  // click never accidentally starts a drag.  Interactive children (buttons,
+  // checkbox, contenteditable) are excluded via the same guard used in TaskRow.
+  const handleLabelClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     const isInteractive =
       ['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes(target.tagName) ||
@@ -236,7 +238,7 @@ export function GanttTaskRow({
             : 'bg-white border-[#eceff8]'
         }`}
         style={{ width: 320, minWidth: 320, touchAction: 'none' }}
-        onDoubleClick={handleLabelDoubleClick}
+        onClick={handleLabelClick}
         {...listeners}
       >
         {/* Checkbox — data-no-dnd prevents SmartPointerSensor from consuming the click */}

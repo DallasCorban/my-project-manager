@@ -243,10 +243,13 @@ export function AppShell() {
       </div>
 
       {/* Updates Panel — always in DOM, slides in/out with a CSS transition.
+          This wrapper owns the fixed positioning and width so UpdatesPanel's
+          own root can be a plain h-full/w-full div.  z-[300] sits above the
+          Gantt sticky columns (z-[200]/z-[201]) and toolbar (z-40).
           `shownTarget` keeps content alive during the slide-out so the panel
           doesn't visually empty before it finishes animating off-screen. */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-full w-96 z-[300] transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >

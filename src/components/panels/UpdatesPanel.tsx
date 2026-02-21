@@ -96,7 +96,7 @@ export function UpdatesPanel({
 
   return (
     <div
-      className={`fixed right-0 top-0 h-full w-96 z-[250] shadow-2xl flex flex-col ${
+      className={`h-full w-full shadow-2xl flex flex-col ${
         darkMode ? 'bg-[#1c213e] text-gray-200' : 'bg-white text-gray-800'
       }`}
     >
