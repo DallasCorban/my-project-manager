@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { useUIStore } from '../../stores/uiStore';
 import { GroupHeaderRow } from './GroupHeaderRow';
 import { TaskRow } from '../shared/TaskRow';
@@ -34,6 +35,8 @@ interface GroupSectionProps {
   onOpenDatePicker: (taskId: string, subitemId: string | null) => void;
   onOpenUpdates: (taskId: string, subitemId: string | null) => void;
   canEdit: boolean;
+  /** Listeners from useSortable — spread on the header as the group drag handle. */
+  dragHandleListeners?: SyntheticListenerMap;
 }
 
 export function GroupSection({
@@ -58,6 +61,7 @@ export function GroupSection({
   onOpenDatePicker,
   onOpenUpdates,
   canEdit,
+  dragHandleListeners,
 }: GroupSectionProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const collapsedGroups = useUIStore((s) => s.collapsedGroups);
@@ -94,27 +98,35 @@ export function GroupSection({
 
   return (
     <div className="mb-6">
-      {/* Group header */}
+      {/* Group header — drag handle for group reorder; collapse toggle on inner area */}
       <div
-        className={`flex items-center gap-2 px-4 py-2 cursor-pointer rounded-t-lg ${
-          darkMode ? 'hover:bg-[#202336]' : 'hover:bg-gray-50'
-        }`}
-        onClick={() => toggleGroupCollapse(group.id)}
+        className={`flex items-center gap-2 px-4 py-2 rounded-t-lg ${
+          dragHandleListeners ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+        } ${darkMode ? 'hover:bg-[#202336]' : 'hover:bg-gray-50'}`}
+        {...dragHandleListeners}
       >
         <div
-          className="w-4 h-4 rounded-sm"
+          className="w-4 h-4 rounded-sm shrink-0"
           style={{ backgroundColor: group.color }}
         />
-        {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-        <EditableText
-          value={group.name}
-          onChange={canEdit ? (v) => onUpdateGroupName(v) : undefined}
-          readOnly={!canEdit}
-          className="text-sm font-bold"
-        />
-        <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-          {tasks.length} items
-        </span>
+        {/* data-no-dnd: prevents SmartPointerSensor from starting a group drag when
+            the user clicks the chevron/name to collapse/edit */}
+        <div
+          className="flex items-center gap-2 flex-1 cursor-pointer"
+          data-no-dnd
+          onClick={() => toggleGroupCollapse(group.id)}
+        >
+          {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+          <EditableText
+            value={group.name}
+            onChange={canEdit ? (v) => onUpdateGroupName(v) : undefined}
+            readOnly={!canEdit}
+            className="text-sm font-bold"
+          />
+          <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+            {tasks.length} items
+          </span>
+        </div>
       </div>
 
       {/* Table contents */}

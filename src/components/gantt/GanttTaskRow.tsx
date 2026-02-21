@@ -2,6 +2,7 @@
 // Left side: label column (name, etc.) — acts as the drag handle for row reorder.
 // Right side: bar area with day grid + GanttBar + creation preview.
 
+import { Square, CheckSquare } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { useUIStore } from '../../stores/uiStore';
 import { ItemLabelCell } from '../shared/ItemLabelCell';
@@ -80,6 +81,10 @@ export function GanttTaskRow({
 }: GanttTaskRowProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const expandedItems = useUIStore((s) => s.expandedItems);
+  const selectedItems = useUIStore((s) => s.selectedItems);
+  const toggleSelection = useUIStore((s) => s.toggleSelection);
+
+  const isSelected = selectedItems.has(task.id);
 
   // dnd-kit sortable — listeners spread on left label column (drag handle only).
   // We do NOT apply transform to the row because that would break position:sticky
@@ -203,6 +208,23 @@ export function GanttTaskRow({
         style={{ width: 320, minWidth: 320, touchAction: 'none' }}
         {...listeners}
       >
+        {/* Checkbox — data-no-dnd prevents SmartPointerSensor from consuming the click */}
+        <div className="shrink-0 mr-1 flex items-center" data-no-dnd>
+          <div
+            className={`cursor-pointer transition-all ${
+              isSelected
+                ? 'text-blue-500 opacity-100'
+                : 'text-gray-400 opacity-0 group-hover:opacity-100'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleSelection(task.id);
+            }}
+          >
+            {isSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+          </div>
+        </div>
+
         <ItemLabelCell
           task={task}
           isSubitem={isSubitem}

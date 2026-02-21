@@ -45,6 +45,7 @@ interface UIState {
   // Collapsed / expanded
   collapsedGroups: string[];
   toggleGroupCollapse: (gid: string) => void;
+  setCollapsedGroups: (ids: string[]) => void;
   expandedItems: string[];
   toggleItemExpand: (tid: string) => void;
 }
@@ -108,6 +109,7 @@ export const useUIStore = create<UIState>()(
             ? state.collapsedGroups.filter((id) => id !== gid)
             : [...state.collapsedGroups, gid],
         })),
+      setCollapsedGroups: (ids) => set({ collapsedGroups: ids }),
 
       expandedItems: [] as string[],
       toggleItemExpand: (tid) =>

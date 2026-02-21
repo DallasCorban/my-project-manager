@@ -507,6 +507,20 @@ export function useProjectData() {
       );
     },
 
+    /** Reorder groups within a project. */
+    reorderGroups: (pid: string, fromIndex: number, toIndex: number): void => {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== pid) return p;
+          const groups = [...p.groups];
+          const [moved] = groups.splice(fromIndex, 1);
+          if (!moved) return p;
+          groups.splice(toIndex, 0, moved);
+          return { ...p, groups };
+        }),
+      );
+    },
+
     /** Duplicate selected items. */
     duplicateItems: (ids: Set<string>): void => {
       setProjects((prev) =>

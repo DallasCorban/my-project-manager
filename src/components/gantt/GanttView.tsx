@@ -3,10 +3,10 @@
 // Ported from GanttView.jsx (778 lines) + App.jsx drag handlers.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, Plus, ZoomIn, ZoomOut, CalendarDays, Eye } from 'lucide-react';
+import { ChevronRight, CheckSquare, Square, Plus, ZoomIn, ZoomOut, CalendarDays, Eye } from 'lucide-react';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectContext } from '../../stores/projectStore';
 import { useTimelineStore } from '../../stores/timelineStore';
@@ -20,6 +20,35 @@ import { ItemLabelCell } from '../shared/ItemLabelCell';
 import type { Board, Group } from '../../types/board';
 import type { Item, Subitem } from '../../types/item';
 import type { StatusLabel, JobTypeLabel } from '../../config/constants';
+
+/**
+ * Render-prop wrapper for useSortable on group headers.
+ * Extracted as a component because hooks cannot be called inside .map() loops.
+ * NOTE: No CSS transform is applied to the group container — applying a transform
+ * would break position:sticky on the left label column in GanttView.
+ */
+type SortableGroupData = ReturnType<typeof useSortable>;
+function SortableGroupContainer({
+  id,
+  disabled,
+  children,
+}: {
+  id: string;
+  disabled?: boolean;
+  children: (
+    isDragging: boolean,
+    listeners: SortableGroupData['listeners'],
+    setNodeRef: SortableGroupData['setNodeRef'],
+    attributes: SortableGroupData['attributes'],
+  ) => React.ReactNode;
+}) {
+  const { setNodeRef, attributes, listeners, isDragging } = useSortable({
+    id,
+    data: { type: 'group' },
+    disabled,
+  });
+  return <>{children(isDragging, listeners, setNodeRef, attributes)}</>;
+}
 
 interface GanttViewProps {
   project: Board;
@@ -54,12 +83,14 @@ export function GanttView({
   onAddTaskToGroup,
   onAddSubitem,
 }: GanttViewProps) {
-  const { reorderTasks, moveTaskToGroup, reorderSubitems } = useProjectContext();
+  const { reorderTasks, moveTaskToGroup, reorderSubitems, reorderGroups } = useProjectContext();
 
   const darkMode = useUIStore((s) => s.darkMode);
   const collapsedGroups = useUIStore((s) => s.collapsedGroups);
   const toggleGroupCollapse = useUIStore((s) => s.toggleGroupCollapse);
+  const setCollapsedGroups = useUIStore((s) => s.setCollapsedGroups);
   const expandedItems = useUIStore((s) => s.expandedItems);
+  const selectedItems = useUIStore((s) => s.selectedItems);
 
   const showWeekends = useTimelineStore((s) => s.showWeekends);
   const toggleWeekends = useTimelineStore((s) => s.toggleWeekends);
@@ -73,6 +104,8 @@ export function GanttView({
 
   const bodyRef = useRef<HTMLDivElement>(null);
   const zoomFocusRef = useRef<number | null>(null);
+  /** Groups that were open before a group drag started — restored on drop. */
+  const preGroupDragOpen = useRef<string[]>([]);
   // Stores { dayIndex, fractionalOffset } so we can restore the exact scroll
   // position after weekends toggle without rounding drift.
   const weekendFocusRef = useRef<{ dayIndex: number; fraction: number } | null>(null);
@@ -118,28 +151,57 @@ export function GanttView({
   const sensors = useSortableSensors();
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Find the active item (task or subitem) for DragOverlay
-  const activeItem: Item | Subitem | null = activeId
+  // Find the active group or item (task or subitem) for DragOverlay
+  const activeGroup: Group | null = activeId
+    ? (project.groups.find((g) => g.id === activeId) ?? null)
+    : null;
+  const activeGroupTaskCount = activeGroup
+    ? project.tasks.filter((t) => t.groupId === activeGroup.id).length
+    : 0;
+  const activeItem: Item | Subitem | null = !activeGroup && activeId
     ? (project.tasks.find((t) => t.id === activeId) ??
        project.tasks.flatMap((t) => t.subitems).find((s) => s.id === activeId) ??
        null)
     : null;
-  const activeIsSubitem = activeId ? !project.tasks.some((t) => t.id === activeId) : false;
+  const activeIsSubitem = !activeGroup && activeId ? !project.tasks.some((t) => t.id === activeId) : false;
+  const activeIsSelected = activeId ? selectedItems.has(activeId) : false;
 
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
+    const data = active.data.current as { type?: string } | undefined;
+    if (data?.type === 'group') {
+      // Collapse all groups — monday.com style: only headers visible while dragging.
+      // Save currently-open groups so we can restore them on drop.
+      const allIds = project.groups.map((g) => g.id);
+      preGroupDragOpen.current = allIds.filter((id) => !collapsedGroups.includes(id));
+      setCollapsedGroups(allIds);
+    }
     setActiveId(String(active.id));
-  }, []);
+  }, [project, collapsedGroups, setCollapsedGroups]);
 
   const handleDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
       setActiveId(null);
-      if (!over || active.id === over.id) return;
 
       const activeData = active.data.current as { type: string; groupId?: string; parentTaskId?: string } | undefined;
-      const overData = over.data.current as { type: string; groupId?: string } | undefined;
+      const overData = over?.data.current as { type: string; groupId?: string } | undefined;
+
+      // Always restore group open/close state after a group drag ends
+      if (activeData?.type === 'group') {
+        const allIds = project.groups.map((g) => g.id);
+        setCollapsedGroups(allIds.filter((id) => !preGroupDragOpen.current.includes(id)));
+        preGroupDragOpen.current = [];
+      }
+
+      if (!over || active.id === over.id) return;
       if (!activeData || !overData) return;
 
-      if (activeData.type === 'task' && overData.type === 'task') {
+      if (activeData.type === 'group' && overData.type === 'group') {
+        const fromIndex = project.groups.findIndex((g) => g.id === active.id);
+        const toIndex = project.groups.findIndex((g) => g.id === over.id);
+        if (fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0) {
+          reorderGroups(project.id, fromIndex, toIndex);
+        }
+      } else if (activeData.type === 'task' && overData.type === 'task') {
         const sourceGroupId = activeData.groupId ?? '';
         const targetGroupId = overData.groupId ?? '';
 
@@ -167,7 +229,7 @@ export function GanttView({
         }
       }
     },
-    [project, reorderTasks, moveTaskToGroup, reorderSubitems],
+    [project, reorderGroups, reorderTasks, moveTaskToGroup, reorderSubitems, setCollapsedGroups],
   );
 
   // Scroll to today on mount (and when "Today" button is clicked)
@@ -385,152 +447,131 @@ export function GanttView({
               </div>
             </div>
 
-            {/* Groups + Tasks */}
-            {project.groups.map((group) => {
-              const groupTasks = getGroupTasks(group);
-              const isCollapsed = collapsedGroups.includes(group.id);
+            {/* Groups + Tasks — outer SortableContext enables group-level reorder */}
+            <SortableContext
+              items={project.groups.map((g) => g.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {project.groups.map((group) => {
+                const groupTasks = getGroupTasks(group);
+                const isCollapsed = collapsedGroups.includes(group.id);
 
-              return (
-                <div key={group.id}>
-                  {/* Group header row */}
-                  <div
-                    className={`flex sticky top-12 z-30 border-b ${
-                      darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'
-                    }`}
-                    style={{ height: rowHeight }}
-                  >
-                    {/* Group label — sticky left */}
-                    <div
-                      className="sticky left-0 z-[200] flex items-center gap-2 px-3 shrink-0 border-r cursor-pointer"
-                      style={{
-                        width: 320,
-                        minWidth: 320,
-                        backgroundColor: `${group.color}${darkMode ? '33' : '1A'}`,
-                        borderColor: darkMode ? '#2b2c32' : '#eceff8',
-                      }}
-                      onClick={() => toggleGroupCollapse(group.id)}
-                    >
-                      <ChevronRight
-                        size={14}
-                        className={`transition-transform ${
-                          isCollapsed ? '' : 'rotate-90'
-                        } ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}
-                      />
-                      <span
-                        className="text-sm font-medium truncate"
-                        style={{ color: group.color }}
+                return (
+                  <SortableGroupContainer key={group.id} id={group.id} disabled={!canEdit}>
+                    {(isGroupDragging, groupListeners, setGroupRef, groupAttributes) => (
+                      <div
+                        ref={setGroupRef}
+                        {...groupAttributes}
+                        // NOTE: No CSS transform applied — would break position:sticky on label column
+                        style={{ opacity: isGroupDragging ? 0.4 : 1 }}
                       >
-                        {group.name}
-                      </span>
-                      <span
-                        className={`text-[10px] px-1.5 rounded-full ${
-                          darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-500'
-                        }`}
-                      >
-                        {groupTasks.length}
-                      </span>
-                      {canEdit && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAddTaskToGroup(project.id, group.id);
-                          }}
-                          className={`ml-auto p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
-                            darkMode
-                              ? 'hover:bg-white/10 text-gray-400'
-                              : 'hover:bg-gray-200 text-gray-500'
+                        {/* Group header row */}
+                        <div
+                          className={`flex sticky top-12 z-30 border-b group ${
+                            darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'
                           }`}
+                          style={{ height: rowHeight }}
                         >
-                          <Plus size={14} />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Group bar area — empty background grid */}
-                    <div
-                      className="relative flex-1"
-                      style={{ minWidth: totalTimelineWidth }}
-                    >
-                      <div className="absolute inset-0 flex pointer-events-none">
-                        {visibleDays.map((day) => (
+                          {/* Group label — sticky left, spread listeners as drag handle */}
                           <div
-                            key={day.index}
-                            className={`h-full border-r ${
-                              day.isToday
-                                ? 'bg-blue-500/5'
-                                : day.isWeekend
-                                  ? 'bg-black/[0.03]'
-                                  : ''
-                            } ${darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'}`}
+                            className={`sticky left-0 z-[200] flex items-center gap-2 px-3 shrink-0 border-r ${
+                              canEdit ? 'cursor-grab active:cursor-grabbing' : ''
+                            }`}
                             style={{
-                              width: zoomLevel,
-                              minWidth: zoomLevel,
-                              backgroundColor: `${group.color}${darkMode ? '10' : '08'}`,
+                              width: 320,
+                              minWidth: 320,
+                              backgroundColor: `${group.color}${darkMode ? '33' : '1A'}`,
+                              borderColor: darkMode ? '#2b2c32' : '#eceff8',
                             }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Task rows (hidden when collapsed) — wrapped in SortableContext */}
-                  {!isCollapsed && (
-                    <SortableContext
-                      items={groupTasks.map((t) => t.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {groupTasks.map((task) => {
-                        const isTaskExpanded = expandedItems.includes(task.id);
-
-                        return (
-                          <div key={task.id}>
-                            {/* Parent task row */}
-                            <GanttTaskRow
-                              task={task}
-                              projectId={project.id}
-                              isSubitem={false}
-                              isExpanded={isTaskExpanded}
-                              visibleDays={visibleDays}
-                              zoomLevel={zoomLevel}
-                              rowHeight={rowHeight}
-                              showWeekends={showWeekends}
-                              showLabels={showLabels}
-                              colorBy={colorBy}
-                              statuses={statuses}
-                              jobTypes={jobTypes}
-                              getRelativeIndex={getRelativeIndex}
-                              dayToVisualIndex={dayToVisualIndex}
-                              dragState={dragState}
-                              settledOverrides={settledOverrides}
-                              clearSettledOverride={clearSettledOverride}
-                              canEdit={canEdit}
-                              onMouseDown={handlePointerDown}
-                              onUpdateName={(v) => onUpdateTaskName(project.id, task.id, v)}
-                              onStatusSelect={(val) => onChangeStatus(project.id, task.id, null, val)}
-                              onTypeSelect={(val) => onChangeJobType(project.id, task.id, null, val)}
-                              onOpenUpdates={() =>
-                                useUIStore.getState().openUpdatesPanel({
-                                  taskId: task.id,
-                                  subitemId: null,
-                                  projectId: project.id,
-                                })
-                              }
-                              onAddSubitem={onAddSubitem ? (pid, tid) => onAddSubitem(pid, tid) : undefined}
-                            />
-
-                            {/* Expanded subitems — nested SortableContext */}
-                            {isTaskExpanded && (
-                              <SortableContext
-                                items={task.subitems.map((s) => s.id)}
-                                strategy={verticalListSortingStrategy}
+                            {...groupListeners}
+                          >
+                            {/* data-no-dnd: prevents SmartPointerSensor activating drag on collapse click */}
+                            <div
+                              className="flex items-center gap-2 flex-1 cursor-pointer"
+                              data-no-dnd
+                              onClick={() => toggleGroupCollapse(group.id)}
+                            >
+                              <ChevronRight
+                                size={14}
+                                className={`transition-transform ${
+                                  isCollapsed ? '' : 'rotate-90'
+                                } ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}
+                              />
+                              <span
+                                className="text-sm font-medium truncate"
+                                style={{ color: group.color }}
                               >
-                                {task.subitems.map((sub) => (
+                                {group.name}
+                              </span>
+                              <span
+                                className={`text-[10px] px-1.5 rounded-full ${
+                                  darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-500'
+                                }`}
+                              >
+                                {groupTasks.length}
+                              </span>
+                            </div>
+                            {canEdit && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onAddTaskToGroup(project.id, group.id);
+                                }}
+                                className={`ml-auto p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
+                                  darkMode
+                                    ? 'hover:bg-white/10 text-gray-400'
+                                    : 'hover:bg-gray-200 text-gray-500'
+                                }`}
+                              >
+                                <Plus size={14} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Group bar area — empty background grid */}
+                          <div
+                            className="relative flex-1"
+                            style={{ minWidth: totalTimelineWidth }}
+                          >
+                            <div className="absolute inset-0 flex pointer-events-none">
+                              {visibleDays.map((day) => (
+                                <div
+                                  key={day.index}
+                                  className={`h-full border-r ${
+                                    day.isToday
+                                      ? 'bg-blue-500/5'
+                                      : day.isWeekend
+                                        ? 'bg-black/[0.03]'
+                                        : ''
+                                  } ${darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'}`}
+                                  style={{
+                                    width: zoomLevel,
+                                    minWidth: zoomLevel,
+                                    backgroundColor: `${group.color}${darkMode ? '10' : '08'}`,
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Task rows (hidden when collapsed) — wrapped in SortableContext */}
+                        {!isCollapsed && (
+                          <SortableContext
+                            items={groupTasks.map((t) => t.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {groupTasks.map((task) => {
+                              const isTaskExpanded = expandedItems.includes(task.id);
+
+                              return (
+                                <div key={task.id}>
+                                  {/* Parent task row */}
                                   <GanttTaskRow
-                                    key={sub.id}
-                                    task={sub}
+                                    task={task}
                                     projectId={project.id}
-                                    parentTaskId={task.id}
-                                    isSubitem
+                                    isSubitem={false}
+                                    isExpanded={isTaskExpanded}
                                     visibleDays={visibleDays}
                                     zoomLevel={zoomLevel}
                                     rowHeight={rowHeight}
@@ -546,41 +587,111 @@ export function GanttView({
                                     clearSettledOverride={clearSettledOverride}
                                     canEdit={canEdit}
                                     onMouseDown={handlePointerDown}
-                                    onUpdateName={(v) =>
-                                      onUpdateSubitemName(project.id, task.id, sub.id, v)
-                                    }
-                                    onStatusSelect={(val) =>
-                                      onChangeStatus(project.id, task.id, sub.id, val)
-                                    }
-                                    onTypeSelect={(val) =>
-                                      onChangeJobType(project.id, task.id, sub.id, val)
-                                    }
+                                    onUpdateName={(v) => onUpdateTaskName(project.id, task.id, v)}
+                                    onStatusSelect={(val) => onChangeStatus(project.id, task.id, null, val)}
+                                    onTypeSelect={(val) => onChangeJobType(project.id, task.id, null, val)}
                                     onOpenUpdates={() =>
                                       useUIStore.getState().openUpdatesPanel({
                                         taskId: task.id,
-                                        subitemId: sub.id,
+                                        subitemId: null,
                                         projectId: project.id,
                                       })
                                     }
+                                    onAddSubitem={onAddSubitem ? (pid, tid) => onAddSubitem(pid, tid) : undefined}
                                   />
-                                ))}
-                              </SortableContext>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </SortableContext>
-                  )}
-                </div>
-              );
-            })}
+
+                                  {/* Expanded subitems — nested SortableContext */}
+                                  {isTaskExpanded && (
+                                    <SortableContext
+                                      items={task.subitems.map((s) => s.id)}
+                                      strategy={verticalListSortingStrategy}
+                                    >
+                                      {task.subitems.map((sub) => (
+                                        <GanttTaskRow
+                                          key={sub.id}
+                                          task={sub}
+                                          projectId={project.id}
+                                          parentTaskId={task.id}
+                                          isSubitem
+                                          visibleDays={visibleDays}
+                                          zoomLevel={zoomLevel}
+                                          rowHeight={rowHeight}
+                                          showWeekends={showWeekends}
+                                          showLabels={showLabels}
+                                          colorBy={colorBy}
+                                          statuses={statuses}
+                                          jobTypes={jobTypes}
+                                          getRelativeIndex={getRelativeIndex}
+                                          dayToVisualIndex={dayToVisualIndex}
+                                          dragState={dragState}
+                                          settledOverrides={settledOverrides}
+                                          clearSettledOverride={clearSettledOverride}
+                                          canEdit={canEdit}
+                                          onMouseDown={handlePointerDown}
+                                          onUpdateName={(v) =>
+                                            onUpdateSubitemName(project.id, task.id, sub.id, v)
+                                          }
+                                          onStatusSelect={(val) =>
+                                            onChangeStatus(project.id, task.id, sub.id, val)
+                                          }
+                                          onTypeSelect={(val) =>
+                                            onChangeJobType(project.id, task.id, sub.id, val)
+                                          }
+                                          onOpenUpdates={() =>
+                                            useUIStore.getState().openUpdatesPanel({
+                                              taskId: task.id,
+                                              subitemId: sub.id,
+                                              projectId: project.id,
+                                            })
+                                          }
+                                        />
+                                      ))}
+                                    </SortableContext>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </SortableContext>
+                        )}
+                      </div>
+                    )}
+                  </SortableGroupContainer>
+                );
+              })}
+            </SortableContext>
           </div>
         </div>
       </div>
 
-      {/* Floating drag overlay — label column replica (320px) with ItemLabelCell */}
+      {/* Floating drag overlay — group header chip or label column replica with checkbox */}
       <DragOverlay>
-        {activeItem ? (
+        {activeGroup ? (
+          // Group ghost — header chip
+          <div
+            className={`flex items-center gap-2 px-3 border-r border-b shadow-xl cursor-grabbing ${
+              darkMode
+                ? 'bg-[#1c213e] border-[#2b2c32]'
+                : 'bg-white border-[#eceff8]'
+            }`}
+            style={{ width: 320, height: rowHeight, borderLeft: `3px solid ${activeGroup.color}` }}
+          >
+            <ChevronRight size={14} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
+            <span
+              className="text-sm font-medium truncate"
+              style={{ color: activeGroup.color }}
+            >
+              {activeGroup.name}
+            </span>
+            <span
+              className={`text-[10px] px-1.5 rounded-full ml-auto ${
+                darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-500'
+              }`}
+            >
+              {activeGroupTaskCount}
+            </span>
+          </div>
+        ) : activeItem ? (
+          // Item / subitem ghost — with checkbox reflecting selection state
           <div
             className={`flex items-center px-3 border-r border-b shadow-xl cursor-grabbing group [&_button]:!opacity-100 ${
               darkMode
@@ -589,6 +700,11 @@ export function GanttView({
             }`}
             style={{ width: 320, height: rowHeight }}
           >
+            <div className="shrink-0 mr-1">
+              {activeIsSelected
+                ? <CheckSquare size={15} className="text-blue-500" />
+                : <Square size={15} className="text-gray-400 opacity-50" />}
+            </div>
             <ItemLabelCell
               task={activeItem}
               isSubitem={activeIsSubitem}
