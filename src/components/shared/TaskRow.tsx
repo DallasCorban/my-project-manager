@@ -164,14 +164,25 @@ export function TaskRow({
       ref={setNodeRef}
       className={containerClass}
       style={{
-        // Use translate3d directly — avoids scaleX/scaleY from CSS.Transform.toString
-        // which can cause subpixel jitter. Math.round prevents blurry subpixel positions.
+        // Always keep a concrete translate3d on every row — even when idle.
+        //
+        // Why: dnd-kit's drag activation and first collision detection fire in the
+        // same pointer-event handler, so React batches `isSorting=true` and the
+        // first sort `transform` into a single render.  If the previous painted
+        // frame had `transform: none`, the browser has no "from" value to
+        // transition from and the item snaps instead of gliding.
+        //
+        // By always painting translate3d(0,0,0), every frame already has a concrete
+        // transform + transition.  When the first sort fires, the browser smoothly
+        // interpolates from (0,0,0) to the displaced position.
+        //
+        // translate3d (vs translate) also promotes each row to its own GPU
+        // compositing layer, avoiding the old willChange toggle that could itself
+        // disrupt layer creation mid-animation.
         transform: transform
           ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
-          : undefined,
+          : 'translate3d(0, 0, 0)',
         transition,
-        // Promote to GPU compositing layer while transforming for smoother animation
-        willChange: isDragging || transform ? 'transform' : undefined,
         touchAction: 'none',
       }}
       onClick={handleRowClick}
