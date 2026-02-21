@@ -383,7 +383,7 @@ export function GanttView({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex flex-col h-full overflow-hidden" onClick={() => setFocusedBar(null)}>
+      <div className="flex flex-col h-full overflow-hidden">
         {/* Toolbar — three-section layout: left toggles | center zoom | right today */}
         <div
           className={`flex items-center px-4 py-2 border-b shrink-0 ${
@@ -494,10 +494,13 @@ export function GanttView({
           </div>
         </div>
 
-        {/* Gantt body — scrollable */}
+        {/* Gantt body — scrollable. Clicking empty space here (but not the
+            toolbar above) clears the focused-bar selection. Bars call
+            e.stopPropagation() on their own click so they don't trigger this. */}
         <div
           ref={bodyRef}
           className="flex-1 overflow-auto"
+          onClick={() => setFocusedBar(null)}
         >
           <div style={{ minWidth: totalTimelineWidth + 320 }}>
             {/* Sticky header with label column spacer */}
