@@ -6,7 +6,6 @@ export type { ProjectFile, FileAccess } from './file';
 export type {
   TimelineDay,
   DragState,
-  ReorderDrag,
   BoardColumns,
   DatePickerState,
   UpdatesPanelTarget,

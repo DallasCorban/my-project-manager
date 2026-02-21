@@ -2,13 +2,14 @@
 
 import { useState, useRef } from 'react';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useUIStore } from '../../stores/uiStore';
 import { GroupHeaderRow } from './GroupHeaderRow';
 import { TaskRow } from '../shared/TaskRow';
 import { EditableText } from '../shared/EditableText';
 import type { Board, Group } from '../../types/board';
 import type { Item } from '../../types/item';
-import type { BoardColumns, ReorderDrag } from '../../types/timeline';
+import type { BoardColumns } from '../../types/timeline';
 import type { StatusLabel, JobTypeLabel } from '../../config/constants';
 
 interface GroupSectionProps {
@@ -32,12 +33,7 @@ interface GroupSectionProps {
   onRemoveTypeLabel?: (id: string) => void;
   onOpenDatePicker: (taskId: string, subitemId: string | null) => void;
   onOpenUpdates: (taskId: string, subitemId: string | null) => void;
-  reorderDrag: ReorderDrag | null;
   canEdit: boolean;
-  onDragStart?: (e: React.DragEvent, type: string, id: string, pid: string) => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDrop?: (e: React.DragEvent, type: string, id: string, pid: string) => void;
-  onDragEnd?: (e: React.DragEvent) => void;
 }
 
 export function GroupSection({
@@ -61,12 +57,7 @@ export function GroupSection({
   onRemoveTypeLabel,
   onOpenDatePicker,
   onOpenUpdates,
-  reorderDrag,
   canEdit,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onDragEnd,
 }: GroupSectionProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const collapsedGroups = useUIStore((s) => s.collapsedGroups);
@@ -137,68 +128,69 @@ export function GroupSection({
           {/* Column headers */}
           <GroupHeaderRow boardColumns={boardColumns} onStartResize={onStartResize} />
 
-          {/* Task rows */}
-          {tasks.map((task) => (
-            <div key={task.id}>
-              <TaskRow
-                task={task}
-                projectId={project.id}
-                isSelected={selectedItems.has(task.id)}
-                onToggle={toggleSelection}
-                onAddSubitem={onAddSubitem}
-                statuses={statuses}
-                jobTypes={jobTypes}
-                onUpdateName={(v) => onUpdateTaskName(task.id, v)}
-                onStatusSelect={(sid) => onStatusSelect(task.id, null, sid)}
-                onTypeSelect={(tid) => onTypeSelect(task.id, null, tid)}
-                onAddStatusLabel={onAddStatusLabel}
-                onAddTypeLabel={onAddTypeLabel}
-                onRemoveStatusLabel={onRemoveStatusLabel}
-                onRemoveTypeLabel={onRemoveTypeLabel}
-                onOpenDatePicker={() => onOpenDatePicker(task.id, null)}
-                onOpenUpdates={() => onOpenUpdates(task.id, null)}
-                boardColumns={boardColumns}
-                reorderDrag={reorderDrag}
-                canEdit={canEdit}
-                onDragStart={onDragStart}
-                onDragOver={onDragOver}
-                onDrop={onDrop}
-                onDragEnd={onDragEnd}
-              />
+          {/* Task rows — wrapped in SortableContext for @dnd-kit row reorder */}
+          <SortableContext
+            items={tasks.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {tasks.map((task) => (
+              <div key={task.id}>
+                <TaskRow
+                  task={task}
+                  projectId={project.id}
+                  isSelected={selectedItems.has(task.id)}
+                  onToggle={toggleSelection}
+                  onAddSubitem={onAddSubitem}
+                  statuses={statuses}
+                  jobTypes={jobTypes}
+                  onUpdateName={(v) => onUpdateTaskName(task.id, v)}
+                  onStatusSelect={(sid) => onStatusSelect(task.id, null, sid)}
+                  onTypeSelect={(tid) => onTypeSelect(task.id, null, tid)}
+                  onAddStatusLabel={onAddStatusLabel}
+                  onAddTypeLabel={onAddTypeLabel}
+                  onRemoveStatusLabel={onRemoveStatusLabel}
+                  onRemoveTypeLabel={onRemoveTypeLabel}
+                  onOpenDatePicker={() => onOpenDatePicker(task.id, null)}
+                  onOpenUpdates={() => onOpenUpdates(task.id, null)}
+                  boardColumns={boardColumns}
+                  canEdit={canEdit}
+                />
 
-              {/* Expanded subitems */}
-              {expandedItems.includes(task.id) &&
-                task.subitems.map((sub) => (
-                  <TaskRow
-                    key={sub.id}
-                    task={sub}
-                    projectId={project.id}
-                    parentId={task.id}
-                    isSubitem
-                    isSelected={selectedItems.has(sub.id)}
-                    onToggle={toggleSelection}
-                    statuses={statuses}
-                    jobTypes={jobTypes}
-                    onUpdateName={(v) => onUpdateSubitemName(task.id, sub.id, v)}
-                    onStatusSelect={(sid) => onStatusSelect(task.id, sub.id, sid)}
-                    onTypeSelect={(tid) => onTypeSelect(task.id, sub.id, tid)}
-                    onAddStatusLabel={onAddStatusLabel}
-                    onAddTypeLabel={onAddTypeLabel}
-                    onRemoveStatusLabel={onRemoveStatusLabel}
-                    onRemoveTypeLabel={onRemoveTypeLabel}
-                    onOpenDatePicker={() => onOpenDatePicker(task.id, sub.id)}
-                    onOpenUpdates={() => onOpenUpdates(task.id, sub.id)}
-                    boardColumns={boardColumns}
-                    reorderDrag={reorderDrag}
-                    canEdit={canEdit}
-                    onDragStart={onDragStart}
-                    onDragOver={onDragOver}
-                    onDrop={onDrop}
-                    onDragEnd={onDragEnd}
-                  />
-                ))}
-            </div>
-          ))}
+                {/* Expanded subitems — nested SortableContext */}
+                {expandedItems.includes(task.id) && (
+                  <SortableContext
+                    items={task.subitems.map((s) => s.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {task.subitems.map((sub) => (
+                      <TaskRow
+                        key={sub.id}
+                        task={sub}
+                        projectId={project.id}
+                        parentId={task.id}
+                        isSubitem
+                        isSelected={selectedItems.has(sub.id)}
+                        onToggle={toggleSelection}
+                        statuses={statuses}
+                        jobTypes={jobTypes}
+                        onUpdateName={(v) => onUpdateSubitemName(task.id, sub.id, v)}
+                        onStatusSelect={(sid) => onStatusSelect(task.id, sub.id, sid)}
+                        onTypeSelect={(tid) => onTypeSelect(task.id, sub.id, tid)}
+                        onAddStatusLabel={onAddStatusLabel}
+                        onAddTypeLabel={onAddTypeLabel}
+                        onRemoveStatusLabel={onRemoveStatusLabel}
+                        onRemoveTypeLabel={onRemoveTypeLabel}
+                        onOpenDatePicker={() => onOpenDatePicker(task.id, sub.id)}
+                        onOpenUpdates={() => onOpenUpdates(task.id, sub.id)}
+                        boardColumns={boardColumns}
+                        canEdit={canEdit}
+                      />
+                    ))}
+                  </SortableContext>
+                )}
+              </div>
+            ))}
+          </SortableContext>
 
           {/* Add item row — inline input */}
           {canEdit && (

@@ -1,15 +1,15 @@
 // GanttTaskRow — a single task row in the Gantt view.
-// Left side: label column (name, status, etc.) with TaskRow.
+// Left side: label column (name, etc.) — acts as the drag handle for row reorder.
 // Right side: bar area with day grid + GanttBar + creation preview.
-// Ported from GanttView.jsx lines 406-569 (parent) and 597-705 (subitem).
 
-import { ChevronRight, Plus } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
 import { useUIStore } from '../../stores/uiStore';
+import { ItemLabelCell } from '../shared/ItemLabelCell';
 import { GanttBar } from './GanttBar';
 import { GanttSubitemStack } from './GanttSubitemStack';
 import { normalizeDateKey } from '../../utils/date';
 import type { Item, Subitem } from '../../types/item';
-import type { TimelineDay, DragState, ReorderDrag } from '../../types/timeline';
+import type { TimelineDay, DragState } from '../../types/timeline';
 import type { StatusLabel, JobTypeLabel } from '../../config/constants';
 import type { SettledOverride } from '../../hooks/useGanttDrag';
 
@@ -32,10 +32,9 @@ interface GanttTaskRowProps {
   dragState: DragState;
   settledOverrides: Record<string, SettledOverride>;
   clearSettledOverride: (key: string) => void;
-  reorderDrag: ReorderDrag | null;
   canEdit: boolean;
   onMouseDown: (
-    e: React.MouseEvent,
+    e: React.PointerEvent,
     taskId: string,
     projectId: string,
     type: DragState['type'],
@@ -44,11 +43,6 @@ interface GanttTaskRowProps {
     existingStartKey: string | null,
     existingDuration: number,
   ) => void;
-  // Row reorder handlers
-  onRowDragStart?: (e: React.DragEvent, type: string, id: string, pid: string) => void;
-  onRowDragOver?: (e: React.DragEvent) => void;
-  onRowDrop?: (e: React.DragEvent, type: string, id: string, pid: string) => void;
-  onRowDragEnd?: (e: React.DragEvent) => void;
   // Label column handlers
   onUpdateName: (value: string) => void;
   onStatusSelect: (statusId: string) => void;
@@ -76,14 +70,9 @@ export function GanttTaskRow({
   dragState,
   settledOverrides,
   clearSettledOverride,
-  reorderDrag,
   canEdit,
   onMouseDown,
-  onRowDragStart,
-  onRowDragOver,
-  onRowDrop,
-  onRowDragEnd,
-  onUpdateName: _onUpdateName,
+  onUpdateName,
   onStatusSelect: _onStatusSelect,
   onTypeSelect: _onTypeSelect,
   onOpenUpdates,
@@ -91,7 +80,25 @@ export function GanttTaskRow({
 }: GanttTaskRowProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const expandedItems = useUIStore((s) => s.expandedItems);
-  const toggleItemExpand = useUIStore((s) => s.toggleItemExpand);
+
+  // dnd-kit sortable — listeners spread on left label column (drag handle only).
+  // We do NOT apply transform to the row because that would break position:sticky
+  // on the left column. Instead the DragOverlay shows a floating task-name chip.
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+    data: {
+      type: isSubitem ? 'subitem' : 'task',
+      projectId,
+      groupId: !isSubitem ? (task as Item).groupId : undefined,
+      parentTaskId: isSubitem ? parentTaskId : undefined,
+    },
+    disabled: !canEdit,
+  });
 
   const getTaskColor = (t: Item | Subitem): string => {
     if (colorBy === 'status') {
@@ -105,9 +112,6 @@ export function GanttTaskRow({
   const hasDates = Boolean(normalizedStart);
   const taskDuration = Math.max(1, Number(task.duration || 1));
 
-  // Check if THIS bar is currently being dragged (move/resize).
-  // For parent tasks: dragState.taskId === task.id && subitemId === null
-  // For subitems: dragState.subitemId === task.id (task here IS the subitem)
   const isThisBarDragging =
     dragState.isDragging &&
     dragState.type !== 'create' &&
@@ -119,13 +123,10 @@ export function GanttTaskRow({
   let barLeft = 0;
   let barWidth = 0;
 
-  // Settled override key — matches the key format used in useGanttDrag.
   const settledKey = isSubitem ? `${parentTaskId}:${task.id}` : task.id;
   const settled = settledOverrides[settledKey];
 
   if (isThisBarDragging) {
-    // During drag: use the drag handler's pixel-perfect visual position
-    // directly. This avoids the store→render round-trip that causes jitter.
     barLeft = dragState.visualLeft;
     barWidth = dragState.visualWidth;
   } else if (hasDates && normalizedStart) {
@@ -133,9 +134,6 @@ export function GanttTaskRow({
     if (relIdx !== null) {
       const startVisual = dayToVisualIndex[relIdx];
       if (startVisual !== undefined) {
-        // Find end visual index — walk forward to find the closest mapped day
-        // at or after the raw end index.  This handles the case where the end
-        // day falls on a hidden weekend.
         const rawEnd = relIdx + taskDuration;
         let endVisual: number | undefined = dayToVisualIndex[rawEnd];
         if (endVisual === undefined) {
@@ -154,14 +152,11 @@ export function GanttTaskRow({
     }
   }
 
-  // Apply settled override — keeps the drag-end position visible until the
-  // store converges, preventing snap-back from stale Firestore echoes.
   if (settled && !isThisBarDragging) {
     barLeft = settled.visualLeft;
     barWidth = settled.visualWidth;
   }
 
-  // Check if this task is being created (drag create preview)
   const isCreating =
     dragState.isDragging &&
     dragState.type === 'create' &&
@@ -178,20 +173,13 @@ export function GanttTaskRow({
     }
   }
 
-  // Determine if row is a drag reorder target
-  const isDropTarget =
-    reorderDrag?.active && reorderDrag.dropTargetId === task.id;
-
-  const isDragging =
-    reorderDrag?.active && reorderDrag.dragId === task.id;
-
-  const actualRowHeight = rowHeight; // Same height for tasks and subitems — visual parity
-
+  const actualRowHeight = rowHeight;
   const hasSubitems = !isSubitem && 'subitems' in task && (task as Item).subitems.length > 0;
   const isCollapsed = hasSubitems && !expandedItems.includes(task.id);
 
   return (
     <div
+      ref={setNodeRef}
       className={`flex relative group ${
         isDragging ? 'opacity-50' : ''
       } ${
@@ -200,76 +188,30 @@ export function GanttTaskRow({
           : 'border-b border-[#eceff8] hover:bg-[#f5f5f5]'
       }`}
       style={{ height: actualRowHeight }}
-      onDragOver={onRowDragOver}
-      onDrop={(e) => onRowDrop?.(e, isSubitem ? 'subitem' : 'task', task.id, projectId)}
-      onDragEnd={onRowDragEnd}
+      {...attributes}
     >
-      {/* Left label column — sticky, draggable for row reorder */}
+      {/* Left label column — sticky, spread listeners here to make it the drag handle.
+          touch-action:none prevents iOS from intercepting touch as scroll during drag. */}
       <div
-        className={`sticky left-0 z-[200] flex items-center shrink-0 border-r overflow-hidden ${
+        className={`sticky left-0 z-[200] flex items-center shrink-0 border-r px-3 overflow-hidden ${
+          isDragging ? 'cursor-grabbing' : canEdit ? 'cursor-grab' : ''
+        } ${
           darkMode
             ? 'bg-[#1c213e] border-[#2b2c32]'
             : 'bg-white border-[#eceff8]'
-        } ${isSubitem ? 'pl-8' : 'pl-3'}`}
-        style={{ width: 320, minWidth: 320 }}
-        draggable={canEdit}
-        onDragStart={(e) => onRowDragStart?.(e, isSubitem ? 'subitem' : 'task', task.id, projectId)}
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpenUpdates?.();
-        }}
+        }`}
+        style={{ width: 320, minWidth: 320, touchAction: 'none' }}
+        {...listeners}
       >
-        <div className="flex items-center gap-2 w-full min-w-0">
-          {/* Expand/collapse chevron (parent tasks only) */}
-          {!isSubitem && (
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                if (hasSubitems) toggleItemExpand(task.id);
-              }}
-              className={`shrink-0 mr-0.5 transition-transform duration-150 ${
-                hasSubitems
-                  ? 'cursor-pointer text-gray-400 hover:text-blue-500'
-                  : 'cursor-default text-gray-300 opacity-30'
-              } ${expandedItems.includes(task.id) ? 'rotate-90' : ''}`}
-            >
-              <ChevronRight size={14} />
-            </div>
-          )}
-
-          {/* Task name (truncated) */}
-          <span
-            className={`text-sm truncate flex-1 min-w-0 ${
-              darkMode ? 'text-gray-200' : 'text-gray-700'
-            } ${isSubitem ? 'text-xs' : ''}`}
-          >
-            {task.name}
-          </span>
-
-          {/* Status badge (small) */}
-          <div
-            className="shrink-0 w-2 h-2 rounded-full"
-            style={{ backgroundColor: getTaskColor(task) }}
-          />
-
-          {/* Add subitem button (visible on hover for non-subitems) */}
-          {!isSubitem && canEdit && onAddSubitem && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddSubitem(projectId, task.id);
-              }}
-              className={`shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
-                darkMode
-                  ? 'hover:bg-white/10 text-gray-400'
-                  : 'hover:bg-gray-200 text-gray-400'
-              }`}
-              title="Add subitem"
-            >
-              <Plus size={12} />
-            </button>
-          )}
-        </div>
+        <ItemLabelCell
+          task={task}
+          isSubitem={isSubitem}
+          canEdit={canEdit}
+          darkMode={darkMode}
+          onUpdateName={canEdit ? onUpdateName : undefined}
+          onAddSubitem={onAddSubitem && !isSubitem ? () => onAddSubitem(projectId, task.id) : undefined}
+          onOpenUpdates={onOpenUpdates}
+        />
       </div>
 
       {/* Right bar area — scrollable with timeline. overflow: visible so
@@ -310,7 +252,7 @@ export function GanttTaskRow({
         {canEdit && !hasDates && (
           <div
             className="absolute inset-0 cursor-crosshair z-10"
-            onMouseDown={(e) =>
+            onPointerDown={(e) =>
               onMouseDown(
                 e,
                 task.id,
@@ -325,7 +267,7 @@ export function GanttTaskRow({
           />
         )}
 
-        {/* Create preview (blue dashed) — uses same fixed px height as bars */}
+        {/* Create preview (blue dashed) */}
         {isCreating && (
           <div
             className="absolute rounded-sm border-2 border-dashed border-blue-500 bg-blue-500/20 pointer-events-none z-20"
@@ -339,9 +281,7 @@ export function GanttTaskRow({
           />
         )}
 
-        {/* Existing bar — only shown when NOT in collapsed-with-subitems mode.
-            In collapsed mode, GanttSubitemStack renders both parent + subitem bars
-            in a unified lane layout. Bars with unmappable dates are skipped (barWidth=0). */}
+        {/* Existing bar */}
         {barWidth > 0 && !isCollapsed && (
           <div className="absolute inset-0 z-10 pointer-events-none" style={{ overflow: 'visible' }}>
             <GanttBar
@@ -393,17 +333,6 @@ export function GanttTaskRow({
           />
         )}
       </div>
-
-      {/* Reorder drop indicator */}
-      {isDropTarget && (
-        <div
-          className="absolute left-0 right-0 h-0.5 bg-blue-500 z-50 pointer-events-none"
-          style={{
-            top: reorderDrag?.dropPosition === 'before' ? '-1px' : 'auto',
-            bottom: reorderDrag?.dropPosition === 'after' ? '-1px' : 'auto',
-          }}
-        />
-      )}
     </div>
   );
 }

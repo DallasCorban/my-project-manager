@@ -66,7 +66,7 @@ interface GanttSubitemStackProps {
   clearSettledOverride: (key: string) => void;
   canEdit: boolean;
   onMouseDown: (
-    e: React.MouseEvent,
+    e: React.PointerEvent,
     taskId: string,
     projectId: string,
     type: DragState['type'],

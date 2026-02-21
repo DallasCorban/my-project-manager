@@ -31,7 +31,7 @@ interface GanttBarProps {
   dragState: DragState;
   taskId: string;
   subitemId: string | null;
-  onMouseDown: (e: React.MouseEvent, type: DragState['type']) => void;
+  onMouseDown: (e: React.PointerEvent, type: DragState['type']) => void;
   onDelete?: () => void;
   /** Called when hover state changes — used by stack to promote hovered bar z-order. */
   onHoverChange?: (hovered: boolean) => void;
@@ -81,18 +81,19 @@ export function GanttBar({
         top: `calc(50% + ${verticalOffsetPx}px)`,
         transform: 'translateY(-50%)',
         backgroundColor: color,
+        touchAction: 'none',
       }}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.stopPropagation();
         onMouseDown(e, 'move');
       }}
-      onMouseEnter={() => { setIsHovered(true); onHoverChange?.(true); }}
-      onMouseLeave={() => { setIsHovered(false); onHoverChange?.(false); }}
+      onPointerEnter={() => { setIsHovered(true); onHoverChange?.(true); }}
+      onPointerLeave={() => { setIsHovered(false); onHoverChange?.(false); }}
     >
       {/* Left resize handle — 10px wide, extends outside */}
       <div
         className="absolute -left-1 top-0 h-full w-[10px] cursor-ew-resize z-10 group/handle"
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.stopPropagation();
           onMouseDown(e, 'resize-left');
         }}
@@ -110,7 +111,7 @@ export function GanttBar({
       {/* Right resize handle — 10px wide, extends outside */}
       <div
         className="absolute -right-1 top-0 h-full w-[10px] cursor-ew-resize z-10 group/handle"
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.stopPropagation();
           onMouseDown(e, 'resize-right');
         }}
@@ -126,7 +127,7 @@ export function GanttBar({
             e.stopPropagation();
             onDelete();
           }}
-          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <X size={10} />
         </button>

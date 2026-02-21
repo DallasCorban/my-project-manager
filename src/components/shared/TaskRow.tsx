@@ -2,13 +2,15 @@
 // Ported from src/components/TaskRow.jsx.
 
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { CheckSquare, Square, CornerDownRight, ChevronRight, Plus, MessageSquare } from 'lucide-react';
+import { CheckSquare, Square } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useUIStore } from '../../stores/uiStore';
-import { EditableText } from './EditableText';
+import { ItemLabelCell } from './ItemLabelCell';
 import { LabelDropdown } from './StatusDropdown';
 import { addDaysToKey, formatDateKey, normalizeDateKey } from '../../utils/date';
 import type { Item, Subitem } from '../../types/item';
-import type { BoardColumns, ReorderDrag } from '../../types/timeline';
+import type { BoardColumns } from '../../types/timeline';
 import type { StatusLabel, JobTypeLabel } from '../../config/constants';
 
 interface TaskRowProps {
@@ -16,7 +18,6 @@ interface TaskRowProps {
   projectId: string;
   parentId?: string;
   isSubitem?: boolean;
-  isDragging?: boolean;
   isSelected: boolean;
   onToggle: (id: string, projectId: string) => void;
   onAddSubitem?: (projectId: string, taskId: string) => void;
@@ -32,20 +33,14 @@ interface TaskRowProps {
   onOpenDatePicker?: () => void;
   onOpenUpdates?: () => void;
   boardColumns: BoardColumns;
-  reorderDrag?: ReorderDrag | null;
   canEdit?: boolean;
-  onDragStart?: (e: React.DragEvent, type: string, id: string, pid: string) => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDrop?: (e: React.DragEvent, type: string, id: string, pid: string) => void;
-  onDragEnd?: (e: React.DragEvent) => void;
 }
 
 export function TaskRow({
   task,
   projectId,
-  parentId: _parentId,
+  parentId,
   isSubitem = false,
-  isDragging = false,
   isSelected,
   onToggle,
   onAddSubitem,
@@ -61,36 +56,22 @@ export function TaskRow({
   onOpenDatePicker,
   onOpenUpdates,
   boardColumns: col,
-  reorderDrag,
   canEdit = true,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onDragEnd,
 }: TaskRowProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const statusMenuOpen = useUIStore((s) => s.statusMenuOpen);
   const statusMenuType = useUIStore((s) => s.statusMenuType);
   const openStatusMenu = useUIStore((s) => s.openStatusMenu);
-  const expandedItems = useUIStore((s) => s.expandedItems);
-  const toggleItemExpand = useUIStore((s) => s.toggleItemExpand);
 
-  const dragBlockRef = useRef(false);
   const statusAnchorRef = useRef<HTMLDivElement>(null);
   const typeAnchorRef = useRef<HTMLDivElement>(null);
 
-  const hasSubitems = 'subitems' in task && task.subitems && task.subitems.length > 0;
-
   // Optimistic label overrides — prevent snap-back from stale Firestore echoes.
-  // The override is held for a fixed window (longer than debounce + network RTT)
-  // rather than cleared on store convergence, because the store briefly converges
-  // then reverts when the Firestore echo arrives.
   const [optimisticStatus, setOptimisticStatus] = useState<string | null>(null);
   const [optimisticType, setOptimisticType] = useState<string | null>(null);
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
@@ -110,6 +91,25 @@ export function TaskRow({
     typeTimerRef.current = setTimeout(() => setOptimisticType(null), 1000);
   }, []);
 
+  // dnd-kit sortable — used for row reorder in Board view
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+    data: {
+      type: isSubitem ? 'subitem' : 'task',
+      projectId,
+      groupId: !isSubitem ? (task as Item).groupId : undefined,
+      parentTaskId: isSubitem ? parentId : undefined,
+    },
+    disabled: !canEdit,
+  });
+
   const effectiveStatus = optimisticStatus ?? task.status;
   const effectiveType = optimisticType ?? task.jobTypeId;
 
@@ -124,8 +124,7 @@ export function TaskRow({
   const endKey = hasDates ? addDaysToKey(normalizedStart, safeDuration - 1) : null;
   const showRange = hasDates && safeDuration > 1;
 
-  const isRowDragging = Boolean(isDragging);
-  const containerClass = isRowDragging
+  const containerClass = isDragging
     ? `flex border-b items-center h-10 relative group ${
         darkMode ? 'bg-blue-500/10 border-blue-500/50' : 'bg-blue-50 border-blue-300'
       } border-dashed opacity-50`
@@ -138,11 +137,10 @@ export function TaskRow({
   const cellBorder = darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]';
 
   const handleRowClick = (e: React.MouseEvent) => {
-    if (dragBlockRef.current) return;
     const target = e.target as HTMLElement;
     const isInteractive =
       ['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes(target.tagName) ||
-      target.closest('.no-drag') ||
+      !!target.closest('[data-no-dnd]') ||
       target.getAttribute('contenteditable') === 'true';
     if (isInteractive) return;
     onOpenUpdates?.();
@@ -150,38 +148,22 @@ export function TaskRow({
 
   return (
     <div
+      ref={setNodeRef}
       className={containerClass}
-      draggable={canEdit}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        touchAction: 'none',
+      }}
       onClick={handleRowClick}
-      onMouseDownCapture={(e) => {
-        const target = e.target as HTMLElement;
-        const isInteractive =
-          ['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes(target.tagName) ||
-          target.closest('.no-drag') ||
-          target.getAttribute('contenteditable') === 'true';
-        dragBlockRef.current = Boolean(isInteractive);
-      }}
-      onMouseUp={() => { dragBlockRef.current = false; }}
-      onMouseLeave={() => { dragBlockRef.current = false; }}
-      onDragStart={(e) => {
-        if (!canEdit || dragBlockRef.current) {
-          e.preventDefault();
-          return;
-        }
-        onDragStart?.(e, isSubitem ? 'subitem' : 'task', task.id, projectId);
-      }}
-      onDragOver={onDragOver}
-      onDrop={(e) => {
-        onDrop?.(e, isSubitem ? 'subitem' : 'task', task.id, projectId);
-      }}
-      onDragEnd={onDragEnd}
+      {...attributes}
+      {...listeners}
     >
-      {/* Checkbox column */}
+      {/* Checkbox column — data-no-dnd prevents drag from here */}
       <div
-        className={`border-r h-full flex items-center justify-center relative no-drag min-w-0 ${cellBorder}`}
+        className={`border-r h-full flex items-center justify-center relative min-w-0 ${cellBorder}`}
         style={{ width: col.select }}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
+        data-no-dnd
       >
         <div
           className={`cursor-pointer transition-all duration-200 ${
@@ -204,69 +186,15 @@ export function TaskRow({
         className={`border-r h-full flex items-center px-4 relative min-w-0 ${cellBorder}`}
         style={{ width: col.item }}
       >
-        <div className={`flex items-center gap-2 w-full ${isSubitem ? 'pl-10' : ''}`}>
-          {isSubitem && <CornerDownRight size={12} className="text-gray-400 shrink-0" />}
-
-          {!isSubitem && (
-            <div
-              onClick={hasSubitems ? () => toggleItemExpand(task.id) : undefined}
-              className={`mr-2 transition-colors ${
-                hasSubitems
-                  ? 'cursor-pointer text-gray-400 hover:text-blue-500'
-                  : 'cursor-default text-gray-300 opacity-30'
-              } ${expandedItems.includes(task.id) ? 'rotate-90' : ''}`}
-            >
-              <ChevronRight size={14} />
-            </div>
-          )}
-
-          <EditableText
-            value={task.name}
-            onChange={canEdit ? onUpdateName : undefined}
-            readOnly={!canEdit}
-            className={`text-sm ${darkMode ? 'text-gray-200' : 'text-[#323338]'}`}
-          />
-
-          {!isSubitem && (
-            <div className="flex items-center gap-1 ml-auto no-drag">
-              {hasSubitems && (
-                <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 rounded-full">
-                  {(task as Item).subitems.length}
-                </span>
-              )}
-              {/* Updates open button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenUpdates?.();
-                }}
-                className={`p-1 rounded transition-colors opacity-0 group-hover:opacity-100 ${
-                  darkMode
-                    ? 'hover:bg-white/10 text-gray-400 hover:text-blue-400'
-                    : 'hover:bg-gray-200 text-gray-400 hover:text-blue-600'
-                }`}
-                title="Open updates"
-              >
-                <MessageSquare size={14} />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!canEdit) return;
-                  onAddSubitem?.(projectId, task.id);
-                }}
-                className={`p-1 rounded transition-colors ${
-                  canEdit
-                    ? 'hover:bg-gray-200 text-gray-400 hover:text-blue-600'
-                    : 'text-gray-500/60 cursor-not-allowed'
-                }`}
-                disabled={!canEdit}
-              >
-                <Plus size={14} />
-              </button>
-            </div>
-          )}
-        </div>
+        <ItemLabelCell
+          task={task}
+          isSubitem={isSubitem}
+          canEdit={canEdit}
+          darkMode={darkMode}
+          onUpdateName={canEdit ? onUpdateName : undefined}
+          onAddSubitem={onAddSubitem ? () => onAddSubitem(projectId, task.id) : undefined}
+          onOpenUpdates={onOpenUpdates}
+        />
       </div>
 
       {/* Person column */}
@@ -284,6 +212,7 @@ export function TaskRow({
         ref={statusAnchorRef}
         className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${cellBorder}`}
         style={{ width: col.status }}
+        data-no-dnd
       >
         <div
           onClick={(e) => {
@@ -319,6 +248,7 @@ export function TaskRow({
         ref={typeAnchorRef}
         className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${cellBorder}`}
         style={{ width: col.type }}
+        data-no-dnd
       >
         <div
           onClick={(e) => {
@@ -355,6 +285,7 @@ export function TaskRow({
           canEdit ? 'cursor-pointer' : 'cursor-default'
         } ${darkMode ? 'hover:bg-white/5' : ''}`}
         style={{ width: col.date }}
+        data-no-dnd
         onClick={(e) => {
           e.stopPropagation();
           if (!canEdit) return;
@@ -382,17 +313,6 @@ export function TaskRow({
           </div>
         )}
       </div>
-
-      {/* Reorder drop indicator */}
-      {reorderDrag?.active && reorderDrag.dropTargetId === task.id && (
-        <div
-          className="absolute left-0 right-0 h-0.5 bg-blue-500 z-50 pointer-events-none"
-          style={{
-            top: reorderDrag.dropPosition === 'before' ? '-1px' : 'auto',
-            bottom: reorderDrag.dropPosition === 'after' ? '-1px' : 'auto',
-          }}
-        />
-      )}
     </div>
   );
 }

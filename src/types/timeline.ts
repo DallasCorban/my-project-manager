@@ -31,18 +31,6 @@ export interface DragState {
   visualWidth: number;
 }
 
-export interface ReorderDrag {
-  active: boolean;
-  type: 'task' | 'subitem' | null;
-  dragId: string | null;
-  parentId: string | null;
-  dropTargetId: string | null;
-  dropTargetType: 'row' | 'group' | null;
-  dropTargetProjectId: string | null;
-  sourceProjectId: string | null;
-  dropPosition: 'before' | 'after';
-  originalExpanded: boolean;
-}
 
 export interface BoardColumns {
   select: number;

@@ -140,9 +140,9 @@ export function useGanttDrag({
   /**
    * Start a drag operation on a Gantt bar or empty area.
    */
-  const handleMouseDown = useCallback(
+  const handlePointerDown = useCallback(
     (
-      e: React.MouseEvent,
+      e: React.PointerEvent,
       taskId: string,
       projectId: string,
       type: DragState['type'],
@@ -220,11 +220,11 @@ export function useGanttDrag({
     [getRelativeIndex],
   );
 
-  // ── Mousemove / mouseup (registered once per drag) ───────────────────
+  // ── Pointermove / pointerup (registered once per drag) ──────────────
   useEffect(() => {
     if (!dragRef.current.isDragging) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: PointerEvent) => {
       const ds = dragRef.current;
       if (!ds.isDragging || !ds.type || !ds.projectId || !ds.taskId) return;
 
@@ -305,7 +305,7 @@ export function useGanttDrag({
       }));
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (_e: PointerEvent) => {
       const ds = dragRef.current;
       if (!ds.isDragging || !ds.type || !ds.projectId || !ds.taskId) {
         setDragState(INITIAL_DRAG);
@@ -349,12 +349,12 @@ export function useGanttDrag({
       setDragState(INITIAL_DRAG);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handleMouseMove);
+    window.addEventListener('pointerup', handleMouseUp);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handleMouseMove);
+      window.removeEventListener('pointerup', handleMouseUp);
     };
     // Only re-register when a drag starts/stops — everything else is in refs/snap.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -372,7 +372,7 @@ export function useGanttDrag({
 
   return {
     dragState,
-    handleMouseDown,
+    handlePointerDown,
     settledOverrides,
     clearSettledOverride,
   };
