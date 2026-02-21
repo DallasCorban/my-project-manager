@@ -89,7 +89,7 @@ export function GanttBar({
         shadow-sm cursor-grab active:cursor-grabbing select-none pointer-events-auto
         ${isDeleteMode ? 'opacity-30' : 'opacity-100'}
         ${darkMode ? 'border border-[#181b34]' : 'border border-white/50'}
-        ${isSelected ? 'ring-2 ring-white/80 ring-offset-1 ring-offset-transparent' : ''}`}
+        ${isSelected ? 'ring-1 ring-white/50' : ''}`}
       style={{
         left,
         width: Math.max(width, zoomLevel * 0.5),

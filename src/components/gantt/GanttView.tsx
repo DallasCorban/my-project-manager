@@ -383,7 +383,7 @@ export function GanttView({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex flex-col h-full overflow-hidden" onClick={() => setFocusedBar(null)}>
         {/* Toolbar — three-section layout: left toggles | center zoom | right today */}
         <div
           className={`flex items-center px-4 py-2 border-b shrink-0 ${

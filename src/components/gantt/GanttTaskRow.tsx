@@ -97,7 +97,6 @@ export function GanttTaskRow({
   const expandedItems = useUIStore((s) => s.expandedItems);
   const selectedItems = useUIStore((s) => s.selectedItems);
   const toggleSelection = useUIStore((s) => s.toggleSelection);
-  const setFocusedBar = useUIStore((s) => s.setFocusedBar);
 
   const isSelected = selectedItems.has(task.id);
 
@@ -282,11 +281,10 @@ export function GanttTaskRow({
 
       {/* Right bar area — scrollable with timeline. overflow: visible so
           offset bars in collapsed stacks aren't clipped at row edges.
-          Clicking empty space here clears the focused bar selection. */}
+          offset bars in collapsed stacks aren't clipped at row edges. */}
       <div
         className="relative flex-1 min-w-0"
         style={{ minWidth: visibleDays.length * zoomLevel, overflow: 'visible' }}
-        onClick={() => setFocusedBar(null)}
       >
         {/* Day grid background */}
         <div className="absolute inset-0 flex pointer-events-none">
