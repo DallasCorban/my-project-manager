@@ -96,7 +96,7 @@ export function TaskRow({
     listeners,
     setNodeRef,
     transform,
-    transition,
+    transition: sortTransition,
     isDragging,
   } = useSortable({
     id: task.id,
@@ -108,6 +108,16 @@ export function TaskRow({
     },
     disabled: !canEdit,
   });
+
+  // Non-active items: provide a baseline CSS transition even before dnd-kit's
+  // first sort event fires. Without this, the first sort change sets both
+  // `transition` and `transform` in the same React render — the browser has no
+  // "before" state to interpolate from, so the item snaps instead of gliding.
+  // Once dnd-kit provides its own transition (sortTransition), we use that.
+  // Active item: no transition — it must follow the cursor immediately.
+  const transition = isDragging
+    ? undefined
+    : (sortTransition ?? 'transform 200ms ease');
 
   const effectiveStatus = optimisticStatus ?? task.status;
   const effectiveType = optimisticType ?? task.jobTypeId;
