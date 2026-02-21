@@ -37,6 +37,10 @@ interface GanttBarProps {
   onHoverChange?: (hovered: boolean) => void;
   /** Double-clicking the bar toggles the updates panel for this item. */
   onOpenUpdates?: () => void;
+  /** True when this bar is the current zoom-anchor selection. */
+  isSelected?: boolean;
+  /** Called when the user single-clicks this bar to select it as the zoom anchor. */
+  onSelect?: () => void;
 }
 
 export function GanttBar({
@@ -56,6 +60,8 @@ export function GanttBar({
   onDelete,
   onHoverChange,
   onOpenUpdates,
+  isSelected = false,
+  onSelect,
 }: GanttBarProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const [isHovered, setIsHovered] = useState(false);
@@ -82,7 +88,8 @@ export function GanttBar({
       className={`absolute rounded-md flex items-center
         shadow-sm cursor-grab active:cursor-grabbing select-none pointer-events-auto
         ${isDeleteMode ? 'opacity-30' : 'opacity-100'}
-        ${darkMode ? 'border border-[#181b34]' : 'border border-white/50'}`}
+        ${darkMode ? 'border border-[#181b34]' : 'border border-white/50'}
+        ${isSelected ? 'ring-2 ring-white/80 ring-offset-1 ring-offset-transparent' : ''}`}
       style={{
         left,
         width: Math.max(width, zoomLevel * 0.5),
@@ -95,6 +102,13 @@ export function GanttBar({
       onPointerDown={(e) => {
         e.stopPropagation();
         onMouseDown(e, 'move');
+      }}
+      onClick={(e) => {
+        // Single-click selects this bar as the zoom anchor.
+        // stopPropagation prevents the background handler in GanttTaskRow from
+        // also firing and immediately clearing the selection.
+        e.stopPropagation();
+        onSelect?.();
       }}
       onDoubleClick={(e) => {
         // Double-click on the bar body (not on handles or delete) toggles the

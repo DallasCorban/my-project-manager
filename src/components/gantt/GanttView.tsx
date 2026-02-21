@@ -17,6 +17,7 @@ import { useSortableSensors, sortableCollisionDetection } from '../../hooks/useS
 import { GanttHeader } from './GanttHeader';
 import { GanttTaskRow } from './GanttTaskRow';
 import { ItemLabelCell } from '../shared/ItemLabelCell';
+import { normalizeDateKey } from '../../utils/date';
 import type { Board, Group } from '../../types/board';
 import type { Item, Subitem } from '../../types/item';
 import type { StatusLabel, JobTypeLabel } from '../../config/constants';
@@ -91,6 +92,8 @@ export function GanttView({
   const setCollapsedGroups = useUIStore((s) => s.setCollapsedGroups);
   const expandedItems = useUIStore((s) => s.expandedItems);
   const selectedItems = useUIStore((s) => s.selectedItems);
+  const focusedBar = useUIStore((s) => s.focusedBar);
+  const setFocusedBar = useUIStore((s) => s.setFocusedBar);
 
   const showWeekends = useTimelineStore((s) => s.showWeekends);
   const toggleWeekends = useTimelineStore((s) => s.toggleWeekends);
@@ -286,17 +289,51 @@ export function GanttView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Viewport-centered zoom: capture visual center in ref, restore in useLayoutEffect
+  // Zoom anchor: if a bar is focused, anchor around its visual midpoint;
+  // otherwise fall back to the viewport centre (original behaviour).
   const handleZoomChange = useCallback((newZoom: number) => {
     const body = bodyRef.current;
-    if (body) {
-      const sidebarWidth = 320;
-      const centerOffset = (body.clientWidth - sidebarWidth) / 2;
-      const centerX = body.scrollLeft + centerOffset;
+    if (!body) return;
+
+    const sidebarWidth = 320;
+
+    if (focusedBar) {
+      // Look up the bar's task/subitem so the anchor stays fresh even after moves.
+      const parentTask = project.tasks.find((t) => t.id === focusedBar.taskId);
+      const barTask = focusedBar.subitemId
+        ? parentTask?.subitems.find((s) => s.id === focusedBar.subitemId)
+        : parentTask;
+
+      let anchored = false;
+      if (barTask) {
+        const normalizedStart = normalizeDateKey(barTask.start);
+        const relIdx = normalizedStart ? getRelativeIndex(normalizedStart) : null;
+        if (relIdx !== null) {
+          const startVisual = dayToVisualIndex[relIdx];
+          if (startVisual !== undefined) {
+            const duration = Math.max(1, Number(barTask.duration || 1));
+            const rawEnd = relIdx + duration;
+            const endVisual = dayToVisualIndex[rawEnd] ?? (startVisual + duration);
+            // Store visual-slot midpoint — same unit as the viewport-centre anchor
+            zoomFocusRef.current = startVisual + (endVisual - startVisual) / 2;
+            anchored = true;
+          }
+        }
+      }
+
+      if (!anchored) {
+        // Bar has no dates or is off-screen — fall back to viewport centre
+        const centerX = body.scrollLeft + (body.clientWidth - sidebarWidth) / 2;
+        zoomFocusRef.current = centerX / zoomLevel;
+      }
+    } else {
+      // Default: viewport centre
+      const centerX = body.scrollLeft + (body.clientWidth - sidebarWidth) / 2;
       zoomFocusRef.current = centerX / zoomLevel;
     }
+
     setZoomLevel(newZoom);
-  }, [zoomLevel, setZoomLevel]);
+  }, [zoomLevel, setZoomLevel, focusedBar, project, getRelativeIndex, dayToVisualIndex]);
 
   // Synchronous scroll restoration after zoom — runs before browser paint
   useLayoutEffect(() => {
@@ -638,6 +675,8 @@ export function GanttView({
                                     settledOverrides={settledOverrides}
                                     clearSettledOverride={clearSettledOverride}
                                     canEdit={canEdit}
+                                    isBarSelected={focusedBar?.taskId === task.id && focusedBar?.subitemId === null}
+                                    onSelect={() => setFocusedBar({ taskId: task.id, subitemId: null })}
                                     onMouseDown={handlePointerDown}
                                     onUpdateName={(v) => onUpdateTaskName(project.id, task.id, v)}
                                     onStatusSelect={(val) => onChangeStatus(project.id, task.id, null, val)}
@@ -685,6 +724,8 @@ export function GanttView({
                                           settledOverrides={settledOverrides}
                                           clearSettledOverride={clearSettledOverride}
                                           canEdit={canEdit}
+                                          isBarSelected={focusedBar?.taskId === task.id && focusedBar?.subitemId === sub.id}
+                                          onSelect={() => setFocusedBar({ taskId: task.id, subitemId: sub.id })}
                                           onMouseDown={handlePointerDown}
                                           onUpdateName={(v) =>
                                             onUpdateSubitemName(project.id, task.id, sub.id, v)

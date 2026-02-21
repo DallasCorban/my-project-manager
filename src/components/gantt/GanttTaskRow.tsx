@@ -56,6 +56,10 @@ interface GanttTaskRowProps {
   onTypeSelect: (typeId: string) => void;
   onOpenUpdates?: () => void;
   onAddSubitem?: (projectId: string, taskId: string) => void;
+  /** True when this row's bar is the current zoom-anchor selection. */
+  isBarSelected?: boolean;
+  /** Called when the user clicks this bar to select it as the zoom anchor. */
+  onSelect?: () => void;
 }
 
 export function GanttTaskRow({
@@ -86,11 +90,14 @@ export function GanttTaskRow({
   onTypeSelect: _onTypeSelect,
   onOpenUpdates,
   onAddSubitem,
+  isBarSelected = false,
+  onSelect,
 }: GanttTaskRowProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const expandedItems = useUIStore((s) => s.expandedItems);
   const selectedItems = useUIStore((s) => s.selectedItems);
   const toggleSelection = useUIStore((s) => s.toggleSelection);
+  const setFocusedBar = useUIStore((s) => s.setFocusedBar);
 
   const isSelected = selectedItems.has(task.id);
 
@@ -215,6 +222,10 @@ export function GanttTaskRow({
         darkMode
           ? 'border-b border-[#2b2c32] hover:bg-[#202336]'
           : 'border-b border-[#eceff8] hover:bg-[#f5f5f5]'
+      } ${
+        isBarSelected
+          ? darkMode ? 'bg-blue-500/10' : 'bg-blue-50'
+          : ''
       }`}
       style={{ height: actualRowHeight }}
       {...attributes}
@@ -270,10 +281,12 @@ export function GanttTaskRow({
       </div>
 
       {/* Right bar area — scrollable with timeline. overflow: visible so
-          offset bars in collapsed stacks aren't clipped at row edges. */}
+          offset bars in collapsed stacks aren't clipped at row edges.
+          Clicking empty space here clears the focused bar selection. */}
       <div
         className="relative flex-1 min-w-0"
         style={{ minWidth: visibleDays.length * zoomLevel, overflow: 'visible' }}
+        onClick={() => setFocusedBar(null)}
       >
         {/* Day grid background */}
         <div className="absolute inset-0 flex pointer-events-none">
@@ -364,6 +377,8 @@ export function GanttTaskRow({
                   taskDuration,
                 )
               }
+              isSelected={isBarSelected}
+              onSelect={onSelect}
               onOpenUpdates={onOpenUpdates}
             />
           </div>
