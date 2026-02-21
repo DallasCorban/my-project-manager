@@ -216,6 +216,26 @@ export function GanttView({
             const toIndex = targetGroupTasks.findIndex((t) => t.id === over.id);
             moveTaskToGroup(project.id, String(active.id), sourceGroupId, targetGroupId, toIndex);
           }
+        } else if (activeData.type === 'task' && overData.type === 'subitem') {
+          // Task dropped over an expanded subitem — route to the subitem's parent task.
+          // This happens when expanded subitems occupy the drop zone between parent rows.
+          const parentTask = project.tasks.find((t) =>
+            t.subitems.some((s) => s.id === over.id),
+          );
+          if (parentTask && parentTask.id !== String(active.id)) {
+            const sourceGroupId = activeData.groupId ?? '';
+            const targetGroupId = parentTask.groupId;
+            const groupTasks = project.tasks.filter((t) => t.groupId === targetGroupId);
+            const fromIndex = groupTasks.findIndex((t) => t.id === active.id);
+            const toIndex = groupTasks.findIndex((t) => t.id === parentTask.id);
+            if (sourceGroupId === targetGroupId) {
+              if (fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0) {
+                reorderTasks(project.id, targetGroupId, fromIndex, toIndex);
+              }
+            } else if (toIndex >= 0) {
+              moveTaskToGroup(project.id, String(active.id), sourceGroupId, targetGroupId, toIndex);
+            }
+          }
         } else if (activeData.type === 'subitem' && overData.type === 'subitem') {
           const parentTask = project.tasks.find((t) =>
             t.subitems.some((s) => s.id === active.id),
@@ -235,6 +255,16 @@ export function GanttView({
     },
     [project, reorderGroups, reorderTasks, moveTaskToGroup, reorderSubitems, setCollapsedGroups],
   );
+
+  /** Called when the user cancels a drag (e.g. presses Escape). */
+  const handleDragCancel = useCallback(() => {
+    if (preGroupDragOpen.current.length > 0) {
+      const allIds = project.groups.map((g) => g.id);
+      setCollapsedGroups(allIds.filter((id) => !preGroupDragOpen.current.includes(id)));
+      preGroupDragOpen.current = [];
+    }
+    setActiveId(null);
+  }, [project, setCollapsedGroups]);
 
   // Scroll to today on mount (and when "Today" button is clicked)
   const scrollToToday = useScrollToToday(bodyRef, visibleDays, zoomLevel);
@@ -303,6 +333,7 @@ export function GanttView({
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <div className="flex flex-col h-full overflow-hidden">
         {/* Toolbar — three-section layout: left toggles | center zoom | right today */}
