@@ -67,6 +67,12 @@ export function GanttBar({
 
   const isDeleteMode = isThisBarDragging && dragState.isDeleteMode;
 
+  // Resize handle pills are visible only while hovering this bar or while an
+  // interaction (move / resize) is active on it.  The 10 px hit-target divs
+  // remain in the DOM at all times so cursor feedback and pointer events still
+  // work even when the pill is invisible.
+  const showHandles = isHovered || isThisBarDragging;
+
   // Fixed pixel height: ~72% of row height, clamped to a sensible range.
   // This NEVER changes based on overlap/lane count.
   const barHeightPx = clamp(Math.round(rowHeight * 0.72), 14, 24);
@@ -109,7 +115,7 @@ export function GanttBar({
         }}
         onDoubleClick={(e) => e.stopPropagation()}
       >
-        <div className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-3/5 rounded-full bg-white/40 group-hover/handle:bg-white/70 transition-colors" />
+        <div className={`absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-3/5 rounded-full bg-white/40 group-hover/handle:bg-white/70 transition-[colors,opacity] ${showHandles ? 'opacity-100' : 'opacity-0'}`} />
       </div>
 
       {/* Label text */}
@@ -128,7 +134,7 @@ export function GanttBar({
         }}
         onDoubleClick={(e) => e.stopPropagation()}
       >
-        <div className="absolute right-1 top-1/2 -translate-y-1/2 w-[3px] h-3/5 rounded-full bg-white/40 group-hover/handle:bg-white/70 transition-colors" />
+        <div className={`absolute right-1 top-1/2 -translate-y-1/2 w-[3px] h-3/5 rounded-full bg-white/40 group-hover/handle:bg-white/70 transition-[colors,opacity] ${showHandles ? 'opacity-100' : 'opacity-0'}`} />
       </div>
 
       {/* Delete button — appears on hover, top-right */}
