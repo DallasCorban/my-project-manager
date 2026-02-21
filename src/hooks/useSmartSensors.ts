@@ -13,14 +13,19 @@
 //   - Filters droppable candidates to the same type as the active item (task,
 //     subitem, or group) so that a task drag can never accidentally land on a
 //     group droppable and vice-versa.
-//   - Excludes the dragged item's own droppable (self-collision prevention) to
-//     prevent the algorithm from treating the placeholder as a valid target.
+//   - Does NOT exclude the active item's own droppable. With MeasuringStrategy.Always
+//     the active item's droppable rect is continuously re-measured to its current
+//     visual (transformed) position — i.e. exactly where the gap is. If the ghost
+//     overlaps that position, over.id === active.id, which tells dnd-kit "stay put,
+//     gap doesn't move". Excluding it would create a blind spot at the gap, causing
+//     the closestCenter fallback to fire and jump to the wrong neighbour — which is
+//     the "can't return to original spot / skips a place" bug.
 //   - Uses overlap-threshold detection as the primary algorithm: a swap fires
-//     when the DragOverlay rect overlaps a candidate row by ≥ 25% of that
-//     row's height. This sits between pointerWithin (0% → jitter at boundaries)
-//     and closestCenter (~50% overshoot → feels sluggish). It directly maps to
-//     the intended UX: "when the ghost overlaps the adjacent ticket enough, that
-//     ticket slides out of the way."
+//     when the ghost rect overlaps a candidate row by ≥ 25% of that row's height.
+//     This sits between pointerWithin (0% → jitter at boundaries) and closestCenter
+//     (~50% overshoot → feels sluggish). It directly maps to the intended UX:
+//     "when the ghost overlaps the adjacent ticket enough, that ticket slides out
+//     of the way."
 //   - Falls back to closestCenter when no candidate meets the threshold (e.g.
 //     ghost near the scroll edge or between groups).
 
@@ -64,25 +69,30 @@ export function useSortableSensors() {
  * Custom collision detection for Board + Gantt sortable lists.
  *
  * Implements the "overlap-threshold" algorithm:
- *   A swap fires when the DragOverlay rect overlaps a candidate row by at
- *   least OVERLAP_RATIO (25%) of that row's height. This matches the expected
- *   UX: "when my ghost ticket is overlapping the adjacent ticket by a certain
- *   amount, that ticket slides to make space."
+ *   A swap fires when the ghost rect overlaps a candidate row by at least
+ *   OVERLAP_RATIO (25%) of that row's height. This matches the intended UX:
+ *   "when my ghost overlaps the adjacent ticket enough, that ticket slides to
+ *   make space."
  *
- * Why not pointerWithin?  Fires at 0% overlap — the sort can flip back and
- *   forth if the pointer sits right on a row boundary (jitter).
+ * Why not pointerWithin?  Fires at 0% overlap — jitter at row boundaries.
+ * Why not closestCenter?  Fires at ~50% overshoot — feels sluggish.
  *
- * Why not closestCenter?  Fires only when the ghost center crosses the midpoint
- *   between two row centers (~50% overshoot) — feels sluggish for single-row
- *   moves.
+ * Active item included in candidates:
+ *   With MeasuringStrategy.Always the active item's droppable rect is
+ *   continuously re-measured to its current visual (transformed) position —
+ *   i.e. exactly where the gap is. Returning over.id === active.id tells
+ *   dnd-kit "ghost is over the gap, stay put". Excluding the active item would
+ *   create a blind spot there, causing the closestCenter fallback to fire
+ *   incorrectly and producing the "can't return to original slot / skips a
+ *   position" bug.
  *
- * Additional safeguards:
- *   - Type-filtered candidates: a task droppable never resolves against a group
- *     droppable or subitem droppable, and vice-versa.
- *   - Self-exclusion: the active item's own droppable (the placeholder left at
- *     the original position) is never returned as a collision target.
- *   - closestCenter fallback: used when no candidate meets the overlap threshold
- *     (e.g. ghost is near the scroll edge or between groups).
+ * Type-filtered candidates:
+ *   Only same-type droppables are considered (task vs. subitem vs. group),
+ *   preventing cross-type collisions.
+ *
+ * closestCenter fallback:
+ *   Used when no candidate meets the overlap threshold (ghost near scroll edge
+ *   or between groups).
  */
 
 // Fraction of a row's height the ghost must overlap before the row slides.
@@ -93,14 +103,13 @@ export const sortableCollisionDetection: CollisionDetection = (args) => {
   const { active, collisionRect, droppableRects, droppableContainers } = args;
   const activeType = (active.data.current as { type?: string } | undefined)?.type;
 
-  // Filter: same type as the dragged item, exclude its own droppable.
+  // Filter: same type only. Active item's own droppable is intentionally kept
+  // in the candidate list (see JSDoc above).
   const candidates = activeType
     ? droppableContainers.filter(
-        (c) =>
-          (c.data.current as { type?: string } | undefined)?.type === activeType &&
-          c.id !== active.id,
+        (c) => (c.data.current as { type?: string } | undefined)?.type === activeType,
       )
-    : droppableContainers.filter((c) => c.id !== active.id);
+    : droppableContainers;
 
   // Overlap-threshold pass: find the candidate that the ghost overlaps the most
   // while still exceeding the minimum threshold.
