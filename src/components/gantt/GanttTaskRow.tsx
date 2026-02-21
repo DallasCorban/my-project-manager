@@ -113,6 +113,20 @@ export function GanttTaskRow({
     disabled: !canEdit,
   });
 
+  // Double-clicking the empty whitespace of the left label column toggles the
+  // updates panel for this row's item.  Interactive children (buttons, checkbox,
+  // contenteditable spans) are excluded via the same guard used in TaskRow.
+  const handleLabelDoubleClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const isInteractive =
+      ['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes(target.tagName) ||
+      !!target.closest('button') ||
+      !!target.closest('[data-no-dnd]') ||
+      target.getAttribute('contenteditable') === 'true';
+    if (isInteractive) return;
+    onOpenUpdates?.();
+  };
+
   const getTaskColor = (t: Item | Subitem): string => {
     if (colorBy === 'status') {
       return statuses.find((s) => s.id === t.status)?.color || '#c4c4c4';
@@ -222,6 +236,7 @@ export function GanttTaskRow({
             : 'bg-white border-[#eceff8]'
         }`}
         style={{ width: 320, minWidth: 320, touchAction: 'none' }}
+        onDoubleClick={handleLabelDoubleClick}
         {...listeners}
       >
         {/* Checkbox — data-no-dnd prevents SmartPointerSensor from consuming the click */}
@@ -347,6 +362,7 @@ export function GanttTaskRow({
                   taskDuration,
                 )
               }
+              onOpenUpdates={onOpenUpdates}
             />
           </div>
         )}

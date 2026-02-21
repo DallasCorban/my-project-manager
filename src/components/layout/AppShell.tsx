@@ -1,7 +1,7 @@
 // AppShell — main layout: sidebar + header + content area.
 // Orchestrates workspace/board navigation and renders the active view.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useProjectContext } from '../../stores/projectStore';
@@ -30,6 +30,23 @@ export function AppShell() {
   const updatesPanelTarget = useUIStore((s) => s.updatesPanelTarget);
   const closeUpdatesPanel = useUIStore((s) => s.closeUpdatesPanel);
   const selectedItems = useUIStore((s) => s.selectedItems);
+
+  // ── Sidebar slide animation ──────────────────────────────────────────
+  // `shownTarget` holds the last non-null target so the panel keeps its
+  // content visible during the slide-out animation (300 ms).  When a
+  // different item is selected while the panel is open, content switches
+  // immediately (no close/re-open).
+  const [shownTarget, setShownTarget] = useState(updatesPanelTarget);
+  const isOpen = !!updatesPanelTarget;
+
+  useEffect(() => {
+    if (updatesPanelTarget) {
+      setShownTarget(updatesPanelTarget);
+    } else {
+      const t = setTimeout(() => setShownTarget(null), 300);
+      return () => clearTimeout(t);
+    }
+  }, [updatesPanelTarget]);
 
   const {
     projects,
@@ -225,9 +242,16 @@ export function AppShell() {
         )}
       </div>
 
-      {/* Updates Panel (slide-over) */}
-      {updatesPanelTarget && activeProject && (() => {
-        const { taskId, subitemId, projectId } = updatesPanelTarget;
+      {/* Updates Panel — always in DOM, slides in/out with a CSS transition.
+          `shownTarget` keeps content alive during the slide-out so the panel
+          doesn't visually empty before it finishes animating off-screen. */}
+      <div
+        className={`fixed inset-y-0 right-0 z-50 transition-transform duration-300 ease-in-out ${
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+      {shownTarget && activeProject && (() => {
+        const { taskId, subitemId, projectId } = shownTarget;
         const task = activeProject.tasks.find((t) => t.id === taskId);
         if (!task) return null;
         const isSubitem = Boolean(subitemId);
@@ -277,6 +301,7 @@ export function AppShell() {
           />
         );
       })()}
+      </div>
 
       {/* Members Modal */}
       {activeProject && (

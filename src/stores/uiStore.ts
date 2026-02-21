@@ -35,6 +35,10 @@ interface UIState {
   updatesPanelTarget: UpdatesPanelTarget | null;
   openUpdatesPanel: (target: UpdatesPanelTarget) => void;
   closeUpdatesPanel: () => void;
+  /** Toggle the panel for a given target:
+   *  - same item already open → close
+   *  - closed or different item → open / switch (no close animation between items) */
+  toggleUpdatesPanel: (target: UpdatesPanelTarget) => void;
 
   // Selection
   selectedItems: Set<string>;
@@ -88,6 +92,18 @@ export const useUIStore = create<UIState>()(
       updatesPanelTarget: null,
       openUpdatesPanel: (target) => set({ updatesPanelTarget: target }),
       closeUpdatesPanel: () => set({ updatesPanelTarget: null }),
+      toggleUpdatesPanel: (target) =>
+        set((state) => {
+          const cur = state.updatesPanelTarget;
+          if (
+            cur &&
+            cur.taskId === target.taskId &&
+            cur.subitemId === target.subitemId
+          ) {
+            return { updatesPanelTarget: null };
+          }
+          return { updatesPanelTarget: target };
+        }),
 
       // Selection
       selectedItems: new Set<string>(),

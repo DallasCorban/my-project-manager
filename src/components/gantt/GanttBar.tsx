@@ -35,6 +35,8 @@ interface GanttBarProps {
   onDelete?: () => void;
   /** Called when hover state changes — used by stack to promote hovered bar z-order. */
   onHoverChange?: (hovered: boolean) => void;
+  /** Double-clicking the bar toggles the updates panel for this item. */
+  onOpenUpdates?: () => void;
 }
 
 export function GanttBar({
@@ -53,6 +55,7 @@ export function GanttBar({
   onMouseDown,
   onDelete,
   onHoverChange,
+  onOpenUpdates,
 }: GanttBarProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const [isHovered, setIsHovered] = useState(false);
@@ -87,6 +90,13 @@ export function GanttBar({
         e.stopPropagation();
         onMouseDown(e, 'move');
       }}
+      onDoubleClick={(e) => {
+        // Double-click on the bar body (not on handles or delete) toggles the
+        // updates panel. The browser only fires dblclick when the pointer hasn't
+        // moved significantly between clicks, so drag interactions are safe.
+        e.stopPropagation();
+        onOpenUpdates?.();
+      }}
       onPointerEnter={() => { setIsHovered(true); onHoverChange?.(true); }}
       onPointerLeave={() => { setIsHovered(false); onHoverChange?.(false); }}
     >
@@ -97,6 +107,7 @@ export function GanttBar({
           e.stopPropagation();
           onMouseDown(e, 'resize-left');
         }}
+        onDoubleClick={(e) => e.stopPropagation()}
       >
         <div className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-3/5 rounded-full bg-white/40 group-hover/handle:bg-white/70 transition-colors" />
       </div>
@@ -115,6 +126,7 @@ export function GanttBar({
           e.stopPropagation();
           onMouseDown(e, 'resize-right');
         }}
+        onDoubleClick={(e) => e.stopPropagation()}
       >
         <div className="absolute right-1 top-1/2 -translate-y-1/2 w-[3px] h-3/5 rounded-full bg-white/40 group-hover/handle:bg-white/70 transition-colors" />
       </div>
@@ -128,6 +140,7 @@ export function GanttBar({
             onDelete();
           }}
           onPointerDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
         >
           <X size={10} />
         </button>

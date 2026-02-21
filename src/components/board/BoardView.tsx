@@ -55,7 +55,7 @@ export function BoardView({ project }: BoardViewProps) {
   const collapsedGroups = useUIStore((s) => s.collapsedGroups);
   const setCollapsedGroups = useUIStore((s) => s.setCollapsedGroups);
   const openDatePicker = useUIStore((s) => s.openDatePicker);
-  const openUpdatesPanel = useUIStore((s) => s.openUpdatesPanel);
+  const toggleUpdatesPanel = useUIStore((s) => s.toggleUpdatesPanel);
 
   const {
     updateTaskName,
@@ -251,7 +251,7 @@ export function BoardView({ project }: BoardViewProps) {
                         openDatePicker({ taskId, subitemId: subId, projectId: project.id })
                       }
                       onOpenUpdates={(taskId, subId) =>
-                        openUpdatesPanel({ taskId, subitemId: subId, projectId: project.id })
+                        toggleUpdatesPanel({ taskId, subitemId: subId, projectId: project.id })
                       }
                       canEdit={true}
                       dragHandleListeners={groupListeners}

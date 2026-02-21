@@ -643,7 +643,7 @@ export function GanttView({
                                     onStatusSelect={(val) => onChangeStatus(project.id, task.id, null, val)}
                                     onTypeSelect={(val) => onChangeJobType(project.id, task.id, null, val)}
                                     onOpenUpdates={() =>
-                                      useUIStore.getState().openUpdatesPanel({
+                                      useUIStore.getState().toggleUpdatesPanel({
                                         taskId: task.id,
                                         subitemId: null,
                                         projectId: project.id,
@@ -696,7 +696,7 @@ export function GanttView({
                                             onChangeJobType(project.id, task.id, sub.id, val)
                                           }
                                           onOpenUpdates={() =>
-                                            useUIStore.getState().openUpdatesPanel({
+                                            useUIStore.getState().toggleUpdatesPanel({
                                               taskId: task.id,
                                               subitemId: sub.id,
                                               projectId: project.id,
