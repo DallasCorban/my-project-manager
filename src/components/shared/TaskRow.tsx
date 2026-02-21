@@ -4,7 +4,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { CheckSquare, Square } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { useUIStore } from '../../stores/uiStore';
 import { ItemLabelCell } from './ItemLabelCell';
 import { LabelDropdown } from './StatusDropdown';
@@ -128,7 +127,7 @@ export function TaskRow({
     ? `flex border-b items-center h-10 relative group ${
         darkMode ? 'bg-blue-500/10 border-blue-500/50' : 'bg-blue-50 border-blue-300'
       } border-dashed opacity-50`
-    : `flex border-b transition-colors items-center h-10 relative group ${
+    : `flex border-b items-center h-10 relative group transition-[background-color,border-color,transform] ${
         darkMode
           ? 'border-[#2b2c32] hover:bg-[#202336] bg-[#1c213e]'
           : 'border-[#eceff8] hover:bg-[#f0f0f0] bg-white'
@@ -151,8 +150,14 @@ export function TaskRow({
       ref={setNodeRef}
       className={containerClass}
       style={{
-        transform: CSS.Transform.toString(transform),
+        // Use translate3d directly — avoids scaleX/scaleY from CSS.Transform.toString
+        // which can cause subpixel jitter. Math.round prevents blurry subpixel positions.
+        transform: transform
+          ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
+          : undefined,
         transition,
+        // Promote to GPU compositing layer while transforming for smoother animation
+        willChange: isDragging || transform ? 'transform' : undefined,
         touchAction: 'none',
       }}
       onClick={handleRowClick}

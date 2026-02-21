@@ -131,7 +131,9 @@ export function BoardView({ project }: BoardViewProps) {
 
   const handleDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
-      setActiveId(null);
+      // NOTE: setActiveId(null) is called at the END so the DragOverlay keeps its
+      // content alive during dnd-kit's drop animation (which needs the overlay
+      // snapshot to animate to the drop destination).
 
       const activeData = active.data.current as { type: string; groupId?: string; parentTaskId?: string } | undefined;
       const overData = over?.data.current as { type: string; groupId?: string } | undefined;
@@ -143,42 +145,45 @@ export function BoardView({ project }: BoardViewProps) {
         preGroupDragOpen.current = [];
       }
 
-      if (!over || active.id === over.id) return;
-      if (!activeData || !overData) return;
-
-      if (activeData.type === 'group' && overData.type === 'group') {
-        const fromIndex = project.groups.findIndex((g) => g.id === active.id);
-        const toIndex = project.groups.findIndex((g) => g.id === over.id);
-        if (fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0) {
-          reorderGroups(project.id, fromIndex, toIndex);
-        }
-      } else if (activeData.type === 'task' && overData.type === 'task') {
-        const sourceGroupId = activeData.groupId ?? '';
-        const targetGroupId = overData.groupId ?? '';
-
-        if (sourceGroupId === targetGroupId) {
-          const groupTasks = project.tasks.filter((t) => t.groupId === sourceGroupId);
-          const fromIndex = groupTasks.findIndex((t) => t.id === active.id);
-          const toIndex = groupTasks.findIndex((t) => t.id === over.id);
+      if (over && active.id !== over.id && activeData && overData) {
+        if (activeData.type === 'group' && overData.type === 'group') {
+          const fromIndex = project.groups.findIndex((g) => g.id === active.id);
+          const toIndex = project.groups.findIndex((g) => g.id === over.id);
           if (fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0) {
-            reorderTasks(project.id, sourceGroupId, fromIndex, toIndex);
+            reorderGroups(project.id, fromIndex, toIndex);
           }
-        } else {
-          const targetGroupTasks = project.tasks.filter((t) => t.groupId === targetGroupId);
-          const toIndex = targetGroupTasks.findIndex((t) => t.id === over.id);
-          moveTaskToGroup(project.id, String(active.id), sourceGroupId, targetGroupId, toIndex);
-        }
-      } else if (activeData.type === 'subitem' && overData.type === 'subitem') {
-        const parentTask = project.tasks.find((t) =>
-          t.subitems.some((s) => s.id === active.id),
-        );
-        if (!parentTask) return;
-        const fromIndex = parentTask.subitems.findIndex((s) => s.id === active.id);
-        const toIndex = parentTask.subitems.findIndex((s) => s.id === over.id);
-        if (fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0) {
-          reorderSubitems(project.id, parentTask.id, fromIndex, toIndex);
+        } else if (activeData.type === 'task' && overData.type === 'task') {
+          const sourceGroupId = activeData.groupId ?? '';
+          const targetGroupId = overData.groupId ?? '';
+
+          if (sourceGroupId === targetGroupId) {
+            const groupTasks = project.tasks.filter((t) => t.groupId === sourceGroupId);
+            const fromIndex = groupTasks.findIndex((t) => t.id === active.id);
+            const toIndex = groupTasks.findIndex((t) => t.id === over.id);
+            if (fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0) {
+              reorderTasks(project.id, sourceGroupId, fromIndex, toIndex);
+            }
+          } else {
+            const targetGroupTasks = project.tasks.filter((t) => t.groupId === targetGroupId);
+            const toIndex = targetGroupTasks.findIndex((t) => t.id === over.id);
+            moveTaskToGroup(project.id, String(active.id), sourceGroupId, targetGroupId, toIndex);
+          }
+        } else if (activeData.type === 'subitem' && overData.type === 'subitem') {
+          const parentTask = project.tasks.find((t) =>
+            t.subitems.some((s) => s.id === active.id),
+          );
+          if (parentTask) {
+            const fromIndex = parentTask.subitems.findIndex((s) => s.id === active.id);
+            const toIndex = parentTask.subitems.findIndex((s) => s.id === over.id);
+            if (fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0) {
+              reorderSubitems(project.id, parentTask.id, fromIndex, toIndex);
+            }
+          }
         }
       }
+
+      // Clear last — keeps DragOverlay content alive for the drop animation
+      setActiveId(null);
     },
     [project, reorderGroups, reorderTasks, moveTaskToGroup, reorderSubitems, setCollapsedGroups],
   );

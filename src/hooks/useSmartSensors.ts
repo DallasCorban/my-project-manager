@@ -31,7 +31,9 @@ export class SmartPointerSensor extends PointerSensor {
 
 export function useSortableSensors() {
   return useSensors(
-    useSensor(SmartPointerSensor, { activationConstraint: { distance: 8 } }),
+    // 4px distance: enough to ignore accidental micro-movements but low enough
+    // that short drags (e.g. moving the last item up one slot) register reliably.
+    useSensor(SmartPointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 }
