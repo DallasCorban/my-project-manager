@@ -123,10 +123,14 @@ export function TaskRow({
   const endKey = hasDates ? addDaysToKey(normalizedStart, safeDuration - 1) : null;
   const showRange = hasDates && safeDuration > 1;
 
+  // When dragging: the row itself IS the ghost (no separate DragOverlay).
+  // It follows the cursor via useSortable's transform and should look "lifted".
   const containerClass = isDragging
-    ? `flex border-b items-center h-10 relative group ${
-        darkMode ? 'bg-blue-500/10 border-blue-500/50' : 'bg-blue-50 border-blue-300'
-      } border-dashed opacity-50`
+    ? `flex border-b items-center h-10 relative group cursor-grabbing z-50 shadow-lg opacity-80 ${
+        darkMode
+          ? 'bg-[#1c213e] border-[#2b2c32]'
+          : 'bg-white border-[#eceff8]'
+      }`
     : `flex border-b items-center h-10 relative group transition-colors ${
         darkMode
           ? 'border-[#2b2c32] hover:bg-[#202336] bg-[#1c213e]'
