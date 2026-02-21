@@ -618,7 +618,7 @@ export function GanttView({
                                     projectId={project.id}
                                     isSubitem={false}
                                     isExpanded={isTaskExpanded}
-                                    isDropTarget={activeId !== null && activeId !== task.id && overId === task.id}
+                                    isDropTarget={activeId !== null && overId === task.id}
                                     visibleDays={visibleDays}
                                     zoomLevel={zoomLevel}
                                     rowHeight={rowHeight}
@@ -660,7 +660,7 @@ export function GanttView({
                                           projectId={project.id}
                                           parentTaskId={task.id}
                                           isSubitem
-                                          isDropTarget={activeId !== null && activeId !== sub.id && overId === sub.id}
+                                          isDropTarget={activeId !== null && overId === sub.id}
                                           visibleDays={visibleDays}
                                           zoomLevel={zoomLevel}
                                           rowHeight={rowHeight}
