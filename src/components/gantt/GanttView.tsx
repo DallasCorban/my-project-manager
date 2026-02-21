@@ -16,6 +16,7 @@ import { useScrollToToday } from '../../hooks/useScrollToToday';
 import { useSortableSensors } from '../../hooks/useSmartSensors';
 import { GanttHeader } from './GanttHeader';
 import { GanttTaskRow } from './GanttTaskRow';
+import { ItemLabelCell } from '../shared/ItemLabelCell';
 import type { Board, Group } from '../../types/board';
 import type { Item, Subitem } from '../../types/item';
 import type { StatusLabel, JobTypeLabel } from '../../config/constants';
@@ -123,6 +124,7 @@ export function GanttView({
        project.tasks.flatMap((t) => t.subitems).find((s) => s.id === activeId) ??
        null)
     : null;
+  const activeIsSubitem = activeId ? !project.tasks.some((t) => t.id === activeId) : false;
 
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
     setActiveId(String(active.id));
@@ -576,18 +578,23 @@ export function GanttView({
         </div>
       </div>
 
-      {/* Floating drag overlay — shows task name while dragging */}
+      {/* Floating drag overlay — label column replica (320px) with ItemLabelCell */}
       <DragOverlay>
         {activeItem ? (
           <div
-            className={`flex items-center h-9 px-3 rounded border shadow-xl text-xs font-medium cursor-grabbing opacity-95 ${
+            className={`flex items-center px-3 border-r border-b shadow-xl cursor-grabbing group [&_button]:!opacity-100 ${
               darkMode
-                ? 'bg-[#1c213e] border-[#2b2c32] text-gray-200'
-                : 'bg-white border-gray-200 text-gray-700'
+                ? 'bg-[#1c213e] border-[#2b2c32]'
+                : 'bg-white border-[#eceff8]'
             }`}
-            style={{ width: 300 }}
+            style={{ width: 320, height: rowHeight }}
           >
-            {activeItem.name}
+            <ItemLabelCell
+              task={activeItem}
+              isSubitem={activeIsSubitem}
+              canEdit={false}
+              darkMode={darkMode}
+            />
           </div>
         ) : null}
       </DragOverlay>

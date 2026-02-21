@@ -12,6 +12,7 @@ import { useTimelineStore } from '../../stores/timelineStore';
 import { useBoardColumns } from '../../hooks/useBoardColumns';
 import { useSortableSensors } from '../../hooks/useSmartSensors';
 import { GroupSection } from './GroupSection';
+import { ItemLabelCell } from '../shared/ItemLabelCell';
 import type { Board } from '../../types/board';
 import type { Item, Subitem } from '../../types/item';
 
@@ -68,6 +69,7 @@ export function BoardView({ project }: BoardViewProps) {
        project.tasks.flatMap((t) => t.subitems).find((s) => s.id === activeId) ??
        null)
     : null;
+  const activeIsSubitem = activeId ? !project.tasks.some((t) => t.id === activeId) : false;
 
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
     setActiveId(String(active.id));
@@ -175,17 +177,23 @@ export function BoardView({ project }: BoardViewProps) {
         </button>
       </div>
 
-      {/* Floating drag overlay — shows task name while dragging */}
+      {/* Floating drag overlay — label column replica with ItemLabelCell */}
       <DragOverlay>
         {activeItem ? (
           <div
-            className={`flex items-center h-10 px-4 rounded border shadow-xl text-sm font-medium cursor-grabbing opacity-95 ${
+            className={`flex items-center h-10 px-3 border shadow-xl cursor-grabbing group [&_button]:!opacity-100 ${
               darkMode
-                ? 'bg-[#1c213e] border-[#2b2c32] text-gray-200'
-                : 'bg-white border-gray-200 text-gray-700'
+                ? 'bg-[#1c213e] border-[#2b2c32]'
+                : 'bg-white border-[#eceff8]'
             }`}
+            style={{ width: 320 }}
           >
-            {activeItem.name}
+            <ItemLabelCell
+              task={activeItem}
+              isSubitem={activeIsSubitem}
+              canEdit={false}
+              darkMode={darkMode}
+            />
           </div>
         ) : null}
       </DragOverlay>
