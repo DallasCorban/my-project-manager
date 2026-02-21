@@ -109,15 +109,18 @@ export function TaskRow({
     disabled: !canEdit,
   });
 
-  // Non-active items: provide a baseline CSS transition even before dnd-kit's
-  // first sort event fires. Without this, the first sort change sets both
-  // `transition` and `transform` in the same React render — the browser has no
-  // "before" state to interpolate from, so the item snaps instead of gliding.
-  // Once dnd-kit provides its own transition (sortTransition), we use that.
-  // Active item: no transition — it must follow the cursor immediately.
+  // Non-active rows keep a baseline transform transition at all times. dnd-kit
+  // can occasionally emit a temporary `transform 0ms ...` transition during the
+  // first layout-shift frame; if we apply that literally, displaced rows "snap"
+  // on the first swap. We treat that as a disabled value and keep the baseline.
+  const FALLBACK_SORT_TRANSITION = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)';
+  const hasUsableTransformTransition =
+    typeof sortTransition === 'string' &&
+    sortTransition.includes('transform') &&
+    !/transform\s+0(?:ms|s)\b/.test(sortTransition);
   const transition = isDragging
     ? undefined
-    : (sortTransition ?? 'transform 200ms ease');
+    : (hasUsableTransformTransition ? sortTransition : FALLBACK_SORT_TRANSITION);
 
   const effectiveStatus = optimisticStatus ?? task.status;
   const effectiveType = optimisticType ?? task.jobTypeId;

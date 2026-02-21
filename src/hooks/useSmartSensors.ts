@@ -13,21 +13,17 @@
 //   - Filters droppable candidates to the same type as the active item (task,
 //     subitem, or group) so that a task drag can never accidentally land on a
 //     group droppable and vice-versa.
-//   - Does NOT exclude the active item's own droppable. With MeasuringStrategy.Always
-//     the active item's droppable rect is continuously re-measured to its current
-//     visual (transformed) position — i.e. exactly where the gap is. If the ghost
-//     overlaps that position, over.id === active.id, which tells dnd-kit "stay put,
-//     gap doesn't move". Excluding it would create a blind spot at the gap, causing
-//     the closestCenter fallback to fire and jump to the wrong neighbour — which is
-//     the "can't return to original spot / skips a place" bug.
+//   - Keeps the active item's own droppable in the candidate set to preserve the
+//     "gap" target (over.id === active.id) when hovering near the source slot.
 //   - Uses overlap-threshold detection as the primary algorithm: a swap fires
-//     when the ghost rect overlaps a candidate row by ≥ 25% of that row's height.
-//     This sits between pointerWithin (0% → jitter at boundaries) and closestCenter
-//     (~50% overshoot → feels sluggish). It directly maps to the intended UX:
-//     "when the ghost overlaps the adjacent ticket enough, that ticket slides out
-//     of the way."
-//   - Falls back to closestCenter when no candidate meets the threshold (e.g.
-//     ghost near the scroll edge or between groups).
+//     when the ghost rect overlaps a sibling row by >= 25% of that row's height.
+//     Active-id overlap is evaluated separately so it does not block that first
+//     sibling swap (which otherwise effectively behaves like a ~50% crossover).
+//   - Keeps "gap stickiness": if no sibling meets threshold but the ghost still
+//     overlaps the active gap at all, return active.id (avoid closestCenter
+//     jumping early at boundaries).
+//   - Falls back to closestCenter only when the ghost no longer overlaps any
+//     active-gap rect (e.g. fast drags near group edges).
 
 import {
   PointerSensor,
@@ -78,21 +74,17 @@ export function useSortableSensors() {
  * Why not closestCenter?  Fires at ~50% overshoot — feels sluggish.
  *
  * Active item included in candidates:
- *   With MeasuringStrategy.Always the active item's droppable rect is
- *   continuously re-measured to its current visual (transformed) position —
- *   i.e. exactly where the gap is. Returning over.id === active.id tells
- *   dnd-kit "ghost is over the gap, stay put". Excluding the active item would
- *   create a blind spot there, causing the closestCenter fallback to fire
- *   incorrectly and producing the "can't return to original slot / skips a
- *   position" bug.
+ *   We still keep the active id in the candidate set so "stay in the gap" can
+ *   be returned when no sibling overlap crosses threshold. But active overlap is
+ *   scored separately from sibling overlap so it doesn't delay the first swap.
  *
  * Type-filtered candidates:
  *   Only same-type droppables are considered (task vs. subitem vs. group),
  *   preventing cross-type collisions.
  *
  * closestCenter fallback:
- *   Used when no candidate meets the overlap threshold (ghost near scroll edge
- *   or between groups).
+ *   Used only when neither sibling-threshold overlap nor active-gap overlap
+ *   applies (ghost near scroll edge or between groups).
  */
 
 // Fraction of a row's height the ghost must overlap before the row slides.
@@ -102,6 +94,7 @@ const OVERLAP_RATIO = 0.25;
 export const sortableCollisionDetection: CollisionDetection = (args) => {
   const { active, collisionRect, droppableRects, droppableContainers } = args;
   const activeType = (active.data.current as { type?: string } | undefined)?.type;
+  const activeId = String(active.id);
 
   // Filter: same type only. Active item's own droppable is intentionally kept
   // in the candidate list (see JSDoc above).
@@ -111,14 +104,17 @@ export const sortableCollisionDetection: CollisionDetection = (args) => {
       )
     : droppableContainers;
 
-  // Overlap-threshold pass: find the candidate that the ghost overlaps the most
-  // while still exceeding the minimum threshold.
+  // Overlap-threshold pass:
+  // 1) choose the best *sibling* overlap above threshold;
+  // 2) if none qualifies, allow staying over the active gap.
   let bestId: string | null = null;
   let bestOverlap = 0;
+  let activeOverlap = 0;
 
   for (const container of candidates) {
     const rect = droppableRects.get(container.id);
     if (!rect) continue;
+    const id = String(container.id);
 
     // Vertical intersection only — we're sorting a vertical list.
     const overlapHeight =
@@ -127,14 +123,23 @@ export const sortableCollisionDetection: CollisionDetection = (args) => {
     if (overlapHeight <= 0) continue;
 
     const threshold = rect.height * OVERLAP_RATIO;
+    if (id === activeId) {
+      activeOverlap = overlapHeight;
+      continue;
+    }
+
     if (overlapHeight >= threshold && overlapHeight > bestOverlap) {
       bestOverlap = overlapHeight;
-      bestId = String(container.id);
+      bestId = id;
     }
   }
 
   if (bestId !== null) {
     return [{ id: bestId }];
+  }
+
+  if (activeOverlap > 0) {
+    return [{ id: activeId }];
   }
 
   // Fallback: closestCenter when the ghost hasn't overlapped any candidate
