@@ -619,6 +619,11 @@ export function GanttView({
                                     isSubitem={false}
                                     isExpanded={isTaskExpanded}
                                     isDropTarget={activeId !== null && overId === task.id}
+                                    dropBelow={
+                                      activeId !== null &&
+                                      overId === task.id &&
+                                      groupTasks.findIndex((t) => t.id === activeId) < groupTasks.findIndex((t) => t.id === task.id)
+                                    }
                                     visibleDays={visibleDays}
                                     zoomLevel={zoomLevel}
                                     rowHeight={rowHeight}
@@ -661,6 +666,11 @@ export function GanttView({
                                           parentTaskId={task.id}
                                           isSubitem
                                           isDropTarget={activeId !== null && overId === sub.id}
+                                          dropBelow={
+                                            activeId !== null &&
+                                            overId === sub.id &&
+                                            task.subitems.findIndex((s) => s.id === activeId) < task.subitems.findIndex((s) => s.id === sub.id)
+                                          }
                                           visibleDays={visibleDays}
                                           zoomLevel={zoomLevel}
                                           rowHeight={rowHeight}

@@ -34,8 +34,12 @@ interface GanttTaskRowProps {
   settledOverrides: Record<string, SettledOverride>;
   clearSettledOverride: (key: string) => void;
   canEdit: boolean;
-  /** When true, renders a blue drop-indicator line at the top of the row. */
+  /** When true, renders a blue drop-indicator line at the row edge. */
   isDropTarget?: boolean;
+  /** When true the indicator renders at the bottom edge (dragging down);
+   *  otherwise at the top edge (dragging up). Corrects the visual off-by-one
+   *  caused by arrayMove removing-then-inserting when moving downward. */
+  dropBelow?: boolean;
   onMouseDown: (
     e: React.PointerEvent,
     taskId: string,
@@ -75,6 +79,7 @@ export function GanttTaskRow({
   clearSettledOverride,
   canEdit,
   isDropTarget = false,
+  dropBelow = false,
   onMouseDown,
   onUpdateName,
   onStatusSelect: _onStatusSelect,
@@ -198,11 +203,12 @@ export function GanttTaskRow({
       style={{ height: actualRowHeight }}
       {...attributes}
     >
-      {/* Drop indicator — blue line at the top of this row when the dragged item
-          is hovering here. Replaces a transform-based shuffle (which would break
-          position:sticky on the label column). */}
+      {/* Drop indicator — blue line showing where the item will land.
+          Renders at top when dragging UP, bottom when dragging DOWN. This
+          corrects for arrayMove's remove-then-insert behaviour which places
+          the item one slot below the target when moving downward. */}
       {isDropTarget && (
-        <div className="absolute inset-x-0 top-0 h-0.5 bg-blue-500 z-50 pointer-events-none" />
+        <div className={`absolute inset-x-0 ${dropBelow ? 'bottom-0' : 'top-0'} h-0.5 bg-blue-500 z-50 pointer-events-none`} />
       )}
 
       {/* Left label column — sticky, spread listeners here to make it the drag handle.
