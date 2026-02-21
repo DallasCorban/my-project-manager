@@ -37,9 +37,12 @@ export function ItemLabelCell({
       {/* Subitem indent indicator */}
       {isSubitem && <CornerDownRight size={12} className="text-gray-400 shrink-0" />}
 
-      {/* Expand / collapse chevron — parent tasks only */}
+      {/* Expand / collapse chevron — parent tasks only.
+          data-no-dnd: isolates this click target from SmartPointerSensor so
+          that clicking the chevron never accidentally starts a row drag. */}
       {!isSubitem && (
         <div
+          data-no-dnd
           onClick={(e) => {
             e.stopPropagation();
             if (hasSubitems) toggleItemExpand(task.id);

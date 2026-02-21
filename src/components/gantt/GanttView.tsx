@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, CheckSquare, Square, Plus, ZoomIn, ZoomOut, CalendarDays, Eye } from 'lucide-react';
-import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
+import { DndContext, DragOverlay } from '@dnd-kit/core';
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { useUIStore } from '../../stores/uiStore';
@@ -13,7 +13,7 @@ import { useTimelineStore } from '../../stores/timelineStore';
 import { useTimeline } from '../../hooks/useTimeline';
 import { useGanttDrag } from '../../hooks/useGanttDrag';
 import { useScrollToToday } from '../../hooks/useScrollToToday';
-import { useSortableSensors } from '../../hooks/useSmartSensors';
+import { useSortableSensors, sortableCollisionDetection } from '../../hooks/useSmartSensors';
 import { GanttHeader } from './GanttHeader';
 import { GanttTaskRow } from './GanttTaskRow';
 import { ItemLabelCell } from '../shared/ItemLabelCell';
@@ -330,7 +330,7 @@ export function GanttView({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={sortableCollisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}

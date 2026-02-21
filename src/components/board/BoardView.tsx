@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { Plus, ChevronRight, CheckSquare, Square } from 'lucide-react';
-import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
+import { DndContext, DragOverlay } from '@dnd-kit/core';
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 
@@ -12,7 +12,7 @@ import { useProjectContext } from '../../stores/projectStore';
 import { useWorkspaceContext } from '../../stores/workspaceStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useBoardColumns } from '../../hooks/useBoardColumns';
-import { useSortableSensors } from '../../hooks/useSmartSensors';
+import { useSortableSensors, sortableCollisionDetection } from '../../hooks/useSmartSensors';
 import { GroupSection } from './GroupSection';
 import { ItemLabelCell } from '../shared/ItemLabelCell';
 import type { Board, Group } from '../../types/board';
@@ -221,7 +221,7 @@ export function BoardView({ project }: BoardViewProps) {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={sortableCollisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
