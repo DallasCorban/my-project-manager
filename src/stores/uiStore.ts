@@ -57,6 +57,11 @@ interface UIState {
   setCollapsedGroups: (ids: string[]) => void;
   expandedItems: string[];
   toggleItemExpand: (tid: string) => void;
+
+  // Empty-name toast
+  emptyNameToast: boolean;
+  showEmptyNameToast: () => void;
+  hideEmptyNameToast: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -142,6 +147,11 @@ export const useUIStore = create<UIState>()(
             ? state.expandedItems.filter((id) => id !== tid)
             : [...state.expandedItems, tid],
         })),
+
+      // Empty-name toast (transient — not persisted)
+      emptyNameToast: false,
+      showEmptyNameToast: () => set({ emptyNameToast: true }),
+      hideEmptyNameToast: () => set({ emptyNameToast: false }),
     }),
     {
       name: 'pmai_ui',

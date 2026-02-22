@@ -69,6 +69,7 @@ export function GroupSection({
   const expandedItems = useUIStore((s) => s.expandedItems);
   const selectedItems = useUIStore((s) => s.selectedItems);
   const toggleSelection = useUIStore((s) => s.toggleSelection);
+  const showEmptyNameToast = useUIStore((s) => s.showEmptyNameToast);
 
   // Inline add item state
   const [isAdding, setIsAdding] = useState(false);
@@ -121,6 +122,8 @@ export function GroupSection({
             value={group.name}
             onChange={canEdit ? (v) => onUpdateGroupName(v) : undefined}
             readOnly={!canEdit}
+            revertOnEmpty
+            onEmpty={showEmptyNameToast}
             className="text-sm font-bold"
           />
           <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>

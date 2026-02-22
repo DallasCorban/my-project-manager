@@ -73,3 +73,14 @@ html.dark ::-webkit-scrollbar-corner {
     transform: translateX(-50%) translateY(0);
   }
 }
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

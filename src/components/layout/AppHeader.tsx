@@ -25,6 +25,7 @@ export function AppHeader({
   const darkMode = useUIStore((s) => s.darkMode);
   const activeTab = useUIStore((s) => s.activeTab);
   const setActiveTab = useUIStore((s) => s.setActiveTab);
+  const showEmptyNameToast = useUIStore((s) => s.showEmptyNameToast);
   const updatesPanelTarget = useUIStore((s) => s.updatesPanelTarget);
   const openUpdatesPanel = useUIStore((s) => s.openUpdatesPanel);
   const closeUpdatesPanel = useUIStore((s) => s.closeUpdatesPanel);
@@ -75,6 +76,7 @@ export function AppHeader({
             onChange={canEditEntityName ? onUpdateEntityName : undefined}
             readOnly={!canEditEntityName}
             revertOnEmpty
+            onEmpty={showEmptyNameToast}
             className={`text-lg font-bold ${
               darkMode ? 'text-white' : 'text-gray-800'
             }`}

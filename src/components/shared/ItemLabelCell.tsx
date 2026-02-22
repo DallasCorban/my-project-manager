@@ -28,6 +28,7 @@ export function ItemLabelCell({
 }: ItemLabelCellProps) {
   const expandedItems = useUIStore((s) => s.expandedItems);
   const toggleItemExpand = useUIStore((s) => s.toggleItemExpand);
+  const showEmptyNameToast = useUIStore((s) => s.showEmptyNameToast);
 
   const hasSubitems = !isSubitem && 'subitems' in task && (task as Item).subitems.length > 0;
   const subitemCount = hasSubitems ? (task as Item).subitems.length : 0;
@@ -62,6 +63,8 @@ export function ItemLabelCell({
         value={task.name}
         onChange={canEdit ? onUpdateName : undefined}
         readOnly={!canEdit}
+        revertOnEmpty
+        onEmpty={showEmptyNameToast}
         className={`text-sm ${isSubitem ? 'text-xs' : ''} ${
           darkMode ? 'text-gray-200' : 'text-[#323338]'
         }`}

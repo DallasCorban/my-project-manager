@@ -18,6 +18,8 @@ interface EditableTextProps {
    * behaviour of Figma, Notion, and Linear for entity names.
    */
   revertOnEmpty?: boolean;
+  /** Called when revertOnEmpty is true and the field is submitted empty. */
+  onEmpty?: () => void;
 }
 
 export function EditableText({
@@ -29,6 +31,7 @@ export function EditableText({
   readOnly = false,
   debounceMs = 300,
   revertOnEmpty = false,
+  onEmpty,
 }: EditableTextProps) {
   const spanRef = useRef<HTMLSpanElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -64,11 +67,12 @@ export function EditableText({
     // If revertOnEmpty is set and the field is blank, silently snap back to
     // the previous value without calling onChange — matches Figma/Notion UX.
     if (revertOnEmpty && current.trim() === '') {
+      onEmpty?.();
       setLocalValue(value);
       return;
     }
     if (current !== value) onChange(current);
-  }, [onChange, value, revertOnEmpty]);
+  }, [onChange, value, revertOnEmpty, onEmpty]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const newVal = e.target.value;

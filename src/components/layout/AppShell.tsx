@@ -23,6 +23,7 @@ import { GanttView } from '../gantt/GanttView';
 import { UpdatesPanel } from '../panels/UpdatesPanel';
 import { MembersModal } from '../panels/MembersModal';
 import { SelectionTray } from '../shared/SelectionTray';
+import { EmptyNameToast } from '../shared/EmptyNameToast';
 import { DatePickerPopup } from '../shared/DatePickerPopup';
 
 export function AppShell() {
@@ -335,6 +336,9 @@ export function AppShell() {
 
       {/* Date Picker Popup */}
       <DatePickerPopup />
+
+      {/* Empty-name toast — slides in from top */}
+      <EmptyNameToast />
     </div>
   );
 }
