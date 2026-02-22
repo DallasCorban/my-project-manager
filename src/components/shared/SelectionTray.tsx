@@ -26,7 +26,7 @@ export function SelectionTray({ projectId: _projectId }: SelectionTrayProps) {
     <div
       className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl transition-all duration-300 animate-slide-up ${
         darkMode
-          ? 'bg-[#1c213e] border border-[#2b2c32] text-gray-200'
+          ? 'bg-[#1c213e] border border-[#2a2d44] text-gray-200'
           : 'bg-white border border-gray-200 text-gray-700'
       }`}
       style={{

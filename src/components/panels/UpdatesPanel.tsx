@@ -295,7 +295,7 @@ export function UpdatesPanel({
     <div className={`h-full w-full flex flex-col ${darkMode ? 'bg-[#111322] text-gray-200' : 'bg-[#f7f7f9] text-gray-800'}`}>
 
       {/* ── Header ── */}
-      <div className={`flex items-start gap-3 px-4 py-3.5 border-b shrink-0 ${darkMode ? 'border-[#2b2c32]' : 'border-[#d0d4e4]'}`}>
+      <div className={`flex items-start gap-3 px-4 py-3.5 border-b shrink-0 ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}>
         <div className="flex-1 min-w-0">
           {isSubitem && parentName && (
             <p className={`text-[10px] mb-0.5 truncate font-medium ${darkMode ? 'text-blue-400/70' : 'text-blue-500/70'}`}>
@@ -313,7 +313,7 @@ export function UpdatesPanel({
       </div>
 
       {/* ── Tabs ── */}
-      <div className={`flex border-b shrink-0 ${darkMode ? 'border-[#2b2c32]' : 'border-[#d0d4e4]'}`}>
+      <div className={`flex border-b shrink-0 ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}>
         {(['updates', 'files'] as const).map((tab) => {
           const count = tab === 'updates' ? updates.length : files.length;
           return (
@@ -342,7 +342,7 @@ export function UpdatesPanel({
 
       {/* ── Read-only notice ── */}
       {!canEdit && (
-        <div className={`px-4 py-2 text-xs shrink-0 ${darkMode ? 'bg-amber-500/10 text-amber-400 border-b border-[#2b2c32]' : 'bg-amber-50 text-amber-600 border-b border-[#d0d4e4]'}`}>
+        <div className={`px-4 py-2 text-xs shrink-0 ${darkMode ? 'bg-amber-500/10 text-amber-400 border-b border-[#2a2d44]' : 'bg-amber-50 text-amber-600 border-b border-[#d0d4e4]'}`}>
           Read-only — you can view but not post updates.
         </div>
       )}
@@ -352,10 +352,10 @@ export function UpdatesPanel({
         <>
           {/* Composer — fixed above the feed */}
           {canEdit && (
-            <div className={`shrink-0 border-b ${darkMode ? 'border-[#2b2c32] bg-[#0d0f23]' : 'border-[#d0d4e4] bg-[#f2f4fb]'}`}>
+            <div className={`shrink-0 border-b ${darkMode ? 'border-[#2a2d44] bg-[#0d0f23]' : 'border-[#d0d4e4] bg-[#f2f4fb]'}`}>
 
               {/* Formatting toolbar */}
-              <div className={`flex items-center flex-wrap gap-0.5 px-3 py-2 border-b ${darkMode ? 'border-[#2b2c32]' : 'border-[#d0d4e4]/80'}`}>
+              <div className={`flex items-center flex-wrap gap-0.5 px-3 py-2 border-b ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]/80'}`}>
                 <button onMouseDown={(e) => { e.preventDefault(); exec('bold'); }} className={tbCls(fmtState.bold)} title="Bold (Ctrl+B)"><Bold size={13} /></button>
                 <button onMouseDown={(e) => { e.preventDefault(); exec('italic'); }} className={tbCls(fmtState.italic)} title="Italic (Ctrl+I)"><Italic size={13} /></button>
                 <button onMouseDown={(e) => { e.preventDefault(); exec('underline'); }} className={tbCls(fmtState.underline)} title="Underline (Ctrl+U)"><Underline size={13} /></button>
@@ -369,7 +369,7 @@ export function UpdatesPanel({
                     <Palette size={13} />
                   </button>
                   {showColorPicker && (
-                    <div data-picker className={`absolute top-full left-0 mt-1 p-2 rounded-xl shadow-2xl border z-50 ${darkMode ? 'bg-[#0b0d1c] border-[#2b2c32]' : 'bg-white border-gray-200'}`}>
+                    <div data-picker className={`absolute top-full left-0 mt-1 p-2 rounded-xl shadow-2xl border z-50 ${darkMode ? 'bg-[#0b0d1c] border-[#2a2d44]' : 'bg-white border-gray-200'}`}>
                       <div className="grid grid-cols-5 gap-1.5 mb-1.5">
                         {TEXT_COLORS.map((c) => (
                           <button
@@ -394,7 +394,7 @@ export function UpdatesPanel({
                     <Type size={13} />
                   </button>
                   {showSizePicker && (
-                    <div data-picker className={`absolute top-full left-0 mt-1 rounded-xl shadow-2xl border z-50 overflow-hidden min-w-[100px] ${darkMode ? 'bg-[#0b0d1c] border-[#2b2c32]' : 'bg-white border-gray-200'}`}>
+                    <div data-picker className={`absolute top-full left-0 mt-1 rounded-xl shadow-2xl border z-50 overflow-hidden min-w-[100px] ${darkMode ? 'bg-[#0b0d1c] border-[#2a2d44]' : 'bg-white border-gray-200'}`}>
                       {FONT_SIZES.map((s) => (
                         <button
                           key={s.value}
@@ -425,7 +425,7 @@ export function UpdatesPanel({
 
               {/* Link URL input bar */}
               {showLinkInput && (
-                <div className={`flex items-center gap-2 px-3 py-2 border-b ${darkMode ? 'border-[#2b2c32]' : 'border-[#d0d4e4]/80'}`}>
+                <div className={`flex items-center gap-2 px-3 py-2 border-b ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]/80'}`}>
                   <Link2 size={12} className={darkMode ? 'text-gray-500' : 'text-gray-400'} />
                   <input
                     ref={linkInputRef}
@@ -469,7 +469,7 @@ export function UpdatesPanel({
 
               {/* Inline checklist */}
               {showChecklist && (
-                <div className={`px-4 py-2.5 border-t ${darkMode ? 'border-[#2b2c32]' : 'border-[#d0d4e4]/80'}`}>
+                <div className={`px-4 py-2.5 border-t ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]/80'}`}>
                   <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                     Checklist
                   </p>
@@ -514,7 +514,7 @@ export function UpdatesPanel({
               )}
 
               {/* Composer bottom bar */}
-              <div className={`flex items-center gap-1 px-3 py-2 border-t ${darkMode ? 'border-[#2b2c32]' : 'border-[#d0d4e4]/80'}`}>
+              <div className={`flex items-center gap-1 px-3 py-2 border-t ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]/80'}`}>
                 {onUploadFile && (
                   <button
                     onClick={handleFileSelect}
@@ -625,7 +625,7 @@ function UpdateCard({
   const dateStr = formatDateTime(update.createdAt);
 
   return (
-    <div className={`rounded-xl border ${darkMode ? 'bg-[#161a32] border-[#2b2c32]' : 'bg-white border-gray-100 shadow-sm'}`}>
+    <div className={`rounded-xl border ${darkMode ? 'bg-[#161a32] border-[#2a2d44]' : 'bg-white border-gray-100 shadow-sm'}`}>
       {/* Card header */}
       <div className="flex items-center gap-2.5 px-3.5 pt-3 pb-2">
         <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0" style={{ backgroundColor: bg }}>
@@ -681,7 +681,7 @@ function UpdateCard({
 
         {/* Replies */}
         {update.replies && update.replies.length > 0 && (
-          <div className={`mt-2.5 pt-2.5 border-t space-y-2.5 ${darkMode ? 'border-[#2b2c32]' : 'border-gray-100'}`}>
+          <div className={`mt-2.5 pt-2.5 border-t space-y-2.5 ${darkMode ? 'border-[#2a2d44]' : 'border-gray-100'}`}>
             {update.replies.map((reply: Reply) => {
               const ri = (reply.author ?? 'U').slice(0, 2).toUpperCase();
               const rb = avatarColor(reply.author ?? '');
@@ -708,7 +708,7 @@ function UpdateCard({
         {canEdit && (
           <div className="mt-2.5">
             {replyingTo === update.id ? (
-              <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${darkMode ? 'bg-[#07080f] border border-[#2b2c32]' : 'bg-gray-50 border border-gray-200'}`}>
+              <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${darkMode ? 'bg-[#07080f] border border-[#2a2d44]' : 'bg-gray-50 border border-gray-200'}`}>
                 <input
                   value={replyText}
                   onChange={(e) => onSetReplyText(e.target.value)}
@@ -796,7 +796,7 @@ function FilesList({
             onClick={onAddFiles}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed text-sm font-medium transition-colors ${
               darkMode
-                ? 'border-[#2b2c32] text-gray-500 hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5'
+                ? 'border-[#2a2d44] text-gray-500 hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5'
                 : 'border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/50'
             }`}
           >
@@ -825,7 +825,7 @@ function FilesList({
               className={`flex items-center gap-3 p-2.5 rounded-xl border ${
                 task.status === 'error'
                   ? darkMode ? 'border-red-500/30 bg-red-500/10' : 'border-red-200 bg-red-50'
-                  : darkMode ? 'border-[#2b2c32] bg-[#161a32]' : 'border-gray-100 bg-gray-50'
+                  : darkMode ? 'border-[#2a2d44] bg-[#161a32]' : 'border-gray-100 bg-gray-50'
               }`}
             >
               <div className={`shrink-0 w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center ${darkMode ? 'bg-[#1e2340]' : 'bg-gray-200'}`}>
@@ -938,7 +938,7 @@ function FilesList({
             <div
               key={file.id}
               className={`rounded-xl border overflow-hidden flex flex-col ${
-                darkMode ? 'bg-[#161a32] border-[#2b2c32]' : 'bg-white border-gray-100 shadow-sm'
+                darkMode ? 'bg-[#161a32] border-[#2a2d44]' : 'bg-white border-gray-100 shadow-sm'
               }`}
             >
               {/* Preview area */}

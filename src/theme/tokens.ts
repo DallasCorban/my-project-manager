@@ -45,7 +45,7 @@ export const colors = {
     surface: '#1c213e',
     surfaceHover: '#202336',
     surfaceActive: '#262940',
-    border: '#2b2c32',
+    border: '#2a2d44',
     borderSubtle: '#232538',
     text: '#e5e7eb',
     textMuted: '#9ca3af',

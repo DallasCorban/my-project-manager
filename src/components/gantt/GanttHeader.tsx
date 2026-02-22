@@ -31,7 +31,7 @@ export function GanttHeader({
             key={`${month.name}-${mi}`}
             className={`flex items-center px-2 text-[10px] font-semibold uppercase tracking-wide border-b ${
               darkMode
-                ? 'bg-gradient-to-b from-[#1e2148] to-[#181b34] text-gray-400 border-[#2b2c32]'
+                ? 'bg-gradient-to-b from-[#1e2148] to-[#181b34] text-gray-400 border-[#2a2d44]'
                 : 'bg-gradient-to-b from-gray-50 to-white text-gray-500 border-gray-200'
             }`}
             style={{ width: month.count * zoomLevel, minWidth: month.count * zoomLevel }}
@@ -54,7 +54,7 @@ export function GanttHeader({
               className={`relative flex items-center justify-center border-b text-center select-none ${
                 hasWeekendGap
                   ? darkMode
-                    ? 'border-l-2 border-l-[#3e3f4b]'
+                    ? 'border-l-2 border-l-[#3d4058]'
                     : 'border-l-2 border-l-gray-300'
                   : ''
               } ${
@@ -62,10 +62,10 @@ export function GanttHeader({
                   ? 'bg-blue-600 text-white font-bold'
                   : day.isWeekend
                     ? darkMode
-                      ? 'bg-[#151726] text-gray-600 border-[#2b2c32]'
+                      ? 'bg-[#151726] text-gray-600 border-[#2a2d44]'
                       : 'bg-slate-50 text-gray-400 border-gray-200'
                     : darkMode
-                      ? 'bg-[#181b34] text-gray-500 border-[#2b2c32]'
+                      ? 'bg-[#181b34] text-gray-500 border-[#2a2d44]'
                       : 'bg-white text-gray-500 border-gray-200'
               }`}
               style={{ width: zoomLevel, minWidth: zoomLevel }}

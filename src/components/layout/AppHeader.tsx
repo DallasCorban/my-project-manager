@@ -61,7 +61,7 @@ export function AppHeader({
       {/* Top bar — entity name + auth buttons */}
       <div
         className={`h-14 border-b px-6 flex items-center justify-between shrink-0 ${
-          darkMode ? 'border-[#2b2c32] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'
+          darkMode ? 'border-[#2a2d44] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'
         }`}
       >
         <div className="flex items-center gap-3">
@@ -110,7 +110,7 @@ export function AppHeader({
             onClick={() => setMembersModalOpen(true)}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
               darkMode
-                ? 'bg-[#1c213e] border-[#2b2c32] text-gray-200 hover:bg-[#202336]'
+                ? 'bg-[#1c213e] border-[#2a2d44] text-gray-200 hover:bg-[#202336]'
                 : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
             }`}
             disabled={!user || user.isAnonymous}
@@ -121,7 +121,7 @@ export function AppHeader({
             onClick={openAuthModal}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
               darkMode
-                ? 'bg-[#1c213e] border-[#2b2c32] text-gray-200 hover:bg-[#202336]'
+                ? 'bg-[#1c213e] border-[#2a2d44] text-gray-200 hover:bg-[#202336]'
                 : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
             }`}
           >
@@ -137,7 +137,7 @@ export function AppHeader({
       {/* Tab bar — Main Table / Gantt */}
       <div
         className={`px-6 border-b flex items-center justify-between shrink-0 sticky top-0 z-[80] ${
-          darkMode ? 'border-[#2b2c32] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'
+          darkMode ? 'border-[#2a2d44] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'
         }`}
       >
         <div className="flex gap-6">
