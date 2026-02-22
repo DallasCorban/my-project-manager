@@ -51,12 +51,46 @@ function SortableGroupContainer({
   return <>{children(isDragging, listeners, setNodeRef, attributes)}</>;
 }
 
-/** Map a 0–1 intensity value to a 2-digit hex opacity string within a min/max range. */
-function intensityToHex(intensity: number, minOpacity: number, maxOpacity: number): string {
-  const opacity = minOpacity + intensity * (maxOpacity - minOpacity);
-  return Math.round(opacity * 255)
-    .toString(16)
-    .padStart(2, '0');
+/* ─── Heatmap colour helpers ────────────────────────────────────────────────── */
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map((c) => Math.round(c).toString(16).padStart(2, '0')).join('');
+}
+
+function lerpColor(a: string, b: string, t: number): string {
+  const [ar, ag, ab] = hexToRgb(a);
+  const [br, bg, bb] = hexToRgb(b);
+  return rgbToHex(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t);
+}
+
+/**
+ * Two-phase heatmap colour based on raw task count.
+ *   Phase 1 (0–5):  base background  →  full group colour
+ *   Phase 2 (5–10): full group colour →  brightened (70% toward white)
+ * Returns a fully opaque hex colour string.
+ */
+const HEATMAP_MID = 5;  // count where full group colour is reached
+const HEATMAP_MAX = 10; // count where bright/glow peaks
+
+function getHeatmapColor(count: number, groupColor: string, darkMode: boolean): string {
+  const base = darkMode ? '#1c213e' : '#ffffff';
+
+  if (count <= 0) return base;
+
+  if (count <= HEATMAP_MID) {
+    // Phase 1: base → full group colour
+    return lerpColor(base, groupColor, count / HEATMAP_MID);
+  }
+
+  // Phase 2: full group colour → bright (70% toward white)
+  const bright = lerpColor(groupColor, '#ffffff', 0.7);
+  const t = Math.min((count - HEATMAP_MID) / (HEATMAP_MAX - HEATMAP_MID), 1);
+  return lerpColor(groupColor, bright, t);
 }
 
 interface GanttViewProps {
@@ -382,15 +416,14 @@ export function GanttView({
   const totalTimelineWidth = visibleDays.length * zoomLevel;
 
   // Per-group workload density maps for the heatmap on group header rows.
-  // Maps group.id → Map<rawDayIndex, intensity (0–1)>.
-  // Uses an ABSOLUTE scale: 1 task = 0.2, 5+ concurrent tasks = 1.0.
-  const HEATMAP_FULL_SCALE = 5; // concurrent tasks/subitems for full intensity
+  // Stores raw task/subitem overlap count per day — the colour ramp is
+  // applied at render time by getHeatmapColor.
   const groupDensityMaps = useMemo(() => {
     const result: Record<string, Map<number, number>> = {};
 
     for (const group of project.groups) {
       const tasks = project.tasks.filter((t) => t.groupId === group.id);
-      const rawCounts = new Map<number, number>();
+      const counts = new Map<number, number>();
 
       const countRange = (start: string | null, duration: number | null) => {
         const key = normalizeDateKey(start);
@@ -400,7 +433,7 @@ export function GanttView({
         const dur = Math.max(1, Number(duration || 1));
         for (let d = 0; d < dur; d++) {
           const dayIdx = relIdx + d;
-          rawCounts.set(dayIdx, (rawCounts.get(dayIdx) || 0) + 1);
+          counts.set(dayIdx, (counts.get(dayIdx) || 0) + 1);
         }
       };
 
@@ -411,12 +444,7 @@ export function GanttView({
         }
       }
 
-      // Absolute scale: intensity = count / FULL_SCALE, capped at 1
-      const normalized = new Map<number, number>();
-      for (const [dayIdx, count] of rawCounts) {
-        normalized.set(dayIdx, Math.min(count / HEATMAP_FULL_SCALE, 1));
-      }
-      result[group.id] = normalized;
+      result[group.id] = counts;
     }
 
     return result;
@@ -670,17 +698,7 @@ export function GanttView({
                           >
                             <div className="absolute inset-0 flex pointer-events-none">
                               {visibleDays.map((day) => {
-                                const densityMap = groupDensityMaps[group.id];
-                                const intensity = densityMap?.get(day.index) ?? 0;
-                                const opacityHex = intensityToHex(
-                                  intensity,
-                                  darkMode ? 0.10 : 0.05,
-                                  darkMode ? 0.50 : 0.25,
-                                );
-
-                                // Fully opaque: group colour over solid base
-                                const base = darkMode ? '#1c213e' : '#ffffff';
-                                const background = `linear-gradient(${group.color}${opacityHex}, ${group.color}${opacityHex}), linear-gradient(${base}, ${base})`;
+                                const count = groupDensityMaps[group.id]?.get(day.index) ?? 0;
 
                                 return (
                                   <div
@@ -689,7 +707,7 @@ export function GanttView({
                                     style={{
                                       width: zoomLevel,
                                       minWidth: zoomLevel,
-                                      background,
+                                      backgroundColor: getHeatmapColor(count, group.color, darkMode),
                                     }}
                                   />
                                 );
