@@ -1,7 +1,7 @@
 // App header — entity name, view tabs, settings, auth/members buttons.
 // Shows user role badge and activity sidebar toggle.
 
-import { Briefcase, LayoutDashboard, MessageCircle } from 'lucide-react';
+import { Briefcase, LayoutDashboard, MessageCircle, Moon, Sun } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useMemberStore } from '../../stores/memberStore';
@@ -24,6 +24,7 @@ export function AppHeader({
   activeProjectId,
 }: AppHeaderProps) {
   const darkMode = useUIStore((s) => s.darkMode);
+  const toggleDarkMode = useUIStore((s) => s.toggleDarkMode);
   const activeTab = useUIStore((s) => s.activeTab);
   const setActiveTab = useUIStore((s) => s.setActiveTab);
   const showEmptyNameToast = useUIStore((s) => s.showEmptyNameToast);
@@ -80,6 +81,17 @@ export function AppHeader({
         <div className="flex items-center gap-2">
           {/* Role badge */}
           {getRoleBadge()}
+
+          {/* Dark/light toggle — only shown when sidebar is hidden (mobile/tablet) */}
+          <button
+            onClick={toggleDarkMode}
+            className={`md:hidden p-2 rounded-lg transition-colors ${
+              darkMode ? 'text-yellow-400 hover:bg-white/10' : 'text-gray-500 hover:bg-gray-100'
+            }`}
+            title={darkMode ? 'Light mode' : 'Dark mode'}
+          >
+            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
 
           {/* Activity toggle */}
           <button
