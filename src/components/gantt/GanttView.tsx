@@ -666,17 +666,13 @@ export function GanttView({
                             )}
                           </div>
 
-                          {/* Group bar area — day grid with per-cell heatmap intensity */}
+                          {/* Group bar area — fully opaque heatmap (no grid/borders visible) */}
                           <div
                             className="relative flex-1"
                             style={{ minWidth: totalTimelineWidth }}
                           >
                             <div className="absolute inset-0 flex pointer-events-none">
-                              {visibleDays.map((day, i) => {
-                                const hasWeekendGap =
-                                  !showWeekends && i > 0 && day.index > visibleDays[i - 1].index + 1;
-
-                                // Heatmap: look up workload intensity for this day
+                              {visibleDays.map((day) => {
                                 const densityMap = groupDensityMaps[group.id];
                                 const intensity = densityMap?.get(day.index) ?? 0;
                                 const opacityHex = intensityToHex(
@@ -685,26 +681,14 @@ export function GanttView({
                                   darkMode ? 0.50 : 0.25,
                                 );
 
-                                // Compose background: heatmap base + optional today/weekend overlay
-                                const heatmapLayer = `${group.color}${opacityHex}`;
-                                let background: string = heatmapLayer;
-                                if (day.isToday) {
-                                  background = `linear-gradient(rgba(59,130,246,0.05), rgba(59,130,246,0.05)), linear-gradient(${heatmapLayer}, ${heatmapLayer})`;
-                                } else if (day.isWeekend) {
-                                  const weekendOverlay = darkMode ? 'rgba(0,0,0,0.10)' : 'rgba(0,0,0,0.05)';
-                                  background = `linear-gradient(${weekendOverlay}, ${weekendOverlay}), linear-gradient(${heatmapLayer}, ${heatmapLayer})`;
-                                }
+                                // Fully opaque: group colour over solid base
+                                const base = darkMode ? '#1c213e' : '#ffffff';
+                                const background = `linear-gradient(${group.color}${opacityHex}, ${group.color}${opacityHex}), linear-gradient(${base}, ${base})`;
 
                                 return (
                                   <div
                                     key={day.index}
-                                    className={`h-full border-r ${
-                                      hasWeekendGap
-                                        ? darkMode
-                                          ? 'border-l-2 border-l-[#3e3f4b]'
-                                          : 'border-l-2 border-l-gray-300'
-                                        : ''
-                                    } ${darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'}`}
+                                    className="h-full"
                                     style={{
                                       width: zoomLevel,
                                       minWidth: zoomLevel,
