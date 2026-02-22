@@ -15,7 +15,9 @@ export function useScrollToToday(
     const el = bodyRef.current;
     if (!el) return;
 
-    const todayVisualIndex = visibleDays.findIndex((d) => d.isToday);
+    // When weekends are hidden, today might be filtered out of visibleDays
+    // (e.g. if today is Saturday/Sunday). Fall back to the nearest visible day.
+    const todayVisualIndex = visibleDays.findIndex((d) => d.index >= 0);
     if (todayVisualIndex < 0) return;
 
     const todayPixel = todayVisualIndex * zoomLevel;
