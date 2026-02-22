@@ -200,7 +200,7 @@ export function AppShell() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <AppHeader
-          entityName={activeWorkspace?.name || 'Flow'}
+          entityName={activeWorkspace?.name ?? ''}
           entityType="workspace"
           onUpdateEntityName={handleUpdateEntityName}
           canEditEntityName={canEdit || !activeProject}

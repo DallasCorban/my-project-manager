@@ -12,6 +12,12 @@ interface EditableTextProps {
   readOnly?: boolean;
   /** Debounce delay in ms (default 300) */
   debounceMs?: number;
+  /**
+   * When true, blurring or pressing Enter with an empty field silently reverts
+   * to the previous value instead of saving an empty string. Matches the
+   * behaviour of Figma, Notion, and Linear for entity names.
+   */
+  revertOnEmpty?: boolean;
 }
 
 export function EditableText({
@@ -22,6 +28,7 @@ export function EditableText({
   placeholder,
   readOnly = false,
   debounceMs = 300,
+  revertOnEmpty = false,
 }: EditableTextProps) {
   const spanRef = useRef<HTMLSpanElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,14 +59,16 @@ export function EditableText({
       clearTimeout(pendingRef.current);
       pendingRef.current = null;
     }
-    // Call onChange with current local value
-    if (onChange && inputRef.current) {
-      const current = inputRef.current.value;
-      if (current !== value) {
-        onChange(current);
-      }
+    if (!onChange || !inputRef.current) return;
+    const current = inputRef.current.value;
+    // If revertOnEmpty is set and the field is blank, silently snap back to
+    // the previous value without calling onChange — matches Figma/Notion UX.
+    if (revertOnEmpty && current.trim() === '') {
+      setLocalValue(value);
+      return;
     }
-  }, [onChange, value]);
+    if (current !== value) onChange(current);
+  }, [onChange, value, revertOnEmpty]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const newVal = e.target.value;

@@ -74,6 +74,7 @@ export function AppHeader({
             value={entityName}
             onChange={canEditEntityName ? onUpdateEntityName : undefined}
             readOnly={!canEditEntityName}
+            revertOnEmpty
             className={`text-lg font-bold ${
               darkMode ? 'text-white' : 'text-gray-800'
             }`}
