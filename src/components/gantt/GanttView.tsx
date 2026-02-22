@@ -382,14 +382,15 @@ export function GanttView({
   const totalTimelineWidth = visibleDays.length * zoomLevel;
 
   // Per-group workload density maps for the heatmap on group header rows.
-  // Maps group.id → Map<rawDayIndex, normalizedIntensity (0–1)>.
+  // Maps group.id → Map<rawDayIndex, intensity (0–1)>.
+  // Uses an ABSOLUTE scale: 1 task = 0.2, 5+ concurrent tasks = 1.0.
+  const HEATMAP_FULL_SCALE = 5; // concurrent tasks/subitems for full intensity
   const groupDensityMaps = useMemo(() => {
     const result: Record<string, Map<number, number>> = {};
 
     for (const group of project.groups) {
       const tasks = project.tasks.filter((t) => t.groupId === group.id);
       const rawCounts = new Map<number, number>();
-      let maxCount = 0;
 
       const countRange = (start: string | null, duration: number | null) => {
         const key = normalizeDateKey(start);
@@ -399,9 +400,7 @@ export function GanttView({
         const dur = Math.max(1, Number(duration || 1));
         for (let d = 0; d < dur; d++) {
           const dayIdx = relIdx + d;
-          const next = (rawCounts.get(dayIdx) || 0) + 1;
-          rawCounts.set(dayIdx, next);
-          if (next > maxCount) maxCount = next;
+          rawCounts.set(dayIdx, (rawCounts.get(dayIdx) || 0) + 1);
         }
       };
 
@@ -412,12 +411,10 @@ export function GanttView({
         }
       }
 
-      // Normalize to 0–1
+      // Absolute scale: intensity = count / FULL_SCALE, capped at 1
       const normalized = new Map<number, number>();
-      if (maxCount > 0) {
-        for (const [dayIdx, count] of rawCounts) {
-          normalized.set(dayIdx, count / maxCount);
-        }
+      for (const [dayIdx, count] of rawCounts) {
+        normalized.set(dayIdx, Math.min(count / HEATMAP_FULL_SCALE, 1));
       }
       result[group.id] = normalized;
     }
