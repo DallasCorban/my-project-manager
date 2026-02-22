@@ -339,6 +339,11 @@ export function GanttView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // rAF gate – ensures zoom re-renders are capped at one per animation frame.
+  const zoomRafRef = useRef<number | null>(null);
+  const pendingZoomRef = useRef<number | null>(null);
+  useEffect(() => () => { if (zoomRafRef.current !== null) cancelAnimationFrame(zoomRafRef.current); }, []);
+
   // Zoom anchor: if a bar is focused, anchor around its visual midpoint;
   // otherwise fall back to the viewport centre (original behaviour).
   const handleZoomChange = useCallback((newZoom: number) => {
@@ -573,7 +578,19 @@ export function GanttView({
                 max={100}
                 step={1}
                 value={zoomLevel}
-                onChange={(e) => handleZoomChange(Number(e.target.value))}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  pendingZoomRef.current = val;
+                  if (zoomRafRef.current === null) {
+                    zoomRafRef.current = requestAnimationFrame(() => {
+                      zoomRafRef.current = null;
+                      if (pendingZoomRef.current !== null) {
+                        handleZoomChange(pendingZoomRef.current);
+                        pendingZoomRef.current = null;
+                      }
+                    });
+                  }
+                }}
                 className="w-28 h-1.5 accent-blue-500 cursor-pointer"
                 title={`Zoom: ${zoomLevel}px/day`}
               />

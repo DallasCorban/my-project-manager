@@ -2,6 +2,7 @@
 // Left side: label column (name, etc.) — acts as the drag handle for row reorder.
 // Right side: bar area with day grid + GanttBar + creation preview.
 
+import { memo } from 'react';
 import { Square, CheckSquare } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { useUIStore } from '../../stores/uiStore';
@@ -62,7 +63,7 @@ interface GanttTaskRowProps {
   onSelect?: () => void;
 }
 
-export function GanttTaskRow({
+function GanttTaskRowInner({
   task,
   projectId,
   parentTaskId,
@@ -415,3 +416,5 @@ export function GanttTaskRow({
     </div>
   );
 }
+
+export const GanttTaskRow = memo(GanttTaskRowInner);
