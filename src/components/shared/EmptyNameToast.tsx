@@ -1,21 +1,28 @@
 // Toast that slides in from the top when the user tries to save an empty name.
-// Auto-dismisses after 3 seconds; also has an X to dismiss immediately.
+// Auto-dismisses after 6 seconds with a fade-out; also has an X to dismiss immediately.
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 
-const AUTO_DISMISS_MS = 3000;
+const FADE_MS = 300;
+const AUTO_DISMISS_MS = 6000;
 
 export function EmptyNameToast() {
   const visible = useUIStore((s) => s.emptyNameToast);
   const hide = useUIStore((s) => s.hideEmptyNameToast);
+  const [fading, setFading] = useState(false);
 
-  // Auto-dismiss
+  // Auto-dismiss with fade-out
   useEffect(() => {
     if (!visible) return;
-    const id = setTimeout(hide, AUTO_DISMISS_MS);
-    return () => clearTimeout(id);
+    setFading(false); // reset in case of rapid re-trigger
+    const fadeTimer = setTimeout(() => setFading(true), AUTO_DISMISS_MS - FADE_MS);
+    const hideTimer = setTimeout(hide, AUTO_DISMISS_MS);
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(hideTimer);
+    };
   }, [visible, hide]);
 
   if (!visible) return null;
@@ -23,7 +30,11 @@ export function EmptyNameToast() {
   return (
     <div
       className="fixed top-6 left-1/2 -translate-x-1/2 z-[400] flex items-center gap-3 px-5 py-3 rounded-xl bg-red-500 text-white shadow-2xl select-none"
-      style={{ animation: 'slideDown 0.25s ease-out' }}
+      style={{
+        animation: fading
+          ? `fadeOut ${FADE_MS}ms ease-in forwards`
+          : 'slideDown 0.25s ease-out',
+      }}
       role="alert"
     >
       <span className="text-sm font-medium">Name can&apos;t be empty</span>

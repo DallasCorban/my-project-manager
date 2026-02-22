@@ -84,3 +84,8 @@ html.dark ::-webkit-scrollbar-corner {
     transform: translateX(-50%) translateY(0);
   }
 }
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
