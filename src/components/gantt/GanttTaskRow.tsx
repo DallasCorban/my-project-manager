@@ -313,7 +313,11 @@ export function GanttTaskRow({
                     : day.isWeekend
                       ? darkMode ? 'bg-black/[0.10]' : 'bg-black/[0.05]'
                       : ''
-                } ${darkMode ? 'border-[#323652]' : 'border-[#eceff8]'}`}
+                } ${
+                  darkMode
+                    ? zoomLevel >= 20 ? 'border-[#323652]' : 'border-[#2a2d44]'
+                    : 'border-[#eceff8]'
+                }`}
                 style={{ width: zoomLevel, minWidth: zoomLevel }}
               />
             );
