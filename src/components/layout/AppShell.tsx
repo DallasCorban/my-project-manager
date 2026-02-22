@@ -101,19 +101,26 @@ export function AppShell() {
     return () => stopMembershipDiscovery();
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When the active project changes:
-  //  1. Ensure the project exists in Firestore (creates owner membership)
-  //  2. Start membership listeners (loads members list + self-membership)
+  // When the active project or auth state changes:
+  //  1. Stop listeners for any previous project (only when project ID changes)
+  //  2. Ensure the project exists in Firestore (creates owner membership)
+  //  3. Start membership listeners (loads members list + self-membership)
+  //
+  // NOTE: prevProjectIdRef is used ONLY to track which project needs its
+  // listeners torn down. It must NOT be used as a gate for the whole effect —
+  // doing so would prevent listeners from starting when the user?.uid dependency
+  // fires (e.g. auth resolving after a page refresh with the same project ID).
   const prevProjectIdRef = useRef<string | null>(null);
   useEffect(() => {
     const pid = activeProject?.id ?? null;
-    if (pid === prevProjectIdRef.current) return;
 
-    // Stop listeners for previous project
-    if (prevProjectIdRef.current) {
-      stopProjectMembershipListeners(prevProjectIdRef.current);
+    // Clean up listeners from the previous project when project ID changes
+    if (pid !== prevProjectIdRef.current) {
+      if (prevProjectIdRef.current) {
+        stopProjectMembershipListeners(prevProjectIdRef.current);
+      }
+      prevProjectIdRef.current = pid;
     }
-    prevProjectIdRef.current = pid;
 
     if (!pid || !activeProject || !user || user.isAnonymous) return;
 
