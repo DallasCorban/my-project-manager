@@ -51,6 +51,14 @@ function SortableGroupContainer({
   return <>{children(isDragging, listeners, setNodeRef, attributes)}</>;
 }
 
+/** Map a 0–1 intensity value to a 2-digit hex opacity string within a min/max range. */
+function intensityToHex(intensity: number, minOpacity: number, maxOpacity: number): string {
+  const opacity = minOpacity + intensity * (maxOpacity - minOpacity);
+  return Math.round(opacity * 255)
+    .toString(16)
+    .padStart(2, '0');
+}
+
 interface GanttViewProps {
   project: Board;
   statuses: StatusLabel[];
@@ -373,6 +381,50 @@ export function GanttView({
 
   const totalTimelineWidth = visibleDays.length * zoomLevel;
 
+  // Per-group workload density maps for the heatmap on group header rows.
+  // Maps group.id → Map<rawDayIndex, normalizedIntensity (0–1)>.
+  const groupDensityMaps = useMemo(() => {
+    const result: Record<string, Map<number, number>> = {};
+
+    for (const group of project.groups) {
+      const tasks = project.tasks.filter((t) => t.groupId === group.id);
+      const rawCounts = new Map<number, number>();
+      let maxCount = 0;
+
+      const countRange = (start: string | null, duration: number | null) => {
+        const key = normalizeDateKey(start);
+        if (!key) return;
+        const relIdx = getRelativeIndex(key);
+        if (relIdx === null) return;
+        const dur = Math.max(1, Number(duration || 1));
+        for (let d = 0; d < dur; d++) {
+          const dayIdx = relIdx + d;
+          const next = (rawCounts.get(dayIdx) || 0) + 1;
+          rawCounts.set(dayIdx, next);
+          if (next > maxCount) maxCount = next;
+        }
+      };
+
+      for (const task of tasks) {
+        countRange(task.start, task.duration);
+        for (const sub of task.subitems) {
+          countRange(sub.start, sub.duration);
+        }
+      }
+
+      // Normalize to 0–1
+      const normalized = new Map<number, number>();
+      if (maxCount > 0) {
+        for (const [dayIdx, count] of rawCounts) {
+          normalized.set(dayIdx, count / maxCount);
+        }
+      }
+      result[group.id] = normalized;
+    }
+
+    return result;
+  }, [project.tasks, project.groups, getRelativeIndex]);
+
   return (
     <DndContext
       sensors={sensors}
@@ -614,18 +666,34 @@ export function GanttView({
                             )}
                           </div>
 
-                          {/* Group bar area — day grid with semi-transparent group color overlay */}
+                          {/* Group bar area — day grid with per-cell heatmap intensity */}
                           <div
                             className="relative flex-1"
-                            style={{
-                              minWidth: totalTimelineWidth,
-                              backgroundColor: `${group.color}${darkMode ? '40' : '20'}`,
-                            }}
+                            style={{ minWidth: totalTimelineWidth }}
                           >
                             <div className="absolute inset-0 flex pointer-events-none">
                               {visibleDays.map((day, i) => {
                                 const hasWeekendGap =
                                   !showWeekends && i > 0 && day.index > visibleDays[i - 1].index + 1;
+
+                                // Heatmap: look up workload intensity for this day
+                                const densityMap = groupDensityMaps[group.id];
+                                const intensity = densityMap?.get(day.index) ?? 0;
+                                const opacityHex = intensityToHex(
+                                  intensity,
+                                  darkMode ? 0.10 : 0.05,
+                                  darkMode ? 0.50 : 0.25,
+                                );
+
+                                // Compose background: heatmap base + optional today/weekend overlay
+                                const heatmapLayer = `${group.color}${opacityHex}`;
+                                let background: string = heatmapLayer;
+                                if (day.isToday) {
+                                  background = `linear-gradient(rgba(59,130,246,0.05), rgba(59,130,246,0.05)), linear-gradient(${heatmapLayer}, ${heatmapLayer})`;
+                                } else if (day.isWeekend) {
+                                  const weekendOverlay = darkMode ? 'rgba(0,0,0,0.10)' : 'rgba(0,0,0,0.05)';
+                                  background = `linear-gradient(${weekendOverlay}, ${weekendOverlay}), linear-gradient(${heatmapLayer}, ${heatmapLayer})`;
+                                }
 
                                 return (
                                   <div
@@ -636,16 +704,11 @@ export function GanttView({
                                           ? 'border-l-2 border-l-[#3e3f4b]'
                                           : 'border-l-2 border-l-gray-300'
                                         : ''
-                                    } ${
-                                      day.isToday
-                                        ? 'bg-blue-500/5'
-                                        : day.isWeekend
-                                          ? darkMode ? 'bg-black/[0.10]' : 'bg-black/[0.05]'
-                                          : ''
                                     } ${darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'}`}
                                     style={{
                                       width: zoomLevel,
                                       minWidth: zoomLevel,
+                                      background,
                                     }}
                                   />
                                 );
