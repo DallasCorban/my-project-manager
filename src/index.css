@@ -13,12 +13,12 @@ html, body {
 
 /* Firefox */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: #c0c4d4 transparent;
+  scrollbar-width: auto;
+  scrollbar-color: #c0c4d4 #e8eaf2;
 }
 
 html.dark * {
-  scrollbar-color: #3a3f5c transparent;
+  scrollbar-color: #3a3f5c #1a1d33;
 }
 
 /* WebKit — Chrome, Edge, Safari */
@@ -28,12 +28,13 @@ html.dark * {
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #e8eaf2;
 }
 
 ::-webkit-scrollbar-thumb {
   background: #c0c4d4;
-  border-radius: 999px;
+  border-radius: 4px;
+  border: 2px solid #e8eaf2;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -41,16 +42,25 @@ html.dark * {
 }
 
 ::-webkit-scrollbar-corner {
-  background: transparent;
+  background: #e8eaf2;
 }
 
 /* Dark mode overrides */
+html.dark ::-webkit-scrollbar-track {
+  background: #1a1d33;
+}
+
 html.dark ::-webkit-scrollbar-thumb {
   background: #3a3f5c;
+  border-color: #1a1d33;
 }
 
 html.dark ::-webkit-scrollbar-thumb:hover {
   background: #4e5478;
+}
+
+html.dark ::-webkit-scrollbar-corner {
+  background: #1a1d33;
 }
 
 @keyframes slideUp {
