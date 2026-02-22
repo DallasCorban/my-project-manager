@@ -62,6 +62,10 @@ interface UIState {
   emptyNameToast: boolean;
   showEmptyNameToast: () => void;
   hideEmptyNameToast: () => void;
+
+  // Gantt options
+  ganttHeatmap: boolean;
+  toggleGanttHeatmap: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -152,6 +156,10 @@ export const useUIStore = create<UIState>()(
       emptyNameToast: false,
       showEmptyNameToast: () => set({ emptyNameToast: true }),
       hideEmptyNameToast: () => set({ emptyNameToast: false }),
+
+      // Gantt options (persisted)
+      ganttHeatmap: true,
+      toggleGanttHeatmap: () => set((state) => ({ ganttHeatmap: !state.ganttHeatmap })),
     }),
     {
       name: 'pmai_ui',
@@ -161,6 +169,7 @@ export const useUIStore = create<UIState>()(
         activeTab: state.activeTab,
         collapsedGroups: state.collapsedGroups,
         expandedItems: state.expandedItems,
+        ganttHeatmap: state.ganttHeatmap,
       }),
     },
   ),

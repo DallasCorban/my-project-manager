@@ -3,7 +3,7 @@
 // Ported from GanttView.jsx (778 lines) + App.jsx drag handlers.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, CheckSquare, Square, Plus, ZoomIn, ZoomOut, CalendarDays, Eye } from 'lucide-react';
+import { ChevronRight, CheckSquare, Square, Plus, ZoomIn, ZoomOut, CalendarDays, Eye, Thermometer } from 'lucide-react';
 import { DndContext, DragOverlay, MeasuringStrategy } from '@dnd-kit/core';
 import type { DragStartEvent, DragEndEvent, DragOverEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -137,6 +137,8 @@ export function GanttView({
   const selectedItems = useUIStore((s) => s.selectedItems);
   const focusedBar = useUIStore((s) => s.focusedBar);
   const setFocusedBar = useUIStore((s) => s.setFocusedBar);
+  const ganttHeatmap = useUIStore((s) => s.ganttHeatmap);
+  const toggleGanttHeatmap = useUIStore((s) => s.toggleGanttHeatmap);
 
   const showWeekends = useTimelineStore((s) => s.showWeekends);
   const toggleWeekends = useTimelineStore((s) => s.toggleWeekends);
@@ -524,6 +526,23 @@ export function GanttView({
               Labels
             </button>
 
+            {/* Heatmap toggle */}
+            <button
+              onClick={toggleGanttHeatmap}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                ganttHeatmap
+                  ? darkMode
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'bg-blue-50 text-blue-600'
+                  : darkMode
+                    ? 'text-gray-400 hover:bg-white/10'
+                    : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              <Thermometer size={14} />
+              Heatmap
+            </button>
+
             {/* Color by */}
             <select
               value={colorBy}
@@ -699,7 +718,9 @@ export function GanttView({
                           >
                             <div className="absolute inset-0 flex pointer-events-none">
                               {visibleDays.map((day) => {
-                                const count = groupDensityMaps[group.id]?.get(day.index) ?? 0;
+                                const count = ganttHeatmap
+                                  ? (groupDensityMaps[group.id]?.get(day.index) ?? 0)
+                                  : 0;
 
                                 return (
                                   <div
