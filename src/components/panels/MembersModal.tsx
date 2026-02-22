@@ -59,7 +59,7 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
       >
         {/* Header */}
         <div className={`flex items-center justify-between px-5 py-4 border-b ${
-          darkMode ? 'border-[#343856]' : 'border-gray-300'
+          darkMode ? 'border-[#323652]' : 'border-gray-300'
         }`}>
           <div className="flex items-center gap-2">
             <Users size={18} className="text-blue-500" />
@@ -83,7 +83,7 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
         {/* Invite section (admin only) */}
         {canManage && (
           <div className={`px-5 py-3 border-b ${
-            darkMode ? 'border-[#343856]' : 'border-gray-300'
+            darkMode ? 'border-[#323652]' : 'border-gray-300'
           }`}>
             <div className="flex gap-2">
               <input
@@ -92,7 +92,7 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
                 onChange={(e) => setInviteEmail(e.target.value)}
                 className={`flex-1 px-3 py-2 rounded text-sm border ${
                   darkMode
-                    ? 'bg-[#181b34] border-[#343856] text-gray-200 placeholder-gray-500'
+                    ? 'bg-[#181b34] border-[#323652] text-gray-200 placeholder-gray-500'
                     : 'bg-white border-gray-300 text-gray-800 placeholder-gray-400'
                 }`}
               />
@@ -130,7 +130,7 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
 
         {/* Footer */}
         <div className={`px-5 py-3 border-t text-xs ${
-          darkMode ? 'border-[#343856] text-gray-500' : 'border-gray-300 text-gray-400'
+          darkMode ? 'border-[#323652] text-gray-500' : 'border-gray-300 text-gray-400'
         }`}>
           {members.length} member{members.length !== 1 ? 's' : ''}
         </div>
@@ -296,7 +296,7 @@ function MemberRow({
           }}
           className={`text-xs rounded px-1 py-0.5 border ${
             darkMode
-              ? 'bg-[#181b34] text-gray-300 border-[#343856]'
+              ? 'bg-[#181b34] text-gray-300 border-[#323652]'
               : 'bg-white text-gray-600 border-gray-300'
           }`}
         >

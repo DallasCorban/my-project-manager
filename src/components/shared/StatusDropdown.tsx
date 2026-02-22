@@ -95,7 +95,7 @@ export function LabelDropdown({
     <div
       ref={dropdownRef}
       className={`w-56 rounded-xl shadow-2xl border overflow-hidden ${
-        darkMode ? 'bg-[#161a33] border-[#343856]' : 'bg-white border-gray-300'
+        darkMode ? 'bg-[#161a33] border-[#323652]' : 'bg-white border-gray-300'
       }`}
       style={getPosition()}
       onMouseDown={(e) => e.stopPropagation()}
@@ -155,7 +155,7 @@ export function LabelDropdown({
       </div>
 
       {/* Inline add label */}
-      <div className={`px-2.5 py-2 border-t ${darkMode ? 'border-[#343856]' : 'border-gray-100'}`}>
+      <div className={`px-2.5 py-2 border-t ${darkMode ? 'border-[#323652]' : 'border-gray-100'}`}>
         {showAdd ? (
           <div className="flex items-center gap-1.5">
             <input
@@ -172,7 +172,7 @@ export function LabelDropdown({
               placeholder={addPlaceholder}
               className={`flex-1 h-7 px-2 rounded text-xs outline-none border ${
                 darkMode
-                  ? 'bg-[#0f1224] border-[#343856] text-gray-200 placeholder-gray-500'
+                  ? 'bg-[#0f1224] border-[#323652] text-gray-200 placeholder-gray-500'
                   : 'bg-gray-50 border-gray-300 text-gray-700 placeholder-gray-400'
               }`}
             />

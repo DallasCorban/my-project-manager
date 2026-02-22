@@ -145,15 +145,15 @@ export function TaskRow({
   // It follows the cursor via useSortable's transform and should look "lifted".
   const containerClass = isDragging
     ? `flex border-b items-center h-10 relative group cursor-grabbing z-50 shadow-lg opacity-80 ${
-        darkMode ? 'border-[#343856]' : 'border-[#eceff8]'
+        darkMode ? 'border-[#323652]' : 'border-[#eceff8]'
       } ${rowBg}`
     : `flex border-b items-center h-10 relative group transition-colors ${
         darkMode
-          ? 'border-[#343856] hover:bg-[#202336]'
+          ? 'border-[#323652] hover:bg-[#202336]'
           : 'border-[#eceff8] hover:bg-[#f0f0f0]'
       } ${rowBg}`;
 
-  const cellBorder = darkMode ? 'border-[#343856]' : 'border-[#eceff8]';
+  const cellBorder = darkMode ? 'border-[#323652]' : 'border-[#eceff8]';
 
   const handleRowClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;

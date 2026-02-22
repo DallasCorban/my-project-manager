@@ -175,7 +175,7 @@ export function ContractorDatePopover({
       ref={popoverRef}
       style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 500 }}
       className={`w-[280px] rounded-xl shadow-2xl border ${
-        darkMode ? 'bg-[#1c213e] border-[#343856] text-gray-200' : 'bg-white border-gray-300 text-gray-800'
+        darkMode ? 'bg-[#1c213e] border-[#323652] text-gray-200' : 'bg-white border-gray-300 text-gray-800'
       }`}
     >
       {/* Header */}
@@ -304,7 +304,7 @@ export function ContractorDatePopover({
 
       {/* Footer */}
       <div className={`flex items-center justify-between px-4 py-3 mt-2 border-t ${
-        darkMode ? 'border-[#343856]' : 'border-gray-300'
+        darkMode ? 'border-[#323652]' : 'border-gray-300'
       }`}>
         {/* Make Permanent — only for existing contractors, not new ones */}
         {!isNewContractor ? (

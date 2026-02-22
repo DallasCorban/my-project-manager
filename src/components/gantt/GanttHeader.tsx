@@ -31,7 +31,7 @@ export function GanttHeader({
             key={`${month.name}-${mi}`}
             className={`flex items-center px-2 text-[10px] font-semibold uppercase tracking-wide border-b ${
               darkMode
-                ? 'bg-gradient-to-b from-[#1e2148] to-[#181b34] text-gray-400 border-[#343856]'
+                ? 'bg-gradient-to-b from-[#1e2148] to-[#181b34] text-gray-400 border-[#323652]'
                 : 'bg-gradient-to-b from-gray-50 to-white text-gray-500 border-gray-300'
             }`}
             style={{ width: month.count * zoomLevel, minWidth: month.count * zoomLevel }}
@@ -59,17 +59,17 @@ export function GanttHeader({
                   : ''
               } ${
                 zoomLevel >= 20
-                  ? darkMode ? 'border-r border-r-[#343856]' : 'border-r border-r-gray-200'
+                  ? darkMode ? 'border-r border-r-[#323652]' : 'border-r border-r-gray-200'
                   : ''
               } ${
                 day.isToday
                   ? 'bg-blue-600 text-white font-bold'
                   : day.isWeekend
                     ? darkMode
-                      ? 'bg-[#151726] text-gray-600 border-[#343856]'
+                      ? 'bg-[#151726] text-gray-600 border-[#323652]'
                       : 'bg-slate-50 text-gray-400 border-gray-300'
                     : darkMode
-                      ? 'bg-[#181b34] text-gray-500 border-[#343856]'
+                      ? 'bg-[#181b34] text-gray-500 border-[#323652]'
                       : 'bg-white text-gray-500 border-gray-300'
               }`}
               style={{ width: zoomLevel, minWidth: zoomLevel }}

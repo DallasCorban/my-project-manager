@@ -136,7 +136,7 @@ export function GroupSection({
       {!isCollapsed && (
         <div
           className={`rounded-lg border ${
-            darkMode ? 'border-[#343856]' : 'border-[#bec3d4]'
+            darkMode ? 'border-[#323652]' : 'border-[#bec3d4]'
           }`}
           style={{ borderLeftColor: group.color, borderLeftWidth: 3 }}
         >
@@ -234,7 +234,7 @@ export function GroupSection({
                     placeholder="Item name..."
                     className={`flex-1 h-7 px-2 text-xs rounded outline-none border ${
                       darkMode
-                        ? 'bg-[#181b34] border-[#343856] text-gray-200 placeholder-gray-500'
+                        ? 'bg-[#181b34] border-[#323652] text-gray-200 placeholder-gray-500'
                         : 'bg-white border-gray-300 text-gray-700 placeholder-gray-400'
                     }`}
                   />
