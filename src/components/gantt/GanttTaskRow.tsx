@@ -195,7 +195,7 @@ export function GanttTaskRow({
   const isCreating =
     dragState.isDragging &&
     dragState.type === 'create' &&
-    dragState.taskId === task.id &&
+    dragState.taskId === (isSubitem ? parentTaskId : task.id) &&
     dragState.subitemId === (isSubitem ? task.id : null);
 
   let createPreviewLeft = 0;
@@ -212,10 +212,13 @@ export function GanttTaskRow({
   const hasSubitems = !isSubitem && 'subitems' in task && (task as Item).subitems.length > 0;
   const isCollapsed = hasSubitems && !expandedItems.includes(task.id);
 
-  // Sub-items get a subtly different base background so hierarchy is scannable.
-  const labelBg = darkMode
-    ? isSubitem ? 'bg-[#181c38]' : 'bg-[#1c213e]'
-    : isSubitem ? 'bg-[#f2f4fb]' : 'bg-white';
+  // Items are lighter, subitems are darker — consistent across both the label
+  // column and the timeline cells so hierarchy reads the same way in both areas.
+  const rowBg = darkMode
+    ? isSubitem ? 'bg-[#191c36]' : 'bg-[#1c213e]'
+    : isSubitem ? 'bg-[#f4f5fc]' : 'bg-white';
+  // Label column inherits the same base; alias kept for readability.
+  const labelBg = rowBg;
 
   return (
     <div
@@ -229,9 +232,7 @@ export function GanttTaskRow({
       } ${
         isBarSelected
           ? darkMode ? 'bg-blue-500/10' : 'bg-blue-50'
-          : isSubitem
-            ? darkMode ? 'bg-[#181c38]' : 'bg-[#f2f4fb]'
-            : ''
+          : rowBg
       }`}
       style={{ height: actualRowHeight }}
       {...attributes}
@@ -310,7 +311,7 @@ export function GanttTaskRow({
                   day.isToday
                     ? 'bg-blue-500/10'
                     : day.isWeekend
-                      ? 'bg-black/[0.07]'
+                      ? 'bg-black/[0.03]'
                       : ''
                 } ${darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'}`}
                 style={{ width: zoomLevel, minWidth: zoomLevel }}
@@ -326,7 +327,7 @@ export function GanttTaskRow({
             onPointerDown={(e) =>
               onMouseDown(
                 e,
-                task.id,
+                isSubitem ? (parentTaskId || task.id) : task.id,
                 projectId,
                 'create',
                 isSubitem ? task.id : null,

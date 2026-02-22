@@ -614,29 +614,42 @@ export function GanttView({
                             )}
                           </div>
 
-                          {/* Group bar area — empty background grid */}
+                          {/* Group bar area — day grid with semi-transparent group color overlay */}
                           <div
                             className="relative flex-1"
-                            style={{ minWidth: totalTimelineWidth }}
+                            style={{
+                              minWidth: totalTimelineWidth,
+                              backgroundColor: `${group.color}${darkMode ? '40' : '20'}`,
+                            }}
                           >
                             <div className="absolute inset-0 flex pointer-events-none">
-                              {visibleDays.map((day) => (
-                                <div
-                                  key={day.index}
-                                  className={`h-full border-r ${
-                                    day.isToday
-                                      ? 'bg-blue-500/5'
-                                      : day.isWeekend
-                                        ? 'bg-black/[0.03]'
+                              {visibleDays.map((day, i) => {
+                                const hasWeekendGap =
+                                  !showWeekends && i > 0 && day.index > visibleDays[i - 1].index + 1;
+
+                                return (
+                                  <div
+                                    key={day.index}
+                                    className={`h-full border-r ${
+                                      hasWeekendGap
+                                        ? darkMode
+                                          ? 'border-l-2 border-l-[#3e3f4b]'
+                                          : 'border-l-2 border-l-gray-300'
                                         : ''
-                                  } ${darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'}`}
-                                  style={{
-                                    width: zoomLevel,
-                                    minWidth: zoomLevel,
-                                    backgroundColor: `${group.color}${darkMode ? '10' : '08'}`,
-                                  }}
-                                />
-                              ))}
+                                    } ${
+                                      day.isToday
+                                        ? 'bg-blue-500/5'
+                                        : day.isWeekend
+                                          ? 'bg-black/[0.03]'
+                                          : ''
+                                    } ${darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'}`}
+                                    style={{
+                                      width: zoomLevel,
+                                      minWidth: zoomLevel,
+                                    }}
+                                  />
+                                );
+                              })}
                             </div>
                           </div>
                         </div>

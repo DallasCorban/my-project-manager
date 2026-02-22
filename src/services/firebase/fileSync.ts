@@ -4,6 +4,7 @@
 import {
   ref,
   uploadBytes,
+  uploadBytesResumable,
   getDownloadURL,
 } from 'firebase/storage';
 import {
@@ -83,6 +84,88 @@ export async function uploadFiles(
   }
 
   return uploadedFiles;
+}
+
+/**
+ * Upload a single file with live progress callbacks.
+ * Rejects with a descriptive Error on any failure so callers can surface it.
+ */
+export function uploadFileWithProgress(
+  projectId: string,
+  taskId: string,
+  subitemId: string | null,
+  file: File,
+  userId: string,
+  userEmail: string,
+  onProgress: (pct: number) => void,
+): Promise<ProjectFile> {
+  return new Promise((resolve, reject) => {
+    if (!storage) {
+      reject(new Error('Firebase Storage is not configured.'));
+      return;
+    }
+    if (!canUseFirestore()) {
+      reject(new Error('Firestore is not available.'));
+      return;
+    }
+
+    const fileId = `f${Date.now()}`;
+    const targetId = subitemId || taskId;
+    const storagePath = `projects/${projectId}/items/${taskId}/${targetId}/${fileId}`;
+    const storageRef = ref(storage, storagePath);
+
+    const task = uploadBytesResumable(storageRef, file, { contentType: file.type });
+
+    task.on(
+      'state_changed',
+      (snapshot) => {
+        const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+        onProgress(pct);
+      },
+      (err) => {
+        reject(err);
+      },
+      async () => {
+        try {
+          const url = await getDownloadURL(task.snapshot.ref);
+
+          const defaultAccess: FileAccess = {
+            minRole: 'viewer',
+            allowShareLink: false,
+            shareToken: null,
+          };
+
+          const fileMeta: Omit<ProjectFile, 'id'> = {
+            projectId,
+            taskId,
+            subitemId: subitemId || null,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            url,
+            storagePath,
+            createdBy: userId,
+            author: userEmail || 'Guest',
+            access: defaultAccess,
+          };
+
+          const filesRef = collection(getDb(), 'projects', projectId, 'files');
+          const docRef = await addDoc(filesRef, {
+            ...fileMeta,
+            createdAt: serverTimestamp(),
+          });
+
+          resolve({
+            ...fileMeta,
+            id: docRef.id,
+            createdAt: new Date().toISOString(),
+          });
+        } catch (err) {
+          reject(err);
+        }
+      },
+    );
+  });
 }
 
 /**

@@ -15,6 +15,7 @@ import {
   stopMembershipDiscovery,
 } from '../../stores/memberStore';
 import { useMemberStore } from '../../stores/memberStore';
+import { uploadFileWithProgress } from '../../services/firebase/fileSync';
 import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
 import { BoardView } from '../board/BoardView';
@@ -59,6 +60,7 @@ export function AppShell() {
     addTaskToGroup,
     addSubitem,
     addUpdate,
+    addFile,
     addReply,
     toggleChecklistItem,
   } = useProjectContext();
@@ -249,9 +251,9 @@ export function AppShell() {
           `shownTarget` keeps content alive during the slide-out so the panel
           doesn't visually empty before it finishes animating off-screen. */}
       <div
-        className={`fixed top-0 right-0 h-full w-96 z-[300] transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className={`fixed top-0 right-0 h-full w-[500px] z-[300] transition-transform duration-300 ease-in-out border-l ${
+          isOpen ? 'translate-x-0 shadow-[-20px_0_60px_rgba(0,0,0,0.35)]' : 'translate-x-full'
+        } ${darkMode ? 'border-l-white/5' : 'border-l-black/8'}`}
       >
       {shownTarget && activeProject && (() => {
         const { taskId, subitemId, projectId } = shownTarget;
@@ -300,6 +302,18 @@ export function AppShell() {
             }}
             onToggleChecklistItem={(updateId, itemId) => {
               toggleChecklistItem(projectId, taskId, subitemId, updateId, itemId);
+            }}
+            onUploadFile={async (file, onProgress) => {
+              const uploaded = await uploadFileWithProgress(
+                projectId,
+                taskId,
+                subitemId,
+                file,
+                user?.uid ?? '',
+                user?.email ?? '',
+                onProgress,
+              );
+              addFile(projectId, taskId, subitemId, uploaded);
             }}
           />
         );

@@ -136,10 +136,10 @@ export function TaskRow({
   const endKey = hasDates ? addDaysToKey(normalizedStart, safeDuration - 1) : null;
   const showRange = hasDates && safeDuration > 1;
 
-  // Sub-items get a subtly different base background so hierarchy is scannable.
+  // Items are lighter, subitems are darker — consistent across both views.
   const rowBg = darkMode
-    ? isSubitem ? 'bg-[#181c38]' : 'bg-[#1c213e]'
-    : isSubitem ? 'bg-[#f2f4fb]' : 'bg-white';
+    ? isSubitem ? 'bg-[#191c36]' : 'bg-[#1c213e]'
+    : isSubitem ? 'bg-[#f4f5fc]' : 'bg-white';
 
   // When dragging: the row itself IS the ghost (no separate DragOverlay).
   // It follows the cursor via useSortable's transform and should look "lifted".

@@ -1,0 +1,41 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function projectDoc(projectId) {
+      return firestore.get(/databases/(default)/documents/projects/$(projectId));
+    }
+
+    function memberDocExists(projectId) {
+      return firestore.exists(/databases/(default)/documents/projects/$(projectId)/members/$(request.auth.uid));
+    }
+
+    function memberDoc(projectId) {
+      return firestore.get(/databases/(default)/documents/projects/$(projectId)/members/$(request.auth.uid));
+    }
+
+    function isProjectOwner(projectId) {
+      return isSignedIn() && projectDoc(projectId).data.createdBy == request.auth.uid;
+    }
+
+    function isActiveMember(projectId) {
+      return isSignedIn()
+        && memberDocExists(projectId)
+        && memberDoc(projectId).data.status == 'active';
+    }
+
+    function canAccessProject(projectId) {
+      return isProjectOwner(projectId) || isActiveMember(projectId);
+    }
+
+    // Project file uploads: projects/{projectId}/items/{taskId}/{targetId}/{fileId}
+    match /projects/{projectId}/items/{allPaths=**} {
+      allow read:  if canAccessProject(projectId);
+      allow write: if canAccessProject(projectId);
+    }
+  }
+}
