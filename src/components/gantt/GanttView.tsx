@@ -640,7 +640,7 @@ export function GanttView({
                                       day.isToday
                                         ? 'bg-blue-500/5'
                                         : day.isWeekend
-                                          ? darkMode ? 'bg-black/[0.18]' : 'bg-black/[0.06]'
+                                          ? darkMode ? 'bg-black/[0.10]' : 'bg-black/[0.05]'
                                           : ''
                                     } ${darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'}`}
                                     style={{
