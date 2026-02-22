@@ -79,7 +79,13 @@ export function EditableText({
     // Clear pending debounce
     if (pendingRef.current !== null) {
       clearTimeout(pendingRef.current);
+      pendingRef.current = null;
     }
+
+    // When revertOnEmpty is set, don't schedule a debounce for an empty value —
+    // the blur handler will revert to the original. This prevents the store from
+    // receiving an empty string if the user pauses before clicking away.
+    if (revertOnEmpty && newVal.trim() === '') return;
 
     // Schedule debounced update
     pendingRef.current = setTimeout(() => {
