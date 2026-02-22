@@ -482,7 +482,7 @@ export function GanttView({
           {/* Right section: today button */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => scrollToToday()}
+              onClick={() => { setFocusedBar(null); scrollToToday(); }}
               className={`px-2 py-1 rounded text-xs transition-colors ${
                 darkMode
                   ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
