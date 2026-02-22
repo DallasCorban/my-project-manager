@@ -80,11 +80,12 @@ const HEATMAP_MAX = 10; // count where bright/glow peaks
 function getHeatmapColor(count: number, groupColor: string, darkMode: boolean): string {
   const base = darkMode ? '#1c213e' : '#ffffff';
 
-  if (count <= 0) return base;
+  // Shift by 1 so even days with zero tasks get a subtle group-colour tint
+  const effective = count + 1;
 
-  if (count <= HEATMAP_MID) {
+  if (effective <= HEATMAP_MID) {
     // Phase 1: base → full group colour
-    return lerpColor(base, groupColor, count / HEATMAP_MID);
+    return lerpColor(base, groupColor, effective / HEATMAP_MID);
   }
 
   // Phase 2: full group colour → bright (70% toward white)
