@@ -71,7 +71,7 @@ export const ROLE_OPTIONS: RoleOption[] = [
  *  AppHeader and MembersModal so colors are always in sync. */
 export const ROLE_BADGE_CLASSES: Record<string, string> = {
   owner:       'bg-purple-500/15 text-purple-500',
-  admin:       'bg-blue-500/15 text-blue-500',
+  admin:       'bg-yellow-500/15 text-yellow-500',
   editor:      'bg-indigo-500/15 text-indigo-500',
   contributor: 'bg-green-500/15 text-green-500',
   viewer:      'bg-gray-500/15 text-gray-500',
