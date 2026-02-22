@@ -9,6 +9,50 @@ html, body {
   overflow: hidden;
 }
 
+/* ─── Custom Scrollbars ─────────────────────────────────────────────────────── */
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c0c4d4 transparent;
+}
+
+html.dark * {
+  scrollbar-color: #3a3f5c transparent;
+}
+
+/* WebKit — Chrome, Edge, Safari */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c0c4d4;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ea3bb;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Dark mode overrides */
+html.dark ::-webkit-scrollbar-thumb {
+  background: #3a3f5c;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4e5478;
+}
+
 @keyframes slideUp {
   from {
     opacity: 0;
