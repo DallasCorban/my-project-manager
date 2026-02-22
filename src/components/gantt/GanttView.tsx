@@ -71,7 +71,7 @@ function lerpColor(a: string, b: string, t: number): string {
 /**
  * Two-phase heatmap colour based on raw task count.
  *   Phase 1 (0–5):  base background  →  full group colour
- *   Phase 2 (5–10): full group colour →  brightened (70% toward white)
+ *   Phase 2 (5–10): full group colour →  brightened (dark) / darkened (light)
  * Returns a fully opaque hex colour string.
  */
 const HEATMAP_MID = 5;  // count where full group colour is reached
@@ -88,10 +88,15 @@ function getHeatmapColor(count: number, groupColor: string, darkMode: boolean): 
     return lerpColor(base, groupColor, effective / HEATMAP_MID);
   }
 
-  // Phase 2: full group colour → bright (70% toward white)
-  const bright = lerpColor(groupColor, '#ffffff', 0.7);
+  // Phase 2: full group colour → bright (dark mode) or deep/dark (light mode)
   const t = Math.min((count - HEATMAP_MID) / (HEATMAP_MAX - HEATMAP_MID), 1);
-  return lerpColor(groupColor, bright, t);
+  if (darkMode) {
+    const bright = lerpColor(groupColor, '#ffffff', 0.7);
+    return lerpColor(groupColor, bright, t);
+  } else {
+    const deep = lerpColor(groupColor, '#111111', 0.6);
+    return lerpColor(groupColor, deep, t);
+  }
 }
 
 interface GanttViewProps {
