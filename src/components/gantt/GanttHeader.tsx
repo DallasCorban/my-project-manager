@@ -79,11 +79,12 @@ export function GanttHeader({
                 <div className="absolute inset-0 border-l-2 border-blue-500 pointer-events-none opacity-70" />
               )}
 
-              {/* Week range label when zoomed out — overlay spans Mon–Fri (5 weekday columns) */}
+              {/* Week range label when zoomed out — overlay spans Mon–Fri (5 weekday columns).
+                  left:0 anchors to Monday's left edge so the label centre falls on Wednesday. */}
               {zoomLevel < 20 && day.isMonday && day.weekLabel && (
                 <div
                   className="absolute inset-y-0 flex items-center justify-center pointer-events-none z-[1]"
-                  style={{ width: 5 * zoomLevel }}
+                  style={{ left: 0, width: 5 * zoomLevel }}
                 >
                   <span className={`text-[11px] font-semibold whitespace-nowrap ${
                     darkMode ? 'text-gray-300' : 'text-gray-600'
@@ -103,12 +104,6 @@ export function GanttHeader({
                 </span>
               )}
 
-              {/* Day abbreviation when very zoomed in */}
-              {zoomLevel >= 40 && (
-                <span className="text-[8px] ml-0.5 opacity-60">
-                  {day.dayName.charAt(0)}
-                </span>
-              )}
             </div>
           );
         })}
