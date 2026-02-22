@@ -136,19 +136,22 @@ export function TaskRow({
   const endKey = hasDates ? addDaysToKey(normalizedStart, safeDuration - 1) : null;
   const showRange = hasDates && safeDuration > 1;
 
+  // Sub-items get a subtly different base background so hierarchy is scannable.
+  const rowBg = darkMode
+    ? isSubitem ? 'bg-[#181c38]' : 'bg-[#1c213e]'
+    : isSubitem ? 'bg-[#f2f4fb]' : 'bg-white';
+
   // When dragging: the row itself IS the ghost (no separate DragOverlay).
   // It follows the cursor via useSortable's transform and should look "lifted".
   const containerClass = isDragging
     ? `flex border-b items-center h-10 relative group cursor-grabbing z-50 shadow-lg opacity-80 ${
-        darkMode
-          ? 'bg-[#1c213e] border-[#2b2c32]'
-          : 'bg-white border-[#eceff8]'
-      }`
+        darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'
+      } ${rowBg}`
     : `flex border-b items-center h-10 relative group transition-colors ${
         darkMode
-          ? 'border-[#2b2c32] hover:bg-[#202336] bg-[#1c213e]'
-          : 'border-[#eceff8] hover:bg-[#f0f0f0] bg-white'
-      }`;
+          ? 'border-[#2b2c32] hover:bg-[#202336]'
+          : 'border-[#eceff8] hover:bg-[#f0f0f0]'
+      } ${rowBg}`;
 
   const cellBorder = darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]';
 

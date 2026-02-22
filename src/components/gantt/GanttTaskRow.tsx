@@ -212,6 +212,11 @@ export function GanttTaskRow({
   const hasSubitems = !isSubitem && 'subitems' in task && (task as Item).subitems.length > 0;
   const isCollapsed = hasSubitems && !expandedItems.includes(task.id);
 
+  // Sub-items get a subtly different base background so hierarchy is scannable.
+  const labelBg = darkMode
+    ? isSubitem ? 'bg-[#181c38]' : 'bg-[#1c213e]'
+    : isSubitem ? 'bg-[#f2f4fb]' : 'bg-white';
+
   return (
     <div
       ref={setNodeRef}
@@ -220,11 +225,13 @@ export function GanttTaskRow({
       } ${
         darkMode
           ? 'border-b border-[#2b2c32] hover:bg-[#202336]'
-          : 'border-b border-[#eceff8] hover:bg-[#f5f5f5]'
+          : 'border-b border-[#eceff8] hover:bg-[#f0f0f0]'
       } ${
         isBarSelected
           ? darkMode ? 'bg-blue-500/10' : 'bg-blue-50'
-          : ''
+          : isSubitem
+            ? darkMode ? 'bg-[#181c38]' : 'bg-[#f2f4fb]'
+            : ''
       }`}
       style={{ height: actualRowHeight }}
       {...attributes}
@@ -242,10 +249,8 @@ export function GanttTaskRow({
       <div
         className={`sticky left-0 z-[200] flex items-center shrink-0 border-r px-3 overflow-hidden ${
           isDragging ? 'cursor-grabbing' : canEdit ? 'cursor-grab' : ''
-        } ${
-          darkMode
-            ? 'bg-[#1c213e] border-[#2b2c32]'
-            : 'bg-white border-[#eceff8]'
+        } ${labelBg} ${
+          darkMode ? 'border-[#2b2c32]' : 'border-[#eceff8]'
         }`}
         style={{ width: 320, minWidth: 320, touchAction: 'none' }}
         onClick={handleLabelClick}
