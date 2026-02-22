@@ -6,6 +6,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useMemberStore } from '../../stores/memberStore';
 import { EditableText } from '../shared/EditableText';
+import { ROLE_BADGE_CLASSES } from '../../config/constants';
 
 interface AppHeaderProps {
   entityName: string;
@@ -39,17 +40,10 @@ export function AppHeader({
 
   const isActivityOpen = Boolean(updatesPanelTarget);
 
-  // Role badge colors
+  // Role badge
   const getRoleBadge = () => {
     if (!selfRole) return null;
-    const roleColors: Record<string, string> = {
-      owner: 'bg-purple-500/15 text-purple-500',
-      admin: 'bg-blue-500/15 text-blue-500',
-      member: 'bg-green-500/15 text-green-500',
-      viewer: 'bg-gray-500/15 text-gray-500',
-      contractor: 'bg-orange-500/15 text-orange-500',
-    };
-    const colorClass = roleColors[selfRole] || roleColors.member;
+    const colorClass = ROLE_BADGE_CLASSES[selfRole] ?? ROLE_BADGE_CLASSES.viewer;
     return (
       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase ${colorClass}`}>
         {selfRole}

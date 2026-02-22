@@ -14,7 +14,7 @@ import {
 } from '../../services/permissions';
 import { updateMemberRole } from '../../services/firebase/inviteSync';
 import { ContractorDatePopover } from '../shared/ContractorDatePopover';
-import { ROLE_OPTIONS } from '../../config/constants';
+import { ROLE_OPTIONS, ROLE_BADGE_CLASSES } from '../../config/constants';
 import type { Member } from '../../types/member';
 
 const EMPTY_MEMBERS: Member[] = [];
@@ -276,20 +276,16 @@ function MemberRow({
       </div>
 
       {/* Role badge */}
-      <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded ${
-        member.role === 'owner'
-          ? 'bg-amber-500/10 text-amber-500'
-          : member.role === 'admin'
-            ? 'bg-purple-500/10 text-purple-500'
-            : isContractor
-              ? 'bg-amber-500/10 text-amber-500'
-              : darkMode
-                ? 'bg-white/5 text-gray-400'
-                : 'bg-gray-100 text-gray-500'
-      }`}>
-        {member.role === 'owner' && <Shield size={10} />}
-        <span className="capitalize">{isContractor ? 'contractor' : member.role}</span>
-      </div>
+      {(() => {
+        const displayRole = isContractor ? 'contractor' : member.role;
+        const badgeClasses = ROLE_BADGE_CLASSES[displayRole] ?? ROLE_BADGE_CLASSES.viewer;
+        return (
+          <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded ${badgeClasses}`}>
+            {member.role === 'owner' && <Shield size={10} />}
+            <span className="capitalize">{displayRole}</span>
+          </div>
+        );
+      })()}
 
       {/* Role change dropdown (admin only, not for owners) */}
       {canManage && member.role !== 'owner' && (

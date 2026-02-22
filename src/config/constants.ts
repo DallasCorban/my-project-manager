@@ -67,6 +67,17 @@ export const ROLE_OPTIONS: RoleOption[] = [
   { value: 'contractor', label: 'Contractor' },
 ];
 
+/** Tailwind classes for role badge chips — single source of truth used in
+ *  AppHeader and MembersModal so colors are always in sync. */
+export const ROLE_BADGE_CLASSES: Record<string, string> = {
+  owner:       'bg-purple-500/15 text-purple-500',
+  admin:       'bg-blue-500/15 text-blue-500',
+  editor:      'bg-indigo-500/15 text-indigo-500',
+  contributor: 'bg-green-500/15 text-green-500',
+  viewer:      'bg-gray-500/15 text-gray-500',
+  contractor:  'bg-orange-500/15 text-orange-500',
+};
+
 // --- Timeline ---
 export const PAST_DAYS = 60;
 export const FUTURE_DAYS = 365;
