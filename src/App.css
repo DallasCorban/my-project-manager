@@ -226,12 +226,12 @@ const EditableText = ({ value, onChange, className, style, placeholder, autoFocu
 };
 
 const GroupHeaderRow = ({ darkMode }) => (
-    <div className={`flex border-b text-xs font-bold text-gray-500 uppercase tracking-wide ${darkMode ? 'bg-[#181b34] border-[#2a2d44]' : 'bg-white border-[#d0d4e4]'}`}>
-        <div className={`w-10 border-r flex items-center justify-center py-2 ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}><Square size={14} className="opacity-50" /></div>
-        <div className={`w-[450px] border-r px-4 py-2 flex items-center ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}>Item</div>
-        <div className={`w-28 border-r px-4 py-2 flex items-center justify-center ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}>Person</div>
-        <div className={`w-36 border-r px-4 py-2 flex items-center justify-center ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}>Status</div>
-        <div className={`w-36 border-r px-4 py-2 flex items-center justify-center ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}>Type</div>
+    <div className={`flex border-b text-xs font-bold text-gray-500 uppercase tracking-wide ${darkMode ? 'bg-[#181b34] border-[#3d4368]' : 'bg-white border-[#bec3d4]'}`}>
+        <div className={`w-10 border-r flex items-center justify-center py-2 ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}><Square size={14} className="opacity-50" /></div>
+        <div className={`w-[450px] border-r px-4 py-2 flex items-center ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}>Item</div>
+        <div className={`w-28 border-r px-4 py-2 flex items-center justify-center ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}>Person</div>
+        <div className={`w-36 border-r px-4 py-2 flex items-center justify-center ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}>Status</div>
+        <div className={`w-36 border-r px-4 py-2 flex items-center justify-center ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}>Type</div>
         <div className="w-48 px-4 py-2 flex items-center justify-center">Date</div>
     </div>
 );
@@ -240,7 +240,7 @@ const LabelEditorModal = ({ isOpen, onClose, items, onSave, title, darkMode }) =
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-            <div className={`w-96 rounded-lg shadow-2xl p-6 ${darkMode ? 'bg-[#2a2d44] text-white' : 'bg-white text-gray-800'}`} onClick={e => e.stopPropagation()}>
+            <div className={`w-96 rounded-lg shadow-2xl p-6 ${darkMode ? 'bg-[#3d4368] text-white' : 'bg-white text-gray-800'}`} onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-lg">{title}</h3>
                     <X className="cursor-pointer opacity-50 hover:opacity-100" onClick={onClose} size={20}/>
@@ -257,7 +257,7 @@ const LabelEditorModal = ({ isOpen, onClose, items, onSave, title, darkMode }) =
                                 const newItems = [...items];
                                 newItems[idx].label = e.target.value;
                                 onSave(newItems);
-                            }} className={`flex-1 px-2 py-1.5 rounded border ${darkMode ? 'bg-[#181b34] border-[#3d4058]' : 'bg-gray-50 border-gray-200'}`} />
+                            }} className={`flex-1 px-2 py-1.5 rounded border ${darkMode ? 'bg-[#181b34] border-[#3d4058]' : 'bg-gray-50 border-gray-300'}`} />
                         </div>
                     ))}
                 </div>
@@ -271,7 +271,7 @@ const LabelEditorModal = ({ isOpen, onClose, items, onSave, title, darkMode }) =
 
 // --- Dropdowns & Modals ---
 const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit }) => (
-    <div className={`rounded-md shadow-xl border overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#2a2d44] border-[#3d4058]' : 'bg-white border-gray-200'}`}>
+    <div className={`rounded-md shadow-xl border overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#3d4368] border-[#3d4058]' : 'bg-white border-gray-300'}`}>
         {statuses.map(s => (
             <div key={s.id} onClick={(e) => { e.stopPropagation(); onSelect(s.id); }} className={`px-3 py-2 text-xs font-medium cursor-pointer flex items-center gap-2 transition-colors ${darkMode ? 'hover:bg-[#1c213e] text-white' : 'hover:bg-gray-50 text-gray-800'}`}>
                 <div className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: s.color }}></div>
@@ -284,7 +284,7 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit 
 );
 
 const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit }) => (
-    <div className={`rounded-md shadow-xl border overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#2a2d44] border-[#3d4058]' : 'bg-white border-gray-200'}`}>
+    <div className={`rounded-md shadow-xl border overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#3d4368] border-[#3d4058]' : 'bg-white border-gray-300'}`}>
         {jobTypes.map(t => (
             <div key={t.id} onClick={(e) => { e.stopPropagation(); onSelect(t.id); }} className={`px-3 py-2 text-xs font-medium cursor-pointer flex items-center gap-2 transition-colors ${darkMode ? 'hover:bg-[#1c213e] text-white' : 'hover:bg-gray-50 text-gray-800'}`}>
                 <div className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: t.color }}></div>
@@ -311,7 +311,7 @@ const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDat
     return (
         <>
           <div className="fixed inset-0 z-[110]" onClick={() => setDatePickerOpen(null)}></div>
-          <div className={`fixed z-[120] w-64 rounded-lg shadow-2xl border p-3 flex flex-col gap-2 ${darkMode ? 'bg-[#2a2d44] border-[#3d4058] text-white' : 'bg-white border-gray-200 text-gray-800'}`} style={{ top, left }}>
+          <div className={`fixed z-[120] w-64 rounded-lg shadow-2xl border p-3 flex flex-col gap-2 ${darkMode ? 'bg-[#3d4368] border-[#3d4058] text-white' : 'bg-white border-gray-300 text-gray-800'}`} style={{ top, left }}>
               <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
                   <span>Select Start Date</span>
                   <span className="cursor-pointer hover:text-red-500" onClick={() => updateTaskDate(projectId, taskId, subitemId, null, null)}><Trash2 size={12}/> Clear</span>
@@ -354,7 +354,7 @@ const TaskRow = ({
     const hasSubitems = task.subitems && task.subitems.length > 0;
     const containerStyle = isDragging 
         ? `flex border-b items-center h-10 ${darkMode ? 'bg-blue-500/10 border-blue-500/50' : 'bg-blue-50 border-blue-300'} border-dashed opacity-50` 
-        : `flex border-b transition-colors items-center h-10 group ${darkMode ? 'border-[#2a2d44] hover:bg-[#202336] bg-[#1c213e]' : 'border-[#eceff8] hover:bg-[#f0f0f0] bg-white'}`;
+        : `flex border-b transition-colors items-center h-10 group ${darkMode ? 'border-[#3d4368] hover:bg-[#202336] bg-[#1c213e]' : 'border-[#eceff8] hover:bg-[#f0f0f0] bg-white'}`;
     
     const handleDragStart = (e) => {
         if (['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes(e.target.tagName) || e.target.closest('.no-drag')) {
@@ -366,13 +366,13 @@ const TaskRow = ({
 
     return (
         <div className={containerStyle} draggable="true" onDragStart={handleDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}>
-            <div className={`w-10 border-r h-full flex items-center justify-center relative no-drag ${darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+            <div className={`w-10 border-r h-full flex items-center justify-center relative no-drag ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                 <div className={`cursor-pointer transition-all duration-200 ${isSelected ? 'text-blue-500 opacity-100' : 'text-gray-400 opacity-50 group-hover:opacity-100 hover:opacity-100'}`} onClick={(e) => { e.stopPropagation(); onToggle(task.id); }}>
                     {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                 </div>
             </div>
             
-            <div className={`w-[450px] border-r h-full flex items-center px-4 relative ${darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'}`}>
+            <div className={`w-[450px] border-r h-full flex items-center px-4 relative ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`}>
                 <div className={`flex items-center gap-2 w-full ${isSubitem ? 'pl-10' : ''}`}>
                     {isSubitem && <CornerDownRight size={12} className="text-gray-400 shrink-0" />}
                     {!isSubitem && (
@@ -392,12 +392,12 @@ const TaskRow = ({
 
             {isBoard && (
               <>
-                 <div className={`w-28 border-r h-full flex items-center justify-center ${darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'}`}><div className="w-6 h-6 rounded-full bg-gray-400 text-[10px] flex items-center justify-center text-white border-2 border-transparent shadow-sm">{task.assignee?.charAt(0)}</div></div>
-                 <div className={`w-36 border-r h-full flex items-center justify-center px-2 relative ${darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'}`}>
+                 <div className={`w-28 border-r h-full flex items-center justify-center ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`}><div className="w-6 h-6 rounded-full bg-gray-400 text-[10px] flex items-center justify-center text-white border-2 border-transparent shadow-sm">{task.assignee?.charAt(0)}</div></div>
+                 <div className={`w-36 border-r h-full flex items-center justify-center px-2 relative ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`}>
                      <div onClick={(e) => { e.stopPropagation(); setStatusMenuOpen(task.id); setStatusMenuType('status'); }} className="w-full h-8 flex items-center justify-center text-xs font-medium text-white rounded-sm cursor-pointer transition hover:opacity-90" style={{ backgroundColor: statusColor }}>{statusLabel}</div>
                      {!isDragging && statusMenuOpen === task.id && statusMenuType === 'status' && (<div className="z-50 absolute top-full w-full left-0 z-[100]"><StatusDropdown statuses={statuses} currentStatusId={task.status} onSelect={(id) => onStatusSelect(projectId, task.id, isSubitem ? task.id : null, id)} darkMode={darkMode} onEdit={onEditLabels} /></div>)}
                  </div>
-                 <div className={`w-36 border-r h-full flex items-center justify-center px-2 relative ${darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'}`}>
+                 <div className={`w-36 border-r h-full flex items-center justify-center px-2 relative ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`}>
                      <div onClick={(e) => { e.stopPropagation(); setStatusMenuOpen(task.id); setStatusMenuType('type'); }} className="w-full h-8 flex items-center justify-center text-xs font-medium text-white rounded-sm cursor-pointer transition hover:opacity-90" style={{ backgroundColor: typeColor }}>{typeLabel}</div>
                      {!isDragging && statusMenuOpen === task.id && statusMenuType === 'type' && (<div className="z-50 absolute top-full w-full left-0 z-[100]"><TypeDropdown jobTypes={jobTypes} currentTypeId={task.jobTypeId} onSelect={(id) => onTypeSelect(projectId, task.id, isSubitem ? task.id : null, id)} darkMode={darkMode} onEdit={onEditLabels} /></div>)}
                  </div>
@@ -417,8 +417,8 @@ const TaskRow = ({
 // ==========================================
 
 const Sidebar = ({ darkMode, workspaces, dashboards, activeEntityId, setActiveEntityId, createWorkspace, createDashboard, setDarkMode }) => (
-    <div className={`w-64 border-r flex flex-col hidden md:flex ${darkMode ? 'bg-[#111322] border-[#2a2d44]' : 'bg-white border-[#d0d4e4]'}`}>
-        <div className={`p-4 border-b ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'} `}><h2 className="font-bold text-lg">Workspace</h2></div>
+    <div className={`w-64 border-r flex flex-col hidden md:flex ${darkMode ? 'bg-[#111322] border-[#3d4368]' : 'bg-white border-[#bec3d4]'}`}>
+        <div className={`p-4 border-b ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'} `}><h2 className="font-bold text-lg">Workspace</h2></div>
         <div className="flex-1 overflow-y-auto p-3 space-y-6">
            <div>
              <div className="flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2"><span>Boards</span><Plus size={14} className="cursor-pointer hover:text-blue-500" onClick={createWorkspace} /></div>
@@ -429,16 +429,16 @@ const Sidebar = ({ darkMode, workspaces, dashboards, activeEntityId, setActiveEn
              <div className="space-y-1">{dashboards.map(d => (<div key={d.id} onClick={() => setActiveEntityId(d.id)} className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm cursor-pointer transition-colors ${activeEntityId === d.id ? (darkMode ? 'bg-[#1c213e] text-purple-400' : 'bg-purple-50 text-purple-600') : (darkMode ? 'hover:bg-[#1c213e] text-gray-400' : 'hover:bg-gray-100 text-gray-700')}`}><LayoutDashboard size={16} /><span className="truncate font-medium">{d.name}</span></div>))}</div>
            </div>
         </div>
-        <div className={`p-4 border-t ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'} flex items-center justify-between`}>
+        <div className={`p-4 border-t ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'} flex items-center justify-between`}>
              <span className="text-xs text-gray-500">Theme</span>
-             <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full ${darkMode ? 'bg-[#2a2d44] text-yellow-400' : 'bg-gray-100 text-gray-600'}`}>{darkMode ? <Sun size={16} /> : <Moon size={16} />}</button>
+             <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full ${darkMode ? 'bg-[#3d4368] text-yellow-400' : 'bg-gray-100 text-gray-600'}`}>{darkMode ? <Sun size={16} /> : <Moon size={16} />}</button>
         </div>
     </div>
 );
 
 const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSettingsMenuOpen, settingsMenuOpen, showWeekends, setShowWeekends, showLabels, setShowLabels, colorBy, setColorBy, zoomLevel, handleZoomChange, rowHeight, setRowHeight, isChatOpen, setIsChatOpen, scrollToToday, updateEntityName, onExport, onExportJson, onImportJson }) => (
     <>
-        <div className={`h-16 border-b px-8 flex items-center justify-between shrink-0 ${darkMode ? 'border-[#2a2d44] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'}`}>
+        <div className={`h-16 border-b px-8 flex items-center justify-between shrink-0 ${darkMode ? 'border-[#3d4368] bg-[#181b34]' : 'border-[#bec3d4] bg-white'}`}>
           <div>
             <div className="flex items-center gap-3 text-2xl font-bold">
               {activeEntity.type === 'workspace' ? <Briefcase className="text-gray-400" /> : <LayoutDashboard className="text-purple-500" />}
@@ -446,7 +446,7 @@ const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSetting
             </div>
           </div>
         </div>
-        <div className={`px-8 border-b flex items-center justify-between shrink-0 sticky top-0 z-30 ${darkMode ? 'border-[#2a2d44] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'}`}>
+        <div className={`px-8 border-b flex items-center justify-between shrink-0 sticky top-0 z-30 ${darkMode ? 'border-[#3d4368] bg-[#181b34]' : 'border-[#bec3d4] bg-white'}`}>
            <div className="flex gap-6">
             <button onClick={() => setActiveTab('board')} className={`py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'board' ? 'border-[#0073ea] text-[#0073ea]' : 'border-transparent text-gray-500'}`}>Main Table</button>
             <button onClick={() => setActiveTab('gantt')} className={`py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'gantt' ? 'border-[#0073ea] text-[#0073ea]' : 'border-transparent text-gray-500'}`}>Gantt</button>
@@ -454,11 +454,11 @@ const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSetting
           <div className="flex items-center gap-6">
             {activeTab === 'gantt' && (
               <div className="flex gap-4">
-                  <button onClick={() => scrollToToday(true)} className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${darkMode ? 'bg-[#1c213e] border-[#2a2d44] text-gray-300 hover:bg-[#202336]' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'}`}><Target size={14} /> Today</button>
+                  <button onClick={() => scrollToToday(true)} className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${darkMode ? 'bg-[#1c213e] border-[#3d4368] text-gray-300 hover:bg-[#202336]' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}`}><Target size={14} /> Today</button>
                   <div className="relative">
-                     <button onClick={(e) => { e.stopPropagation(); setSettingsMenuOpen(!settingsMenuOpen); }} className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${settingsMenuOpen || !darkMode ? 'bg-white text-gray-700 border-gray-300' : 'bg-[#1c213e] border-[#2a2d44] text-gray-300'}`}><Settings size={14} /> Settings</button>
+                     <button onClick={(e) => { e.stopPropagation(); setSettingsMenuOpen(!settingsMenuOpen); }} className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${settingsMenuOpen || !darkMode ? 'bg-white text-gray-700 border-gray-300' : 'bg-[#1c213e] border-[#3d4368] text-gray-300'}`}><Settings size={14} /> Settings</button>
                      {settingsMenuOpen && (
-                         <div className={`absolute top-full right-0 mt-2 w-56 rounded-lg shadow-xl border z-[100] p-2 animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#2a2d44] border-[#3d4058]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+                         <div className={`absolute top-full right-0 mt-2 w-56 rounded-lg shadow-xl border z-[100] p-2 animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#3d4368] border-[#3d4058]' : 'bg-white border-gray-300'}`} onClick={e => e.stopPropagation()}>
                              <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide px-2">View Options</div>
                              <div className={`flex items-center justify-between p-2 rounded cursor-pointer ${darkMode ? 'hover:bg-[#1c213e]' : 'hover:bg-gray-50'}`} onClick={() => setShowWeekends(!showWeekends)}>
                                  <span className={`text-sm ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>Show Weekends</span>
@@ -488,8 +488,8 @@ const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSetting
                          </div>
                      )}
                   </div>
-                 <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full border ${darkMode ? 'bg-[#1c213e] border-[#2a2d44] text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-600'}`}><ZoomOut size={14} /><input type="range" min="10" max="100" value={zoomLevel} onChange={handleZoomChange} className="w-20 h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-[#0073ea]" /><ZoomIn size={14} /></div>
-                 <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full border ${darkMode ? 'bg-[#1c213e] border-[#2a2d44] text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-600'}`}><ArrowUpDown size={14} /><input type="range" min="32" max="80" value={rowHeight} onChange={(e) => setRowHeight(Number(e.target.value))} className="w-20 h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-[#0073ea]" /></div>
+                 <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full border ${darkMode ? 'bg-[#1c213e] border-[#3d4368] text-gray-300' : 'bg-gray-50 border-gray-300 text-gray-600'}`}><ZoomOut size={14} /><input type="range" min="10" max="100" value={zoomLevel} onChange={handleZoomChange} className="w-20 h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-[#0073ea]" /><ZoomIn size={14} /></div>
+                 <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full border ${darkMode ? 'bg-[#1c213e] border-[#3d4368] text-gray-300' : 'bg-gray-50 border-gray-300 text-gray-600'}`}><ArrowUpDown size={14} /><input type="range" min="32" max="80" value={rowHeight} onChange={(e) => setRowHeight(Number(e.target.value))} className="w-20 h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-[#0073ea]" /></div>
               </div>
             )}
             {!isChatOpen && <button onClick={() => setIsChatOpen(true)} className="flex items-center gap-2 text-sm text-[#0073ea] font-medium hover:bg-blue-50 px-3 py-1 rounded"><MessageSquare size={16} /> Open AI Chat</button>}
@@ -515,13 +515,13 @@ const BoardView = (props) => {
                              return (
                                  <div key={group.id} className="mb-8">
                                      <div className="flex items-center gap-2 mb-2 group">
-                                         <div onClick={() => toggleGroupCollapse(group.id)} className={`p-1 rounded cursor-pointer transition ${isGroupCollapsed ? '-rotate-90' : 'rotate-0'} ${darkMode ? 'hover:bg-[#2a2d44]' : 'hover:bg-gray-100'}`}><ChevronDown size={18} style={{ color: group.color }} /></div>
+                                         <div onClick={() => toggleGroupCollapse(group.id)} className={`p-1 rounded cursor-pointer transition ${isGroupCollapsed ? '-rotate-90' : 'rotate-0'} ${darkMode ? 'hover:bg-[#3d4368]' : 'hover:bg-gray-100'}`}><ChevronDown size={18} style={{ color: group.color }} /></div>
                                          <EditableText value={group.name} onChange={(e) => updateGroupName(proj.id, group.id, e.target.value)} className="text-lg font-medium" style={{ color: group.color }} />
                                          <span className="text-xs text-gray-500 font-normal ml-2">{groupTasks.length} Items</span>
                                      </div>
 
                                      {!isGroupCollapsed ? (
-                                         <div className={`shadow-sm border-l-4 rounded-tl-md rounded-bl-md overflow-visible ${darkMode ? 'border-[#2a2d44]' : 'border-gray-200'}`} style={{ borderLeftColor: group.color }}>
+                                         <div className={`shadow-sm border-l-4 rounded-tl-md rounded-bl-md overflow-visible ${darkMode ? 'border-[#3d4368]' : 'border-gray-300'}`} style={{ borderLeftColor: group.color }}>
                                              <GroupHeaderRow darkMode={darkMode} />
                                              {groupTasks.map((task) => {
                                                  const isExpanded = props.expandedItems.includes(task.id);
@@ -544,15 +544,15 @@ const BoardView = (props) => {
                                                      </React.Fragment>
                                                  );
                                              })}
-                                             <div className={`flex h-10 items-center border-b ${darkMode ? 'border-[#2a2d44] hover:bg-[#202336] bg-[#181b34]' : 'border-[#eceff8] hover:bg-[#f5f6f8] bg-white'}`}>
-                                                 <div className={`w-10 border-r h-full ${darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'}`}></div>
+                                             <div className={`flex h-10 items-center border-b ${darkMode ? 'border-[#3d4368] hover:bg-[#202336] bg-[#181b34]' : 'border-[#eceff8] hover:bg-[#f5f6f8] bg-white'}`}>
+                                                 <div className={`w-10 border-r h-full ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`}></div>
                                                  <div className="w-[450px] px-4 flex items-center">
                                                      <input type="text" placeholder="+ Add Item" className={`w-full bg-transparent outline-none text-sm ${darkMode ? 'text-gray-400 placeholder-gray-600' : 'text-gray-500 placeholder-gray-400'}`} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { addTaskToGroup(proj.id, group.id, e.target.value); e.target.value = ''; }}} />
                                                  </div>
                                              </div>
                                          </div>
                                       ) : (
-                                          <div className="h-10 flex items-center rounded-md overflow-hidden relative pl-4" style={{ backgroundColor: darkMode ? '#2a2d44' : '#f0f0f0' }}>
+                                          <div className="h-10 flex items-center rounded-md overflow-hidden relative pl-4" style={{ backgroundColor: darkMode ? '#3d4368' : '#f0f0f0' }}>
                                               <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: group.color }}></div>
                                               <div className="flex-1 flex h-full">{statuses.map(s => { const count = groupTasks.filter(t => t.status === s.id).length; if (count === 0) return null; const pct = (count / groupTasks.length) * 100; return <div key={s.id} style={{ width: `${pct}%`, backgroundColor: s.color }} title={`${s.label}: ${count}`} className="h-full first:rounded-l-none" />; })}</div>
                                               <div className={`w-32 flex items-center justify-center text-xs font-bold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{groupTasks.length} Items</div>
@@ -561,7 +561,7 @@ const BoardView = (props) => {
                                   </div>
                              );
                          })}
-                         <button onClick={() => addGroup(proj.id)} className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded border transition-colors ${darkMode ? 'border-[#2a2d44] hover:bg-[#2a2d44] text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'}`}><Plus size={16} /> Add New Group</button>
+                         <button onClick={() => addGroup(proj.id)} className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded border transition-colors ${darkMode ? 'border-[#3d4368] hover:bg-[#3d4368] text-gray-300' : 'border-gray-300 hover:bg-gray-50 text-gray-600'}`}><Plus size={16} /> Add New Group</button>
                     </div>
                 );
             })}
@@ -587,11 +587,11 @@ const GanttView = (props) => {
     };
 
     return (
-        <div ref={props.bodyRef} className={`flex-1 overflow-auto overflow-x-auto relative border-t ${darkMode ? 'bg-[#181b34] border-[#2a2d44]' : 'bg-white border-[#d0d4e4]'}`}>
-             <div className={`flex border-b sticky top-0 z-40 shadow-sm ${darkMode ? 'bg-[#181b34] border-[#2a2d44]' : 'bg-white border-[#d0d4e4]'}`} style={{ width: `calc(20rem + ${visibleDays.length * zoomLevel}px)` }}>
-                <div className={`w-80 border-r p-3 font-medium text-sm pl-6 sticky left-0 z-50 flex-shrink-0 ${darkMode ? 'bg-[#1c213e] border-[#2a2d44] text-gray-300' : 'bg-[#f9fafc] border-[#d0d4e4] text-gray-500'}`}>Project / Task</div>
+        <div ref={props.bodyRef} className={`flex-1 overflow-auto overflow-x-auto relative border-t ${darkMode ? 'bg-[#181b34] border-[#3d4368]' : 'bg-white border-[#bec3d4]'}`}>
+             <div className={`flex border-b sticky top-0 z-40 shadow-sm ${darkMode ? 'bg-[#181b34] border-[#3d4368]' : 'bg-white border-[#bec3d4]'}`} style={{ width: `calc(20rem + ${visibleDays.length * zoomLevel}px)` }}>
+                <div className={`w-80 border-r p-3 font-medium text-sm pl-6 sticky left-0 z-50 flex-shrink-0 ${darkMode ? 'bg-[#1c213e] border-[#3d4368] text-gray-300' : 'bg-[#f9fafc] border-[#bec3d4] text-gray-500'}`}>Project / Task</div>
                 <div className="flex flex-col flex-1">
-                    <div className={`flex h-8 border-b ${darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'}`}>
+                    <div className={`flex h-8 border-b ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`}>
                         {visibleMonths.map((month, i) => (
                             <div key={i} className={`flex-shrink-0 border-r flex items-center justify-center text-xs font-bold uppercase tracking-wide text-gray-400`} style={{ width: `${month.count * zoomLevel}px`, background: darkMode ? `linear-gradient(to right, #2b304a, #181b34)` : `linear-gradient(to right, #f9fafc, #e2e8f0)` }}>{month.name}</div>
                         ))}
@@ -618,14 +618,14 @@ const GanttView = (props) => {
                 {visibleProjects.map((project) => {
                      const projectGroups = project.groups || [{ id: 'default', name: 'Main Group', color: '#579bfc' }];
                      return (
-                        <div key={project.id} className={`border-b group/project ${darkMode ? 'border-[#2a2d44] bg-[#181b34]' : 'border-[#eceff8] bg-white'}`}>
+                        <div key={project.id} className={`border-b group/project ${darkMode ? 'border-[#3d4368] bg-[#181b34]' : 'border-[#eceff8] bg-white'}`}>
                             {projectGroups.map(group => {
                                 const groupTasks = project.tasks.filter(t => t.groupId === group.id || (!t.groupId && group.id === 'default'));
                                 const isGroupCollapsed = collapsedGroups.includes(group.id);
                                 return (
                                     <div key={group.id}>
                                         <div className="flex relative transition-colors duration-200" style={{ height: `${rowHeight}px`, backgroundColor: group.color + (darkMode ? '33' : '1A') }}>
-                                            <div className={`w-80 border-r px-4 flex items-center gap-2 sticky left-0 z-40 cursor-pointer flex-shrink-0 transition-colors ${darkMode ? 'border-[#2a2d44] text-gray-200' : 'border-[#d0d4e4] text-gray-700'}`} onClick={() => toggleGroupCollapse(group.id)} style={{ background: `linear-gradient(${group.color}${darkMode ? '33' : '1A'}, ${group.color}${darkMode ? '33' : '1A'}), ${darkMode ? '#181b34' : '#ffffff'}` }}>
+                                            <div className={`w-80 border-r px-4 flex items-center gap-2 sticky left-0 z-40 cursor-pointer flex-shrink-0 transition-colors ${darkMode ? 'border-[#3d4368] text-gray-200' : 'border-[#bec3d4] text-gray-700'}`} onClick={() => toggleGroupCollapse(group.id)} style={{ background: `linear-gradient(${group.color}${darkMode ? '33' : '1A'}, ${group.color}${darkMode ? '33' : '1A'}), ${darkMode ? '#181b34' : '#ffffff'}` }}>
                                                 <div className={`p-1 rounded transition ${isGroupCollapsed ? '-rotate-90' : 'rotate-0'}`}><ChevronDown size={16} style={{ color: group.color }} /></div>
                                                 <span className="font-bold text-sm" style={{ color: group.color }}>{group.name}</span>
                                                 <span className="text-xs opacity-50 ml-2 font-normal">({groupTasks.length})</span>
@@ -671,8 +671,8 @@ const GanttView = (props) => {
 
                                             return (
                                                 <React.Fragment key={task.id}>
-                                                    <div className={`flex border-b relative group/task ${isExpanded ? (darkMode ? 'bg-[#151726]' : 'bg-gray-100') : (darkMode ? 'bg-[#181b34] hover:bg-[#202336]' : 'bg-white hover:bg-[#f9fafc]')} ${darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'}`} style={{ height: `${rowHeight}px` }}>
-                                                        <div className={`w-80 border-r flex-shrink-0 sticky left-0 z-30 ${darkMode ? 'border-[#2a2d44] bg-inherit text-gray-300' : 'border-[#d0d4e4] bg-inherit text-gray-800'}`} onDragOver={(e) => handleRowDragOver(e, 'task', task.id)} onDrop={handleRowDrop} style={{ opacity: isDragging ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+                                                    <div className={`flex border-b relative group/task ${isExpanded ? (darkMode ? 'bg-[#151726]' : 'bg-gray-100') : (darkMode ? 'bg-[#181b34] hover:bg-[#202336]' : 'bg-white hover:bg-[#f9fafc]')} ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`} style={{ height: `${rowHeight}px` }}>
+                                                        <div className={`w-80 border-r flex-shrink-0 sticky left-0 z-30 ${darkMode ? 'border-[#3d4368] bg-inherit text-gray-300' : 'border-[#bec3d4] bg-inherit text-gray-800'}`} onDragOver={(e) => handleRowDragOver(e, 'task', task.id)} onDrop={handleRowDrop} style={{ opacity: isDragging ? 0.5 : 1, transition: 'opacity 0.2s' }}>
                                                             <TaskRow {...taskRowProps} />
                                                             {reorderDrag.active && reorderDrag.dropTargetId === task.id && (<div className="absolute left-0 right-0 h-0.5 bg-blue-500 z-50 pointer-events-none" style={{ top: reorderDrag.dropPosition === 'before' ? '-1px' : 'auto', bottom: reorderDrag.dropPosition === 'after' ? '-1px' : 'auto' }} />)}
                                                         </div>
@@ -719,8 +719,8 @@ const GanttView = (props) => {
                                                          const subRowProps = { ...taskRowProps, task: sub, parentId: task.id, isSubitem: true, onDragStart: (e) => handleRowDragStart(e, 'subitem', sub.id, null, task.id, group.id) };
                                                          
                                                          return (
-                                                            <div key={sub.id} className={`flex h-10 items-center border-t relative ${darkMode ? 'border-[#2a2d44] hover:bg-[#202336]' : 'border-[#eceff8] hover:bg-[#eceff8]'}`} onDragOver={(e) => handleRowDragOver(e, 'subitem', sub.id)} onDrop={handleRowDrop}>
-                                                                    <div className={`w-80 border-r flex-shrink-0 sticky left-0 z-30 ${darkMode ? 'border-[#2a2d44] bg-inherit text-gray-400' : 'border-[#d0d4e4] bg-inherit text-gray-500'}`} onDragOver={(e) => handleRowDragOver(e, 'subitem', sub.id)} onDrop={handleRowDrop} style={{ opacity: isSubDragging ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+                                                            <div key={sub.id} className={`flex h-10 items-center border-t relative ${darkMode ? 'border-[#3d4368] hover:bg-[#202336]' : 'border-[#eceff8] hover:bg-[#eceff8]'}`} onDragOver={(e) => handleRowDragOver(e, 'subitem', sub.id)} onDrop={handleRowDrop}>
+                                                                    <div className={`w-80 border-r flex-shrink-0 sticky left-0 z-30 ${darkMode ? 'border-[#3d4368] bg-inherit text-gray-400' : 'border-[#bec3d4] bg-inherit text-gray-500'}`} onDragOver={(e) => handleRowDragOver(e, 'subitem', sub.id)} onDrop={handleRowDrop} style={{ opacity: isSubDragging ? 0.5 : 1, transition: 'opacity 0.2s' }}>
                                                                         <TaskRow {...subRowProps} />
                                                                         {reorderDrag.active && reorderDrag.dropTargetId === sub.id && (<div className="absolute left-0 right-0 h-0.5 bg-blue-500 z-50 pointer-events-none" style={{ top: reorderDrag.dropPosition === 'before' ? '-1px' : 'auto', bottom: reorderDrag.dropPosition === 'after' ? '-1px' : 'auto' }} />)}
                                                                     </div>
@@ -740,7 +740,7 @@ const GanttView = (props) => {
                                                 </React.Fragment>
                                             );
                                         })}
-                                        {!isGroupCollapsed && (<div className={`flex border-b relative ${darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'}`} style={{ height: `${rowHeight}px` }}> <div className={`w-80 border-r flex-shrink-0 sticky left-0 z-30 flex items-center px-4 ${darkMode ? 'border-[#2a2d44] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'}`}><div className="w-10 flex justify-center mr-2 opacity-50"><Plus size={14}/></div><input type="text" placeholder="+ Add Item" className={`bg-transparent outline-none text-sm w-full ${darkMode ? 'text-gray-400 placeholder-gray-600' : 'text-gray-500 placeholder-gray-400'}`} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { addTaskToGroup(project.id, group.id, e.target.value); e.target.value = ''; }}} /></div><div className="relative flex-1 h-full"><div className="absolute inset-0 flex pointer-events-none z-0">{visibleDays.map((day, i) => (<div key={i} className={`h-full border-r ${darkMode ? 'border-white/5' : 'border-[#eceff8]'} ${day.isWeekend ? 'bg-black/20' : 'bg-transparent'} ${!showWeekends && i > 0 && day.index > visibleDays[i-1].index + 1 ? (darkMode ? 'border-l-2 border-l-[#3d4058]' : 'border-l-2 border-l-gray-300') : ''} ${day.isToday ? 'bg-blue-500/10' : ''}`} style={{ width: `${zoomLevel}px`, minWidth: `${zoomLevel}px` }}></div>))}</div></div></div>)}
+                                        {!isGroupCollapsed && (<div className={`flex border-b relative ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`} style={{ height: `${rowHeight}px` }}> <div className={`w-80 border-r flex-shrink-0 sticky left-0 z-30 flex items-center px-4 ${darkMode ? 'border-[#3d4368] bg-[#181b34]' : 'border-[#bec3d4] bg-white'}`}><div className="w-10 flex justify-center mr-2 opacity-50"><Plus size={14}/></div><input type="text" placeholder="+ Add Item" className={`bg-transparent outline-none text-sm w-full ${darkMode ? 'text-gray-400 placeholder-gray-600' : 'text-gray-500 placeholder-gray-400'}`} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { addTaskToGroup(project.id, group.id, e.target.value); e.target.value = ''; }}} /></div><div className="relative flex-1 h-full"><div className="absolute inset-0 flex pointer-events-none z-0">{visibleDays.map((day, i) => (<div key={i} className={`h-full border-r ${darkMode ? 'border-white/5' : 'border-[#eceff8]'} ${day.isWeekend ? 'bg-black/20' : 'bg-transparent'} ${!showWeekends && i > 0 && day.index > visibleDays[i-1].index + 1 ? (darkMode ? 'border-l-2 border-l-[#3d4058]' : 'border-l-2 border-l-gray-300') : ''} ${day.isToday ? 'bg-blue-500/10' : ''}`} style={{ width: `${zoomLevel}px`, minWidth: `${zoomLevel}px` }}></div>))}</div></div></div>)}
                                     </div>
                                  );
                             })}
@@ -1152,7 +1152,7 @@ export default function ProjectManagerAI() {
                 )}
             </div>
 
-            <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] shadow-2xl border rounded-xl px-4 py-2 flex items-center gap-3 transition-all duration-300 ease-in-out ${selectedItems.size > 0 ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0 pointer-events-none'} ${darkMode ? 'bg-[#111322] border-[#2a2d44]' : 'bg-white border-gray-200'}`}>
+            <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] shadow-2xl border rounded-xl px-4 py-2 flex items-center gap-3 transition-all duration-300 ease-in-out ${selectedItems.size > 0 ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0 pointer-events-none'} ${darkMode ? 'bg-[#111322] border-[#3d4368]' : 'bg-white border-gray-300'}`}>
                 <span className={`text-xs font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{selectedItems.size} selected</span>
                 <button onClick={deleteSelected} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"><Trash2 size={14} /> Delete</button>
             </div>

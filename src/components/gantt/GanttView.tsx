@@ -468,7 +468,7 @@ export function GanttView({
         <div
           className={`flex items-center px-4 py-2 border-b shrink-0 ${
             darkMode
-              ? 'bg-[#1c213e] border-[#2a2d44]'
+              ? 'bg-[#1c213e] border-[#3d4368]'
               : 'bg-white border-[#eceff8]'
           }`}
         >
@@ -549,8 +549,8 @@ export function GanttView({
               onChange={(e) => setColorBy(e.target.value as 'status' | 'type')}
               className={`text-xs rounded px-2 py-1 border ${
                 darkMode
-                  ? 'bg-[#181b34] text-gray-300 border-[#2a2d44]'
-                  : 'bg-white text-gray-600 border-gray-200'
+                  ? 'bg-[#181b34] text-gray-300 border-[#3d4368]'
+                  : 'bg-white text-gray-600 border-gray-300'
               }`}
             >
               <option value="status">Color by Status</option>
@@ -606,7 +606,7 @@ export function GanttView({
               <div
                 className={`sticky left-0 z-[201] shrink-0 border-r border-b ${
                   darkMode
-                    ? 'bg-[#1c213e] border-[#2a2d44]'
+                    ? 'bg-[#1c213e] border-[#3d4368]'
                     : 'bg-white border-[#eceff8]'
                 }`}
                 style={{ width: 320, minWidth: 320, height: 48 }}
@@ -651,7 +651,7 @@ export function GanttView({
                         {/* Group header row */}
                         <div
                           className={`flex sticky top-12 z-30 border-b group ${
-                            darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'
+                            darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'
                           }`}
                           style={{ height: rowHeight }}
                         >
@@ -664,7 +664,7 @@ export function GanttView({
                               width: 320,
                               minWidth: 320,
                               background: `linear-gradient(${group.color}${darkMode ? '2e' : '18'}, ${group.color}${darkMode ? '2e' : '18'}), ${darkMode ? '#1c213e' : '#ffffff'}`,
-                              borderColor: darkMode ? '#2a2d44' : '#eceff8',
+                              borderColor: darkMode ? '#3d4368' : '#eceff8',
                             }}
                             {...groupListeners}
                           >
@@ -869,7 +869,7 @@ export function GanttView({
           <div
             className={`flex items-center gap-2 px-3 border-r border-b shadow-xl cursor-grabbing ${
               darkMode
-                ? 'bg-[#1c213e] border-[#2a2d44]'
+                ? 'bg-[#1c213e] border-[#3d4368]'
                 : 'bg-white border-[#eceff8]'
             }`}
             style={{ width: 320, height: rowHeight, borderLeft: `3px solid ${activeGroup.color}` }}
@@ -894,7 +894,7 @@ export function GanttView({
           <div
             className={`flex items-center px-3 border-r border-b shadow-xl cursor-grabbing group [&_button]:!opacity-100 ${
               darkMode
-                ? 'bg-[#1c213e] border-[#2a2d44]'
+                ? 'bg-[#1c213e] border-[#3d4368]'
                 : 'bg-white border-[#eceff8]'
             }`}
             style={{ width: 320, height: rowHeight }}

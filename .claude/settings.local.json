@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(npm audit:*)",
+      "Bash(npx tsc:*)",
+      "Bash(echo:*)",
+      "Bash(/c/Users/ben/my-project-manager/.claude/worktrees/jovial-maxwell/firebase.json:*)",
+      "Bash(npx firebase deploy:*)",
+      "Bash(npx:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(curl:*)",
+      "Bash(xargs sed:*)"
+    ]
+  }
+}

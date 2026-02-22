@@ -638,8 +638,8 @@ const Sidebar = ({
   canCreateBoard = false,
   setDarkMode,
 }) => (
-    <div className={`w-64 border-r flex flex-col hidden md:flex ${darkMode ? 'bg-[#111322] border-[#2a2d44]' : 'bg-white border-[#d0d4e4]'}`}>
-        <div className={`p-4 border-b ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'} `}><h2 className="font-bold text-lg">Workspaces</h2></div>
+    <div className={`w-64 border-r flex flex-col hidden md:flex ${darkMode ? 'bg-[#111322] border-[#3d4368]' : 'bg-white border-[#bec3d4]'}`}>
+        <div className={`p-4 border-b ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'} `}><h2 className="font-bold text-lg">Workspaces</h2></div>
         <div className="flex-1 overflow-y-auto p-3 space-y-6">
            <div>
              <div className="flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2"><span>Workspaces</span><Plus size={14} className="cursor-pointer hover:text-blue-500" onClick={createWorkspace} /></div>
@@ -649,8 +649,8 @@ const Sidebar = ({
                  onChange={(e) => setSelectedWorkspaceId(e.target.value)}
                  className={`w-full rounded-md border text-sm px-3 py-2 outline-none ${
                    darkMode
-                     ? "bg-[#1c213e] border-[#2a2d44] text-gray-200"
-                     : "bg-white border-gray-200 text-gray-700"
+                     ? "bg-[#1c213e] border-[#3d4368] text-gray-200"
+                     : "bg-white border-gray-300 text-gray-700"
                  }`}
                >
                  {workspaces.map((workspace) => (
@@ -660,7 +660,7 @@ const Sidebar = ({
                  ))}
                </select>
              ) : (
-               <div className={`text-xs px-3 py-2 rounded-md border ${darkMode ? "border-[#2a2d44] text-gray-500" : "border-gray-200 text-gray-500"}`}>
+               <div className={`text-xs px-3 py-2 rounded-md border ${darkMode ? "border-[#3d4368] text-gray-500" : "border-gray-300 text-gray-500"}`}>
                  No workspaces yet. Click + to create one.
                </div>
              )}
@@ -690,16 +690,16 @@ const Sidebar = ({
              </div>
            </div>
         </div>
-        <div className={`p-4 border-t ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'} flex items-center justify-between`}>
+        <div className={`p-4 border-t ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'} flex items-center justify-between`}>
              <span className="text-xs text-gray-500">Theme</span>
-             <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full ${darkMode ? 'bg-[#2a2d44] text-yellow-400' : 'bg-gray-100 text-gray-600'}`}>{darkMode ? <Sun size={16} /> : <Moon size={16} />}</button>
+             <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full ${darkMode ? 'bg-[#3d4368] text-yellow-400' : 'bg-gray-100 text-gray-600'}`}>{darkMode ? <Sun size={16} /> : <Moon size={16} />}</button>
         </div>
     </div>
 );
 
 const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSettingsMenuOpen, settingsMenuOpen, showWeekends, onToggleWeekends, showLabels, setShowLabels, colorBy, setColorBy, zoomLevel, handleZoomChange, rowHeight, setRowHeight, isChatOpen, setIsChatOpen, scrollToToday, updateEntityName, canEditEntityName = true, onExport, onExportJson, onImportJson, onResetData, authUser, onOpenAuth, onOpenMembers }) => (
     <>
-        <div className={`h-16 border-b px-8 flex items-center justify-between shrink-0 ${darkMode ? 'border-[#2a2d44] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'}`}>
+        <div className={`h-16 border-b px-8 flex items-center justify-between shrink-0 ${darkMode ? 'border-[#3d4368] bg-[#181b34]' : 'border-[#bec3d4] bg-white'}`}>
           <div>
             <div className="flex items-center gap-3 text-2xl font-bold">
               {activeEntity.type === 'workspace' ? <Briefcase className="text-gray-400" /> : <LayoutDashboard className="text-purple-500" />}
@@ -710,18 +710,18 @@ const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSetting
             <button
               onClick={onOpenMembers}
               className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
-                darkMode ? 'bg-[#1c213e] border-[#2a2d44] text-gray-200 hover:bg-[#202336]' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                darkMode ? 'bg-[#1c213e] border-[#3d4368] text-gray-200 hover:bg-[#202336]' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
               }`}
               disabled={!authUser || authUser.isAnonymous}
             >
               Members
             </button>
-            <button onClick={onOpenAuth} className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${darkMode ? 'bg-[#1c213e] border-[#2a2d44] text-gray-200 hover:bg-[#202336]' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+            <button onClick={onOpenAuth} className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${darkMode ? 'bg-[#1c213e] border-[#3d4368] text-gray-200 hover:bg-[#202336]' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
               {authUser ? (authUser.isAnonymous ? 'Guest' : (authUser.email || 'Account')) : 'Account'}
             </button>
           </div>
         </div>
-        <div className={`px-8 border-b flex items-center justify-between shrink-0 sticky top-0 z-[80] ${darkMode ? 'border-[#2a2d44] bg-[#181b34]' : 'border-[#d0d4e4] bg-white'}`}>
+        <div className={`px-8 border-b flex items-center justify-between shrink-0 sticky top-0 z-[80] ${darkMode ? 'border-[#3d4368] bg-[#181b34]' : 'border-[#bec3d4] bg-white'}`}>
            <div className="flex gap-6">
             <button onClick={() => setActiveTab('board')} className={`py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'board' ? 'border-[#0073ea] text-[#0073ea]' : 'border-transparent text-gray-500'}`}>Main Table</button>
             <button onClick={() => setActiveTab('gantt')} className={`py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'gantt' ? 'border-[#0073ea] text-[#0073ea]' : 'border-transparent text-gray-500'}`}>Gantt</button>
@@ -729,11 +729,11 @@ const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSetting
           <div className="flex items-center gap-6">
             {activeTab === 'gantt' && (
               <div className="flex gap-4">
-                  <button onClick={() => scrollToToday(true)} className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${darkMode ? 'bg-[#1c213e] border-[#2a2d44] text-gray-300 hover:bg-[#202336]' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'}`}><Target size={14} /> Today</button>
+                  <button onClick={() => scrollToToday(true)} className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${darkMode ? 'bg-[#1c213e] border-[#3d4368] text-gray-300 hover:bg-[#202336]' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}`}><Target size={14} /> Today</button>
                   <div className="relative">
-                     <button onClick={(e) => { e.stopPropagation(); setSettingsMenuOpen(!settingsMenuOpen); }} className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${settingsMenuOpen || !darkMode ? 'bg-white text-gray-700 border-gray-300' : 'bg-[#1c213e] border-[#2a2d44] text-gray-300'}`}><Settings size={14} /> Settings</button>
+                     <button onClick={(e) => { e.stopPropagation(); setSettingsMenuOpen(!settingsMenuOpen); }} className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${settingsMenuOpen || !darkMode ? 'bg-white text-gray-700 border-gray-300' : 'bg-[#1c213e] border-[#3d4368] text-gray-300'}`}><Settings size={14} /> Settings</button>
                      {settingsMenuOpen && (
-                         <div className={`absolute top-full right-0 mt-2 w-56 rounded-lg shadow-xl border z-[130] p-2 animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#2a2d44] border-[#3d4058]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+                         <div className={`absolute top-full right-0 mt-2 w-56 rounded-lg shadow-xl border z-[130] p-2 animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#3d4368] border-[#3d4058]' : 'bg-white border-gray-300'}`} onClick={e => e.stopPropagation()}>
                              <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide px-2">View Options</div>
                              <div className={`flex items-center justify-between p-2 rounded cursor-pointer ${darkMode ? 'hover:bg-[#1c213e]' : 'hover:bg-gray-50'}`} onClick={onToggleWeekends}>
                                  <span className={`text-sm ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>Show Weekends</span>
@@ -767,8 +767,8 @@ const AppHeader = ({ activeEntity, activeTab, setActiveTab, darkMode, setSetting
                          </div>
                      )}
                   </div>
-                 <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full border ${darkMode ? 'bg-[#1c213e] border-[#2a2d44] text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-600'}`}><ZoomOut size={14} /><input type="range" min="10" max="100" value={zoomLevel} onChange={handleZoomChange} className="w-20 h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-[#0073ea]" /><ZoomIn size={14} /></div>
-                 <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full border ${darkMode ? 'bg-[#1c213e] border-[#2a2d44] text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-600'}`}><ArrowUpDown size={14} /><input type="range" min="32" max="80" value={rowHeight} onChange={(e) => setRowHeight(Number(e.target.value))} className="w-20 h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-[#0073ea]" /></div>
+                 <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full border ${darkMode ? 'bg-[#1c213e] border-[#3d4368] text-gray-300' : 'bg-gray-50 border-gray-300 text-gray-600'}`}><ZoomOut size={14} /><input type="range" min="10" max="100" value={zoomLevel} onChange={handleZoomChange} className="w-20 h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-[#0073ea]" /><ZoomIn size={14} /></div>
+                 <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full border ${darkMode ? 'bg-[#1c213e] border-[#3d4368] text-gray-300' : 'bg-gray-50 border-gray-300 text-gray-600'}`}><ArrowUpDown size={14} /><input type="range" min="32" max="80" value={rowHeight} onChange={(e) => setRowHeight(Number(e.target.value))} className="w-20 h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-[#0073ea]" /></div>
               </div>
             )}
             {!isChatOpen && <button onClick={() => setIsChatOpen(true)} className="flex items-center gap-2 text-sm text-[#0073ea] font-medium hover:bg-blue-50 px-3 py-1 rounded"><MessageSquare size={16} /> Open AI Chat</button>}
@@ -788,37 +788,37 @@ const GroupHeaderRow = ({ darkMode, boardColumns, onStartResize }) => {
         darkMode ? 'hover:bg-blue-500/30' : 'hover:bg-blue-400/30'
     }`;
     return (
-        <div className={`flex border-b text-xs font-bold text-gray-500 uppercase tracking-wide ${darkMode ? 'bg-[#181b34] border-[#2a2d44]' : 'bg-white border-[#d0d4e4]'}`}>
+        <div className={`flex border-b text-xs font-bold text-gray-500 uppercase tracking-wide ${darkMode ? 'bg-[#181b34] border-[#3d4368]' : 'bg-white border-[#bec3d4]'}`}>
             <div
-                className={`border-r flex items-center justify-center py-2 relative min-w-0 ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}
+                className={`border-r flex items-center justify-center py-2 relative min-w-0 ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}
                 style={{ width: col.select }}
             >
                 <Square size={14} className="opacity-50" />
                 <div className={resizerClass} onMouseDown={handle('select')} />
             </div>
             <div
-                className={`border-r px-4 py-2 flex items-center relative min-w-0 ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}
+                className={`border-r px-4 py-2 flex items-center relative min-w-0 ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}
                 style={{ width: col.item }}
             >
                 <span className="truncate">Item</span>
                 <div className={resizerClass} onMouseDown={handle('item')} />
             </div>
             <div
-                className={`border-r px-4 py-2 flex items-center justify-center relative min-w-0 ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}
+                className={`border-r px-4 py-2 flex items-center justify-center relative min-w-0 ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}
                 style={{ width: col.person }}
             >
                 <span className="truncate">Person</span>
                 <div className={resizerClass} onMouseDown={handle('person')} />
             </div>
             <div
-                className={`border-r px-4 py-2 flex items-center justify-center relative min-w-0 ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}
+                className={`border-r px-4 py-2 flex items-center justify-center relative min-w-0 ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}
                 style={{ width: col.status }}
             >
                 <span className="truncate">Status</span>
                 <div className={resizerClass} onMouseDown={handle('status')} />
             </div>
             <div
-                className={`border-r px-4 py-2 flex items-center justify-center relative min-w-0 ${darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'}`}
+                className={`border-r px-4 py-2 flex items-center justify-center relative min-w-0 ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}
                 style={{ width: col.type }}
             >
                 <span className="truncate">Type</span>
@@ -836,13 +836,13 @@ const LabelEditorModal = ({ isOpen, onClose, items, onSave, title, darkMode }) =
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-            <div className={`w-96 rounded-lg shadow-2xl p-6 ${darkMode ? 'bg-[#2a2d44] text-white' : 'bg-white text-gray-800'}`} onClick={e => e.stopPropagation()}>
+            <div className={`w-96 rounded-lg shadow-2xl p-6 ${darkMode ? 'bg-[#3d4368] text-white' : 'bg-white text-gray-800'}`} onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">{title}</h3><X className="cursor-pointer opacity-50 hover:opacity-100" onClick={onClose} size={20}/></div>
                 <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
                     {items.map((item, idx) => (
                         <div key={item.id} className="flex gap-2 items-center">
                             <input type="color" value={item.color} onChange={(e) => { const newItems = [...items]; newItems[idx].color = e.target.value; onSave(newItems); }} className="w-8 h-8 rounded cursor-pointer bg-transparent border-0" />
-                            <input type="text" value={item.label} onChange={(e) => { const newItems = [...items]; newItems[idx].label = e.target.value; onSave(newItems); }} className={`flex-1 px-2 py-1.5 rounded border ${darkMode ? 'bg-[#181b34] border-[#3d4058]' : 'bg-gray-50 border-gray-200'}`} />
+                            <input type="text" value={item.label} onChange={(e) => { const newItems = [...items]; newItems[idx].label = e.target.value; onSave(newItems); }} className={`flex-1 px-2 py-1.5 rounded border ${darkMode ? 'bg-[#181b34] border-[#3d4058]' : 'bg-gray-50 border-gray-300'}`} />
                         </div>
                     ))}
                 </div>
@@ -869,7 +869,7 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit,
     };
 
     return (
-        <div className={`w-64 rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#161a33] border-[#2a2d44]' : 'bg-white border-gray-200'}`}>
+        <div className={`w-64 rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#161a33] border-[#3d4368]' : 'bg-white border-gray-300'}`}>
             <div className={`px-4 pt-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Status
             </div>
@@ -880,8 +880,8 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit,
                     placeholder="Search status…"
                     className={`w-full h-8 px-2.5 rounded-md text-xs outline-none border ${
                         darkMode
-                            ? 'bg-[#0f1224] border-[#2a2d44] text-gray-200 placeholder-gray-500'
-                            : 'bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400'
+                            ? 'bg-[#0f1224] border-[#3d4368] text-gray-200 placeholder-gray-500'
+                            : 'bg-gray-50 border-gray-300 text-gray-700 placeholder-gray-400'
                     }`}
                 />
             </div>
@@ -914,7 +914,7 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit,
                     );
                 })}
             </div>
-            <div className={`px-3 py-3 border-t ${darkMode ? 'border-[#2a2d44]' : 'border-gray-100'}`}>
+            <div className={`px-3 py-3 border-t ${darkMode ? 'border-[#3d4368]' : 'border-gray-100'}`}>
                 <div className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                     Add Label
                 </div>
@@ -928,8 +928,8 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit,
                         placeholder="New status…"
                         className={`flex-1 h-8 px-2.5 rounded-md text-xs outline-none border ${
                             darkMode
-                                ? 'bg-[#0f1224] border-[#2a2d44] text-gray-200 placeholder-gray-500'
-                                : 'bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400'
+                                ? 'bg-[#0f1224] border-[#3d4368] text-gray-200 placeholder-gray-500'
+                                : 'bg-gray-50 border-gray-300 text-gray-700 placeholder-gray-400'
                         }`}
                     />
                     <input
@@ -954,7 +954,7 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit,
                 onClick={(e) => { e.stopPropagation(); onEdit(); }}
                 className={`w-full px-4 py-2.5 text-[11px] font-semibold border-t flex items-center gap-2 transition-colors ${
                     darkMode
-                        ? 'border-[#2a2d44] text-blue-300 hover:bg-[#0f1224]'
+                        ? 'border-[#3d4368] text-blue-300 hover:bg-[#0f1224]'
                         : 'border-gray-100 text-blue-600 hover:bg-gray-50'
                 }`}
             >
@@ -981,7 +981,7 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onA
     };
 
     return (
-        <div className={`w-64 rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#161a33] border-[#2a2d44]' : 'bg-white border-gray-200'}`}>
+        <div className={`w-64 rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${darkMode ? 'bg-[#161a33] border-[#3d4368]' : 'bg-white border-gray-300'}`}>
             <div className={`px-4 pt-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Type
             </div>
@@ -992,8 +992,8 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onA
                     placeholder="Search type…"
                     className={`w-full h-8 px-2.5 rounded-md text-xs outline-none border ${
                         darkMode
-                            ? 'bg-[#0f1224] border-[#2a2d44] text-gray-200 placeholder-gray-500'
-                            : 'bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400'
+                            ? 'bg-[#0f1224] border-[#3d4368] text-gray-200 placeholder-gray-500'
+                            : 'bg-gray-50 border-gray-300 text-gray-700 placeholder-gray-400'
                     }`}
                 />
             </div>
@@ -1026,7 +1026,7 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onA
                     );
                 })}
             </div>
-            <div className={`px-3 py-3 border-t ${darkMode ? 'border-[#2a2d44]' : 'border-gray-100'}`}>
+            <div className={`px-3 py-3 border-t ${darkMode ? 'border-[#3d4368]' : 'border-gray-100'}`}>
                 <div className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                     Add Label
                 </div>
@@ -1040,8 +1040,8 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onA
                         placeholder="New type…"
                         className={`flex-1 h-8 px-2.5 rounded-md text-xs outline-none border ${
                             darkMode
-                                ? 'bg-[#0f1224] border-[#2a2d44] text-gray-200 placeholder-gray-500'
-                                : 'bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400'
+                                ? 'bg-[#0f1224] border-[#3d4368] text-gray-200 placeholder-gray-500'
+                                : 'bg-gray-50 border-gray-300 text-gray-700 placeholder-gray-400'
                         }`}
                     />
                     <input
@@ -1066,7 +1066,7 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onA
                 onClick={(e) => { e.stopPropagation(); onEdit(); }}
                 className={`w-full px-4 py-2.5 text-[11px] font-semibold border-t flex items-center gap-2 transition-colors ${
                     darkMode
-                        ? 'border-[#2a2d44] text-blue-300 hover:bg-[#0f1224]'
+                        ? 'border-[#3d4368] text-blue-300 hover:bg-[#0f1224]'
                         : 'border-gray-100 text-blue-600 hover:bg-gray-50'
                 }`}
             >
@@ -1201,8 +1201,8 @@ const UpdatesPanel = ({
     const canEditContent = roleRank >= ROLE_RANK.contributor;
 
     return (
-        <div className={`fixed top-0 right-0 bottom-0 w-[420px] z-[160] border-l shadow-2xl flex flex-col ${darkMode ? 'bg-[#151726] border-[#2a2d44]' : 'bg-white border-gray-200'}`}>
-            <div className={`px-5 py-4 border-b ${darkMode ? 'border-[#2a2d44]' : 'border-gray-200'}`}>
+        <div className={`fixed top-0 right-0 bottom-0 w-[420px] z-[160] border-l shadow-2xl flex flex-col ${darkMode ? 'bg-[#151726] border-[#3d4368]' : 'bg-white border-gray-300'}`}>
+            <div className={`px-5 py-4 border-b ${darkMode ? 'border-[#3d4368]' : 'border-gray-300'}`}>
                 <div className="flex items-center justify-between">
                     <div>
                         <div className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{target.name}</div>
@@ -1253,7 +1253,7 @@ const UpdatesPanel = ({
                 {activeTab === "updates" && (
                     <>
                         <div className="p-4 border-b border-transparent">
-                            <div className={`rounded-xl border ${darkMode ? 'border-[#2a2d44] bg-[#0f1224]' : 'border-gray-200 bg-gray-50'}`}>
+                            <div className={`rounded-xl border ${darkMode ? 'border-[#3d4368] bg-[#0f1224]' : 'border-gray-300 bg-gray-50'}`}>
                                 <div className="px-3 pt-2 flex items-center gap-2">
                                     <button
                                         className={`px-2.5 py-1 text-[11px] font-semibold rounded-full transition-colors ${
@@ -1315,8 +1315,8 @@ const UpdatesPanel = ({
                                                 disabled={!canEditContent}
                                                 className={`w-full h-8 px-2.5 rounded-md text-xs outline-none border ${
                                                     darkMode
-                                                        ? 'bg-[#0b0e1c] border-[#2a2d44] text-gray-200 placeholder-gray-500'
-                                                        : 'bg-white border-gray-200 text-gray-700 placeholder-gray-400'
+                                                        ? 'bg-[#0b0e1c] border-[#3d4368] text-gray-200 placeholder-gray-500'
+                                                        : 'bg-white border-gray-300 text-gray-700 placeholder-gray-400'
                                                 }`}
                                             />
                                         </div>
@@ -1342,8 +1342,8 @@ const UpdatesPanel = ({
                                                 disabled={!canEditContent}
                                                 className={`flex-1 h-8 px-2.5 rounded-md text-xs outline-none border ${
                                                     darkMode
-                                                        ? 'bg-[#0b0e1c] border-[#2a2d44] text-gray-200 placeholder-gray-500'
-                                                        : 'bg-white border-gray-200 text-gray-700 placeholder-gray-400'
+                                                        ? 'bg-[#0b0e1c] border-[#3d4368] text-gray-200 placeholder-gray-500'
+                                                        : 'bg-white border-gray-300 text-gray-700 placeholder-gray-400'
                                                 }`}
                                             />
                                             <button
@@ -1373,7 +1373,7 @@ const UpdatesPanel = ({
                                 <div className={`mt-6 text-sm text-center ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No updates yet</div>
                             )}
                             {updates.map((u) => (
-                                <div key={u.id} className={`mt-4 rounded-xl border ${darkMode ? 'border-[#2a2d44] bg-[#101328]' : 'border-gray-200 bg-white'} p-3`}>
+                                <div key={u.id} className={`mt-4 rounded-xl border ${darkMode ? 'border-[#3d4368] bg-[#101328]' : 'border-gray-300 bg-white'} p-3`}>
                                     <div className="flex items-start gap-3">
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${darkMode ? 'bg-[#1c213e] text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
                                             {(u.author || "U").charAt(0).toUpperCase()}
@@ -1421,7 +1421,7 @@ const UpdatesPanel = ({
                                         </button>
                                     </div>
                                     {openReplyId === u.id && (
-                                        <div className={`mt-3 rounded-lg border ${darkMode ? 'border-[#2a2d44] bg-[#0f1224]' : 'border-gray-200 bg-gray-50'} p-2`}>
+                                        <div className={`mt-3 rounded-lg border ${darkMode ? 'border-[#3d4368] bg-[#0f1224]' : 'border-gray-300 bg-gray-50'} p-2`}>
                                             <textarea
                                                 value={replyDrafts[u.id] || ""}
                                                 onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [u.id]: e.target.value }))}
@@ -1492,18 +1492,18 @@ const UpdatesPanel = ({
                             handleDropFiles(e);
                         }}
                     >
-                        <div className={`px-5 py-4 border-b ${darkMode ? 'border-[#2a2d44]' : 'border-gray-200'}`}>
+                        <div className={`px-5 py-4 border-b ${darkMode ? 'border-[#3d4368]' : 'border-gray-300'}`}>
                             <div className="flex items-center gap-3">
                                 <button
                                     onClick={() => canUploadFiles && fileInputRef.current?.click()}
                                     className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors ${
                                         canUploadFiles
                                             ? darkMode
-                                                ? 'border-[#2a2d44] text-gray-200 hover:bg-white/10'
-                                                : 'border-gray-200 text-gray-700 hover:bg-gray-100'
+                                                ? 'border-[#3d4368] text-gray-200 hover:bg-white/10'
+                                                : 'border-gray-300 text-gray-700 hover:bg-gray-100'
                                             : darkMode
-                                            ? 'border-[#2a2d44] text-gray-500'
-                                            : 'border-gray-200 text-gray-400'
+                                            ? 'border-[#3d4368] text-gray-500'
+                                            : 'border-gray-300 text-gray-400'
                                     }`}
                                     disabled={!canUploadFiles}
                                 >
@@ -1517,8 +1517,8 @@ const UpdatesPanel = ({
                                         placeholder="Search for files"
                                         className={`w-full h-9 pl-9 pr-3 rounded-md text-xs outline-none border ${
                                             darkMode
-                                                ? 'bg-[#0f1224] border-[#2a2d44] text-gray-200 placeholder-gray-500'
-                                                : 'bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400'
+                                                ? 'bg-[#0f1224] border-[#3d4368] text-gray-200 placeholder-gray-500'
+                                                : 'bg-gray-50 border-gray-300 text-gray-700 placeholder-gray-400'
                                         }`}
                                     />
                                 </div>
@@ -1528,7 +1528,7 @@ const UpdatesPanel = ({
                                         className={`p-2 rounded-md border ${
                                             fileView === "grid"
                                                 ? darkMode ? 'border-blue-500/40 text-blue-200 bg-blue-500/10' : 'border-blue-500/30 text-blue-700 bg-blue-50'
-                                                : darkMode ? 'border-[#2a2d44] text-gray-400 hover:bg-white/5' : 'border-gray-200 text-gray-500 hover:bg-gray-100'
+                                                : darkMode ? 'border-[#3d4368] text-gray-400 hover:bg-white/5' : 'border-gray-300 text-gray-500 hover:bg-gray-100'
                                         }`}
                                     >
                                         <LayoutGrid size={14} />
@@ -1538,7 +1538,7 @@ const UpdatesPanel = ({
                                         className={`p-2 rounded-md border ${
                                             fileView === "list"
                                                 ? darkMode ? 'border-blue-500/40 text-blue-200 bg-blue-500/10' : 'border-blue-500/30 text-blue-700 bg-blue-50'
-                                                : darkMode ? 'border-[#2a2d44] text-gray-400 hover:bg-white/5' : 'border-gray-200 text-gray-500 hover:bg-gray-100'
+                                                : darkMode ? 'border-[#3d4368] text-gray-400 hover:bg-white/5' : 'border-gray-300 text-gray-500 hover:bg-gray-100'
                                         }`}
                                     >
                                         <List size={14} />
@@ -1557,7 +1557,7 @@ const UpdatesPanel = ({
                         <div className="flex-1 overflow-y-auto px-6 py-8">
                             {!canViewFiles ? (
                                 <div className={`h-full rounded-2xl border flex flex-col items-center justify-center text-center gap-3 ${
-                                    darkMode ? 'border-[#2a2d44] bg-[#0f1224]' : 'border-gray-200 bg-gray-50'
+                                    darkMode ? 'border-[#3d4368] bg-[#0f1224]' : 'border-gray-300 bg-gray-50'
                                 }`}>
                                     <div className={`text-sm font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                                         You don't have access to files for this item.
@@ -1570,7 +1570,7 @@ const UpdatesPanel = ({
                                 <div className={`h-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center gap-4 ${
                                     isDraggingFiles
                                         ? darkMode ? 'border-blue-400/70 bg-blue-500/10' : 'border-blue-400 bg-blue-50'
-                                        : darkMode ? 'border-[#2a2d44] bg-[#0f1224]' : 'border-gray-200 bg-gray-50'
+                                        : darkMode ? 'border-[#3d4368] bg-[#0f1224]' : 'border-gray-300 bg-gray-50'
                                 }`}>
                                     <div className={`w-20 h-20 rounded-2xl flex items-center justify-center ${
                                         darkMode ? 'bg-[#1c213e] text-blue-300' : 'bg-blue-50 text-blue-600'
@@ -1606,7 +1606,7 @@ const UpdatesPanel = ({
                                             <div
                                                 key={file.id}
                                                 className={`rounded-xl border overflow-hidden ${
-                                                    darkMode ? 'border-[#2a2d44] bg-[#0f1224]' : 'border-gray-200 bg-white'
+                                                    darkMode ? 'border-[#3d4368] bg-[#0f1224]' : 'border-gray-300 bg-white'
                                                 } ${fileView === "list" ? "flex items-center gap-3 p-3" : ""} ${previewSrc ? "cursor-pointer" : ""}`}
                                                 onClick={() => {
                                                     if (!previewSrc) return;
@@ -1638,8 +1638,8 @@ const UpdatesPanel = ({
                                                                         onChange={(e) => onUpdateFileAccess?.(file.id, { minRole: e.target.value })}
                                                                         className={`text-[11px] px-2 py-1 rounded border outline-none ${
                                                                             darkMode
-                                                                                ? 'bg-[#0b0e1c] border-[#2a2d44] text-gray-200'
-                                                                                : 'bg-white border-gray-200 text-gray-700'
+                                                                                ? 'bg-[#0b0e1c] border-[#3d4368] text-gray-200'
+                                                                                : 'bg-white border-gray-300 text-gray-700'
                                                                         }`}
                                                                     >
                                                                         <option value="owner">Owner only</option>
@@ -1660,7 +1660,7 @@ const UpdatesPanel = ({
                                                                         className={`px-2 py-1 rounded border ${
                                                                             file.access?.allowShareLink
                                                                                 ? darkMode ? 'border-blue-500/40 text-blue-200 bg-blue-500/10' : 'border-blue-500/30 text-blue-700 bg-blue-50'
-                                                                                : darkMode ? 'border-[#2a2d44] text-gray-400' : 'border-gray-200 text-gray-500'
+                                                                                : darkMode ? 'border-[#3d4368] text-gray-400' : 'border-gray-300 text-gray-500'
                                                                         }`}
                                                                     >
                                                                         {file.access?.allowShareLink ? "Revoke link" : "Enable link"}
@@ -1673,7 +1673,7 @@ const UpdatesPanel = ({
                                                                                 navigator.clipboard?.writeText(link);
                                                                             }}
                                                                             className={`px-2 py-1 rounded border ${
-                                                                                darkMode ? 'border-[#2a2d44] text-gray-200' : 'border-gray-200 text-gray-600'
+                                                                                darkMode ? 'border-[#3d4368] text-gray-200' : 'border-gray-300 text-gray-600'
                                                                             }`}
                                                                         >
                                                                             Copy link
@@ -1704,8 +1704,8 @@ const UpdatesPanel = ({
                                                                         onChange={(e) => onUpdateFileAccess?.(file.id, { minRole: e.target.value })}
                                                                         className={`text-[11px] px-2 py-1 rounded border outline-none ${
                                                                             darkMode
-                                                                                ? 'bg-[#0b0e1c] border-[#2a2d44] text-gray-200'
-                                                                                : 'bg-white border-gray-200 text-gray-700'
+                                                                                ? 'bg-[#0b0e1c] border-[#3d4368] text-gray-200'
+                                                                                : 'bg-white border-gray-300 text-gray-700'
                                                                         }`}
                                                                     >
                                                                         <option value="owner">Owner only</option>
@@ -1727,7 +1727,7 @@ const UpdatesPanel = ({
                                                                     className={`px-2 py-1 rounded border ${
                                                                         file.access?.allowShareLink
                                                                             ? darkMode ? 'border-blue-500/40 text-blue-200 bg-blue-500/10' : 'border-blue-500/30 text-blue-700 bg-blue-50'
-                                                                            : darkMode ? 'border-[#2a2d44] text-gray-400' : 'border-gray-200 text-gray-500'
+                                                                            : darkMode ? 'border-[#3d4368] text-gray-400' : 'border-gray-300 text-gray-500'
                                                                     }`}
                                                                 >
                                                                     {file.access?.allowShareLink ? "Revoke link" : "Enable link"}
@@ -1750,7 +1750,7 @@ const UpdatesPanel = ({
                                     }`}
                                     onClick={(e) => e.stopPropagation()}
                                 >
-                                    <div className={`px-4 py-3 border-b flex items-center justify-between ${darkMode ? "border-[#2a2d44]" : "border-gray-200"}`}>
+                                    <div className={`px-4 py-3 border-b flex items-center justify-between ${darkMode ? "border-[#3d4368]" : "border-gray-300"}`}>
                                         <div className={`text-sm font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>{previewFile.name}</div>
                                         <button
                                             className={`text-xs px-2 py-1 rounded ${darkMode ? "hover:bg-white/10 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
@@ -1824,7 +1824,7 @@ const MembersModal = ({
         <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
             <div
                 className={`w-[640px] max-w-[95vw] max-h-[85vh] rounded-xl shadow-2xl p-6 overflow-y-auto ${
-                    darkMode ? "bg-[#1c213e] text-white border border-[#2a2d44]" : "bg-white text-gray-900 border border-gray-200"
+                    darkMode ? "bg-[#1c213e] text-white border border-[#3d4368]" : "bg-white text-gray-900 border border-gray-300"
                 }`}
                 onClick={(e) => e.stopPropagation()}
             >
@@ -1845,7 +1845,7 @@ const MembersModal = ({
                 </div>
 
                 {canManage ? (
-                    <div className={`p-4 rounded-lg border mb-5 ${darkMode ? "border-[#2a2d44] bg-[#151726]" : "border-gray-200 bg-gray-50"}`}>
+                    <div className={`p-4 rounded-lg border mb-5 ${darkMode ? "border-[#3d4368] bg-[#151726]" : "border-gray-300 bg-gray-50"}`}>
                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Invite member</div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                             <input
@@ -1853,14 +1853,14 @@ const MembersModal = ({
                                 onChange={(e) => setInviteEmail(e.target.value)}
                                 placeholder="email@company.com"
                                 className={`md:col-span-2 h-9 px-3 rounded-md text-xs outline-none border ${
-                                    darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200" : "bg-white border-gray-200 text-gray-700"
+                                    darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200" : "bg-white border-gray-300 text-gray-700"
                                 }`}
                             />
                             <select
                                 value={inviteRole}
                                 onChange={(e) => setInviteRole(e.target.value)}
                                 className={`h-9 px-2 rounded-md text-xs outline-none border ${
-                                    darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200" : "bg-white border-gray-200 text-gray-700"
+                                    darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200" : "bg-white border-gray-300 text-gray-700"
                                 }`}
                             >
                                 {ROLE_OPTIONS.map((opt) => (
@@ -1907,7 +1907,7 @@ const MembersModal = ({
                                     value={inviteBaseRole}
                                     onChange={(e) => setInviteBaseRole(e.target.value)}
                                     className={`h-9 px-2 rounded-md text-xs outline-none border ${
-                                        darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200" : "bg-white border-gray-200 text-gray-700"
+                                        darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200" : "bg-white border-gray-300 text-gray-700"
                                     }`}
                                 >
                                     <option value="contributor">Contributor</option>
@@ -1919,7 +1919,7 @@ const MembersModal = ({
                                     value={inviteUntil}
                                     onChange={(e) => setInviteUntil(e.target.value)}
                                     className={`h-9 px-2 rounded-md text-xs outline-none border ${
-                                        darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200" : "bg-white border-gray-200 text-gray-700"
+                                        darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200" : "bg-white border-gray-300 text-gray-700"
                                     }`}
                                 />
                                 <div className={`text-[11px] self-center ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
@@ -1946,7 +1946,7 @@ const MembersModal = ({
                         const isSelf = memberId === currentMember?.uid;
                         const untilValue = formatDateInput(member.accessUntil);
                         return (
-                            <div key={memberId} className={`p-3 rounded-lg border ${darkMode ? "border-[#2a2d44] bg-[#151726]" : "border-gray-200 bg-gray-50"}`}>
+                            <div key={memberId} className={`p-3 rounded-lg border ${darkMode ? "border-[#3d4368] bg-[#151726]" : "border-gray-300 bg-gray-50"}`}>
                                 <div className="flex flex-wrap items-center gap-3 justify-between">
                                     <div>
                                         <div className={`text-sm font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>{member.email || memberId}</div>
@@ -1962,7 +1962,7 @@ const MembersModal = ({
                                                 value={member.role}
                                                 onChange={(e) => onUpdateMember?.(project.id, memberId, { role: e.target.value })}
                                                 className={`h-8 px-2 rounded-md text-xs outline-none border ${
-                                                    darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200" : "bg-white border-gray-200 text-gray-700"
+                                                    darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200" : "bg-white border-gray-300 text-gray-700"
                                                 }`}
                                             >
                                                 {ROLE_OPTIONS.map((opt) => (
@@ -1975,7 +1975,7 @@ const MembersModal = ({
                                                         value={member.baseRole || "viewer"}
                                                         onChange={(e) => onUpdateMember?.(project.id, memberId, { baseRole: e.target.value })}
                                                         className={`h-8 px-2 rounded-md text-xs outline-none border ${
-                                                            darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200" : "bg-white border-gray-200 text-gray-700"
+                                                            darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200" : "bg-white border-gray-300 text-gray-700"
                                                         }`}
                                                     >
                                                         <option value="contributor">Contributor</option>
@@ -1990,7 +1990,7 @@ const MembersModal = ({
                                                             onUpdateMember?.(project.id, memberId, { accessUntil: date });
                                                         }}
                                                         className={`h-8 px-2 rounded-md text-xs outline-none border ${
-                                                            darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200" : "bg-white border-gray-200 text-gray-700"
+                                                            darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200" : "bg-white border-gray-300 text-gray-700"
                                                         }`}
                                                     />
                                                 </>
@@ -2016,7 +2016,7 @@ const MembersModal = ({
                     <div className="mt-6 space-y-3">
                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Pending invites</div>
                         {invites.filter((i) => i.status === "pending").map((invite) => (
-                            <div key={invite.id} className={`p-3 rounded-lg border flex items-center justify-between ${darkMode ? "border-[#2a2d44] bg-[#151726]" : "border-gray-200 bg-gray-50"}`}>
+                            <div key={invite.id} className={`p-3 rounded-lg border flex items-center justify-between ${darkMode ? "border-[#3d4368] bg-[#151726]" : "border-gray-300 bg-gray-50"}`}>
                                 <div>
                                     <div className={`text-sm font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>{invite.email}</div>
                                     <div className={`text-[11px] ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
@@ -2208,7 +2208,7 @@ const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDat
         <>
           <div className="fixed inset-0 z-[110]" onClick={() => setDatePickerOpen(null)}></div>
           <div
-            className={`fixed z-[120] w-64 rounded-lg shadow-2xl border p-3 flex flex-col gap-2 ${darkMode ? 'bg-[#2a2d44] border-[#3d4058] text-white' : 'bg-white border-gray-200 text-gray-800'}`}
+            className={`fixed z-[120] w-64 rounded-lg shadow-2xl border p-3 flex flex-col gap-2 ${darkMode ? 'bg-[#3d4368] border-[#3d4058] text-white' : 'bg-white border-gray-300 text-gray-800'}`}
             style={{ top, left }}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
@@ -2226,7 +2226,7 @@ const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDat
                 value={getInputValue(rangeStart)}
                 onChange={(e) => handleStartInputChange(e.target.value)}
                 className={`w-full px-2 py-1.5 rounded text-xs border ${
-                  darkMode ? 'bg-[#1c213e] border-[#3d4058] text-white' : 'bg-white border-gray-200 text-gray-800'
+                  darkMode ? 'bg-[#1c213e] border-[#3d4058] text-white' : 'bg-white border-gray-300 text-gray-800'
                 }`}
               />
               <label className="text-[10px] uppercase tracking-wide opacity-60">End date</label>
@@ -2235,7 +2235,7 @@ const DatePicker = ({ datePickerOpen, setDatePickerOpen, darkMode, updateTaskDat
                 value={rangeStart === null || rangeStart === undefined ? "" : getInputValue(displayEnd)}
                 onChange={(e) => handleEndInputChange(e.target.value)}
                 className={`w-full px-2 py-1.5 rounded text-xs border ${
-                  darkMode ? 'bg-[#1c213e] border-[#3d4058] text-white' : 'bg-white border-gray-200 text-gray-800'
+                  darkMode ? 'bg-[#1c213e] border-[#3d4058] text-white' : 'bg-white border-gray-300 text-gray-800'
                 }`}
               />
               <div className="text-[10px] uppercase tracking-wide opacity-60 mt-2">Quick pick (next 4 weeks)</div>
@@ -2315,12 +2315,12 @@ const BoardView = (props) => {
                                          onDragOver={(e) => canEdit && props.handleGroupDragOver(e, proj.id, group.id)}
                                          onDrop={(e) => canEdit && props.handleGroupDrop(e, proj.id, group.id)}
                                      >
-                                         <div onClick={() => toggleGroupCollapse(group.id)} className={`p-1 rounded cursor-pointer transition ${isGroupCollapsed ? '-rotate-90' : 'rotate-0'} ${darkMode ? 'hover:bg-[#2a2d44]' : 'hover:bg-gray-100'}`}><ChevronDown size={18} style={{ color: group.color }} /></div>
+                                         <div onClick={() => toggleGroupCollapse(group.id)} className={`p-1 rounded cursor-pointer transition ${isGroupCollapsed ? '-rotate-90' : 'rotate-0'} ${darkMode ? 'hover:bg-[#3d4368]' : 'hover:bg-gray-100'}`}><ChevronDown size={18} style={{ color: group.color }} /></div>
                                          <EditableText value={group.name} onChange={(e) => { if (!canEdit) return; updateGroupName(proj.id, group.id, e.target.value); }} className="text-lg font-medium" style={{ color: group.color }} />
                                          <span className="text-xs text-gray-500 font-normal ml-2">{groupTasks.length} Items</span>
                                      </div>
                                      {!isGroupCollapsed ? (
-                                         <div className={`shadow-sm border-l-4 rounded-tl-md rounded-bl-md overflow-visible ${darkMode ? 'border-[#2a2d44]' : 'border-gray-200'}`} style={{ borderLeftColor: group.color }}>
+                                         <div className={`shadow-sm border-l-4 rounded-tl-md rounded-bl-md overflow-visible ${darkMode ? 'border-[#3d4368]' : 'border-gray-300'}`} style={{ borderLeftColor: group.color }}>
                                              <GroupHeaderRow darkMode={darkMode} boardColumns={boardColumns} onStartResize={onStartResize} />
                                              {groupTasks.map((task) => {
                                                  const isExpanded = props.expandedItems.includes(task.id);
@@ -2333,18 +2333,18 @@ const BoardView = (props) => {
                                                      </React.Fragment>
                                                  );
                                              })}
-                                             <div className={`flex h-10 items-center border-b ${darkMode ? 'border-[#2a2d44] hover:bg-[#202336] bg-[#181b34]' : 'border-[#eceff8] hover:bg-[#f5f6f8] bg-white'}`}>
-                                                 <div className={`border-r h-full ${darkMode ? 'border-[#2a2d44]' : 'border-[#eceff8]'}`} style={{ width: boardColumns.select }}></div>
+                                             <div className={`flex h-10 items-center border-b ${darkMode ? 'border-[#3d4368] hover:bg-[#202336] bg-[#181b34]' : 'border-[#eceff8] hover:bg-[#f5f6f8] bg-white'}`}>
+                                                 <div className={`border-r h-full ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`} style={{ width: boardColumns.select }}></div>
                                                  <div className="px-4 flex items-center" style={{ width: boardColumns.item }}><input type="text" placeholder="+ Add Item" disabled={!canEdit} className={`w-full bg-transparent outline-none text-sm ${darkMode ? 'text-gray-400 placeholder-gray-600' : 'text-gray-500 placeholder-gray-400'} ${!canEdit ? 'cursor-not-allowed opacity-60' : ''}`} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { if (!canEdit) return; addTaskToGroup(proj.id, group.id, e.target.value); e.target.value = ''; }}} /></div>
                                              </div>
                                          </div>
                                       ) : (
-                                          <div className="h-10 flex items-center rounded-md overflow-hidden relative pl-4" style={{ backgroundColor: darkMode ? '#2a2d44' : '#f0f0f0' }}><div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: group.color }}></div><div className="flex-1 flex h-full">{statuses.map(s => { const count = groupTasks.filter(t => t.status === s.id).length; if (count === 0) return null; const pct = (count / groupTasks.length) * 100; return <div key={s.id} style={{ width: `${pct}%`, backgroundColor: s.color }} title={`${s.label}: ${count}`} className="h-full first:rounded-l-none" />; })}</div><div className={`w-32 flex items-center justify-center text-xs font-bold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{groupTasks.length} Items</div></div>
+                                          <div className="h-10 flex items-center rounded-md overflow-hidden relative pl-4" style={{ backgroundColor: darkMode ? '#3d4368' : '#f0f0f0' }}><div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: group.color }}></div><div className="flex-1 flex h-full">{statuses.map(s => { const count = groupTasks.filter(t => t.status === s.id).length; if (count === 0) return null; const pct = (count / groupTasks.length) * 100; return <div key={s.id} style={{ width: `${pct}%`, backgroundColor: s.color }} title={`${s.label}: ${count}`} className="h-full first:rounded-l-none" />; })}</div><div className={`w-32 flex items-center justify-center text-xs font-bold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{groupTasks.length} Items</div></div>
                                        )}
                                   </div>
                              );
                          })}
-                         <button onClick={() => canEdit && addGroup(proj.id)} className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded border transition-colors ${darkMode ? 'border-[#2a2d44] hover:bg-[#2a2d44] text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'} ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`} disabled={!canEdit}><Plus size={16} /> Add New Group</button>
+                         <button onClick={() => canEdit && addGroup(proj.id)} className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded border transition-colors ${darkMode ? 'border-[#3d4368] hover:bg-[#3d4368] text-gray-300' : 'border-gray-300 hover:bg-gray-50 text-gray-600'} ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`} disabled={!canEdit}><Plus size={16} /> Add New Group</button>
                     </div>
                 );
             })}
@@ -4546,7 +4546,7 @@ export default function ProjectManagerAI() {
                 {activeEntity?.type === 'workspace' && visibleProjects.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center px-6">
                         <div className={`w-[620px] max-w-full rounded-2xl border p-8 text-center ${
-                            darkMode ? 'bg-[#151726] border-[#2a2d44]' : 'bg-white border-gray-200'
+                            darkMode ? 'bg-[#151726] border-[#3d4368]' : 'bg-white border-gray-300'
                         }`}>
                             <div className={`text-xl font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
                                 This workspace has no boards yet
@@ -4622,7 +4622,7 @@ export default function ProjectManagerAI() {
                 )}
                 {authUser && !authUser.isAnonymous && activeProject && !activePermissions.canView && (
                     <div className="absolute inset-0 z-[140] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                        <div className={`w-[520px] max-w-[90vw] rounded-xl p-6 shadow-2xl ${darkMode ? 'bg-[#151726] border border-[#2a2d44]' : 'bg-white border border-gray-200'}`}>
+                        <div className={`w-[520px] max-w-[90vw] rounded-xl p-6 shadow-2xl ${darkMode ? 'bg-[#151726] border border-[#3d4368]' : 'bg-white border border-gray-300'}`}>
                             <div className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Access required</div>
                             <div className={`text-sm mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                                 {activeMember
@@ -4669,7 +4669,7 @@ export default function ProjectManagerAI() {
                 {authUser && !authUser.isAnonymous && activeProject && activePermissions.canView && !canEditActiveProject && (
                     <div className="absolute top-4 right-4 z-[135]">
                         <div className={`px-3 py-1.5 rounded-md text-xs font-semibold border ${
-                            darkMode ? 'bg-[#0f1224] border-[#2a2d44] text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-700'
+                            darkMode ? 'bg-[#0f1224] border-[#3d4368] text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-700'
                         }`}>
                             Read-only role: Viewer
                         </div>
@@ -4677,7 +4677,7 @@ export default function ProjectManagerAI() {
                 )}
             </div>
 
-            <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] shadow-2xl border rounded-xl px-4 py-2 flex items-center gap-3 transition-all duration-300 ease-in-out ${selectedItems.size > 0 ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0 pointer-events-none'} ${darkMode ? 'bg-[#111322] border-[#2a2d44]' : 'bg-white border-gray-200'}`}>
+            <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] shadow-2xl border rounded-xl px-4 py-2 flex items-center gap-3 transition-all duration-300 ease-in-out ${selectedItems.size > 0 ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0 pointer-events-none'} ${darkMode ? 'bg-[#111322] border-[#3d4368]' : 'bg-white border-gray-300'}`}>
                 <span className={`text-xs font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{selectedItems.size} selected</span>
                 <button onClick={deleteSelected} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"><Trash2 size={14} /> Delete</button>
             </div>
@@ -4711,7 +4711,7 @@ export default function ProjectManagerAI() {
             />
             {showDebugBadge && (
                 <div className={`fixed bottom-4 right-4 z-[260] rounded-lg text-[10px] font-mono shadow-lg ${
-                    darkMode ? "bg-[#0f1224] border border-[#2a2d44] text-gray-200" : "bg-white border border-gray-200 text-gray-700"
+                    darkMode ? "bg-[#0f1224] border border-[#3d4368] text-gray-200" : "bg-white border border-gray-300 text-gray-700"
                 }`}>
                     <button
                         onClick={() => setDebugExpanded((prev) => !prev)}

@@ -25,13 +25,13 @@ export function GroupHeaderRow({ boardColumns: col, onStartResize }: GroupHeader
   }`;
 
   const cellBase = `border-r flex items-center py-2 relative min-w-0 ${
-    darkMode ? 'border-[#2a2d44]' : 'border-[#d0d4e4]'
+    darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'
   }`;
 
   return (
     <div
       className={`flex border-b text-xs font-bold text-gray-500 uppercase tracking-wide ${
-        darkMode ? 'bg-[#181b34] border-[#2a2d44]' : 'bg-white border-[#d0d4e4]'
+        darkMode ? 'bg-[#181b34] border-[#3d4368]' : 'bg-white border-[#bec3d4]'
       }`}
     >
       <div className={`${cellBase} justify-center`} style={{ width: col.select }}>

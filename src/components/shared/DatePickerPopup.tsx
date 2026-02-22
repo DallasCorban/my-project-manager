@@ -185,7 +185,7 @@ export function DatePickerPopup() {
       <div
         ref={popupRef}
         className={`w-80 rounded-xl shadow-2xl border p-4 ${
-          darkMode ? 'bg-[#1c213e] border-[#2a2d44] text-gray-200' : 'bg-white border-gray-200 text-gray-800'
+          darkMode ? 'bg-[#1c213e] border-[#3d4368] text-gray-200' : 'bg-white border-gray-300 text-gray-800'
         }`}
       >
         {/* Header */}

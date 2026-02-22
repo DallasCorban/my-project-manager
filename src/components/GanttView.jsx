@@ -104,26 +104,26 @@ const GanttView = (props) => {
     <div
       ref={props.bodyRef}
       className={`flex-1 overflow-auto overflow-x-auto relative border-t ${
-        darkMode ? "bg-[#181b34] border-[#2a2d44]" : "bg-white border-[#d0d4e4]"
+        darkMode ? "bg-[#181b34] border-[#3d4368]" : "bg-white border-[#bec3d4]"
       }`}
     >
       <div
         className={`flex border-b sticky top-0 z-40 shadow-sm ${
-          darkMode ? "bg-[#181b34] border-[#2a2d44]" : "bg-white border-[#d0d4e4]"
+          darkMode ? "bg-[#181b34] border-[#3d4368]" : "bg-white border-[#bec3d4]"
         }`}
         style={{ width: `calc(20rem + ${visibleDays.length * zoomLevel}px)` }}
       >
         <div
           className={`w-80 border-r p-3 font-medium text-sm pl-6 sticky left-0 z-[200] flex-shrink-0 ${
             darkMode
-              ? "bg-[#1c213e] border-[#2a2d44] text-gray-300"
-              : "bg-[#f9fafc] border-[#d0d4e4] text-gray-500"
+              ? "bg-[#1c213e] border-[#3d4368] text-gray-300"
+              : "bg-[#f9fafc] border-[#bec3d4] text-gray-500"
           }`}
         >
           Board / Item
         </div>
         <div className="flex flex-col flex-1">
-          <div className={`flex h-8 border-b ${darkMode ? "border-[#2a2d44]" : "border-[#eceff8]"}`}>
+          <div className={`flex h-8 border-b ${darkMode ? "border-[#3d4368]" : "border-[#eceff8]"}`}>
             {visibleMonths.map((month, i) => (
               <div
                 key={i}
@@ -193,15 +193,15 @@ const GanttView = (props) => {
           return (
             <div
               key={project.id}
-              className={`border-b group/project ${darkMode ? "border-[#2a2d44] bg-[#181b34]" : "border-[#eceff8] bg-white"}`}
+              className={`border-b group/project ${darkMode ? "border-[#3d4368] bg-[#181b34]" : "border-[#eceff8] bg-white"}`}
             >
               <div
-                className={`flex border-b ${darkMode ? "border-[#2a2d44]" : "border-[#eceff8]"}`}
+                className={`flex border-b ${darkMode ? "border-[#3d4368]" : "border-[#eceff8]"}`}
                 style={{ height: `${Math.max(34, rowHeight - 2)}px` }}
               >
                 <div
                   className={`w-80 border-r px-4 sticky left-0 z-[200] flex items-center gap-2 flex-shrink-0 ${
-                    darkMode ? "border-[#2a2d44] bg-[#151726] text-gray-200" : "border-[#d0d4e4] bg-[#f9fafc] text-gray-800"
+                    darkMode ? "border-[#3d4368] bg-[#151726] text-gray-200" : "border-[#bec3d4] bg-[#f9fafc] text-gray-800"
                   }`}
                 >
                   <span className="text-[10px] uppercase tracking-wide opacity-60">Board</span>
@@ -231,7 +231,7 @@ const GanttView = (props) => {
                     >
                       <div
                         className={`w-80 border-r px-4 flex items-center gap-2 sticky left-0 z-[200] cursor-pointer flex-shrink-0 transition-colors ${
-                          darkMode ? "border-[#2a2d44] text-gray-200" : "border-[#d0d4e4] text-gray-700"
+                          darkMode ? "border-[#3d4368] text-gray-200" : "border-[#bec3d4] text-gray-700"
                         }`}
                         onClick={() => toggleGroupCollapse(group.id)}
                         style={{
@@ -400,14 +400,14 @@ const GanttView = (props) => {
                                   : darkMode
                                   ? "bg-[#181b34] hover:bg-[#202336]"
                                   : "bg-white hover:bg-[#f9fafc]"
-                              } ${darkMode ? "border-[#2a2d44]" : "border-[#eceff8]"}`}
+                              } ${darkMode ? "border-[#3d4368]" : "border-[#eceff8]"}`}
                               style={{ height: `${rowHeight}px` }}
                             >
                               <div
                                 className={`w-80 border-r flex-shrink-0 sticky left-0 z-[200] ${
                                   darkMode
-                                    ? "border-[#2a2d44] bg-inherit text-gray-300"
-                                    : "border-[#d0d4e4] bg-inherit text-gray-800"
+                                    ? "border-[#3d4368] bg-inherit text-gray-300"
+                                    : "border-[#bec3d4] bg-inherit text-gray-800"
                                 }`}
                                 style={{ opacity: isDragging ? 0.5 : 1, transition: "opacity 0.2s" }}
                               >
@@ -591,14 +591,14 @@ const GanttView = (props) => {
                                   <div
                                     key={sub.id}
                                     className={`flex h-10 items-center border-t relative ${
-                                      darkMode ? "border-[#2a2d44] hover:bg-[#202336]" : "border-[#eceff8] hover:bg-[#eceff8]"
+                                      darkMode ? "border-[#3d4368] hover:bg-[#202336]" : "border-[#eceff8] hover:bg-[#eceff8]"
                                     }`}
                                   >
                                     <div
                                       className={`w-80 border-r flex-shrink-0 sticky left-0 z-[200] ${
                                         darkMode
-                                          ? "border-[#2a2d44] bg-inherit text-gray-400"
-                                          : "border-[#d0d4e4] bg-inherit text-gray-500"
+                                          ? "border-[#3d4368] bg-inherit text-gray-400"
+                                          : "border-[#bec3d4] bg-inherit text-gray-500"
                                       }`}
                                       style={{ opacity: isSubDragging ? 0.5 : 1, transition: "opacity 0.2s" }}
                                     >
@@ -712,13 +712,13 @@ const GanttView = (props) => {
                     {SHOW_ADD_ITEM_ROW && !isGroupCollapsed && (
                       <div
                         className={`flex border-b relative ${
-                          darkMode ? "border-[#2a2d44]" : "border-[#eceff8]"
+                          darkMode ? "border-[#3d4368]" : "border-[#eceff8]"
                         }`}
                         style={{ height: `${rowHeight}px` }}
                       >
                         <div
                           className={`w-80 border-r flex-shrink-0 sticky left-0 z-[200] flex items-center px-4 ${
-                            darkMode ? "border-[#2a2d44] bg-[#181b34]" : "border-[#d0d4e4] bg-white"
+                            darkMode ? "border-[#3d4368] bg-[#181b34]" : "border-[#bec3d4] bg-white"
                           }`}
                         >
                           <div className="w-10 flex justify-center mr-2 opacity-50">

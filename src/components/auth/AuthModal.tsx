@@ -101,8 +101,8 @@ export function AuthModal() {
       <div
         className={`w-[420px] max-w-[92vw] rounded-xl shadow-2xl p-6 ${
           darkMode
-            ? 'bg-[#1c213e] text-white border border-[#2a2d44]'
-            : 'bg-white text-gray-900 border border-gray-200'
+            ? 'bg-[#1c213e] text-white border border-[#3d4368]'
+            : 'bg-white text-gray-900 border border-gray-300'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -146,7 +146,7 @@ export function AuthModal() {
                 onClick={() => setMode('signin')}
                 disabled={busy}
                 className={`px-4 py-2 rounded-md text-sm font-semibold border ${
-                  darkMode ? 'border-[#2a2d44] hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'
+                  darkMode ? 'border-[#3d4368] hover:bg-white/5' : 'border-gray-300 hover:bg-gray-50'
                 }`}
                 type="button"
               >
@@ -168,8 +168,8 @@ export function AuthModal() {
                 placeholder="you@example.com"
                 className={`w-full px-3 py-2 rounded-md text-sm outline-none ${
                   darkMode
-                    ? 'bg-[#111827] border border-[#2a2d44] text-white'
-                    : 'bg-white border border-gray-200 text-gray-900'
+                    ? 'bg-[#111827] border border-[#3d4368] text-white'
+                    : 'bg-white border border-gray-300 text-gray-900'
                 }`}
               />
             </div>
@@ -184,8 +184,8 @@ export function AuthModal() {
                 placeholder="••••••••"
                 className={`w-full px-3 py-2 rounded-md text-sm outline-none ${
                   darkMode
-                    ? 'bg-[#111827] border border-[#2a2d44] text-white'
-                    : 'bg-white border border-gray-200 text-gray-900'
+                    ? 'bg-[#111827] border border-[#3d4368] text-white'
+                    : 'bg-white border border-gray-300 text-gray-900'
                 }`}
               />
             </div>
@@ -212,7 +212,7 @@ export function AuthModal() {
               onClick={handleGoogleAuth}
               disabled={busy}
               className={`w-full px-4 py-2 rounded-md text-sm font-semibold border ${
-                darkMode ? 'border-[#2a2d44] hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'
+                darkMode ? 'border-[#3d4368] hover:bg-white/5' : 'border-gray-300 hover:bg-gray-50'
               }`}
             >
               Continue with Google

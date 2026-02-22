@@ -103,7 +103,7 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit,
   return (
     <div
       className={`w-64 rounded-2xl shadow-2xl border overflow-hidden ${
-        darkMode ? "bg-[#161a33] border-[#2a2d44]" : "bg-white border-gray-200"
+        darkMode ? "bg-[#161a33] border-[#3d4368]" : "bg-white border-gray-300"
       }`}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
@@ -117,7 +117,7 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit,
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search status…"
           className={`w-full h-8 px-2.5 rounded-md text-xs outline-none border ${
-            darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400"
+            darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-300 text-gray-700 placeholder-gray-400"
           }`}
         />
       </div>
@@ -148,7 +148,7 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit,
           );
         })}
       </div>
-      <div className={`px-3 py-3 border-t ${darkMode ? "border-[#2a2d44]" : "border-gray-100"}`}>
+      <div className={`px-3 py-3 border-t ${darkMode ? "border-[#3d4368]" : "border-gray-100"}`}>
         <div className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
           Add Label
         </div>
@@ -161,7 +161,7 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit,
             }}
             placeholder="New status…"
             className={`flex-1 h-8 px-2.5 rounded-md text-xs outline-none border ${
-              darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400"
+              darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-300 text-gray-700 placeholder-gray-400"
             }`}
           />
           <input
@@ -187,7 +187,7 @@ const StatusDropdown = ({ statuses, currentStatusId, onSelect, darkMode, onEdit,
           onEdit?.();
         }}
         className={`w-full px-4 py-2.5 text-[11px] font-semibold border-t flex items-center gap-2 transition-colors ${
-          darkMode ? "border-[#2a2d44] text-blue-300 hover:bg-[#0f1224]" : "border-gray-100 text-blue-600 hover:bg-gray-50"
+          darkMode ? "border-[#3d4368] text-blue-300 hover:bg-[#0f1224]" : "border-gray-100 text-blue-600 hover:bg-gray-50"
         }`}
         type="button"
       >
@@ -216,7 +216,7 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onA
   return (
     <div
       className={`w-64 rounded-2xl shadow-2xl border overflow-hidden ${
-        darkMode ? "bg-[#161a33] border-[#2a2d44]" : "bg-white border-gray-200"
+        darkMode ? "bg-[#161a33] border-[#3d4368]" : "bg-white border-gray-300"
       }`}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
@@ -230,7 +230,7 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onA
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search type…"
           className={`w-full h-8 px-2.5 rounded-md text-xs outline-none border ${
-            darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400"
+            darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-300 text-gray-700 placeholder-gray-400"
           }`}
         />
       </div>
@@ -261,7 +261,7 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onA
           );
         })}
       </div>
-      <div className={`px-3 py-3 border-t ${darkMode ? "border-[#2a2d44]" : "border-gray-100"}`}>
+      <div className={`px-3 py-3 border-t ${darkMode ? "border-[#3d4368]" : "border-gray-100"}`}>
         <div className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
           Add Label
         </div>
@@ -274,7 +274,7 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onA
             }}
             placeholder="New type…"
             className={`flex-1 h-8 px-2.5 rounded-md text-xs outline-none border ${
-              darkMode ? "bg-[#0f1224] border-[#2a2d44] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-200 text-gray-700 placeholder-gray-400"
+              darkMode ? "bg-[#0f1224] border-[#3d4368] text-gray-200 placeholder-gray-500" : "bg-gray-50 border-gray-300 text-gray-700 placeholder-gray-400"
             }`}
           />
           <input
@@ -300,7 +300,7 @@ const TypeDropdown = ({ jobTypes, currentTypeId, onSelect, darkMode, onEdit, onA
           onEdit?.();
         }}
         className={`w-full px-4 py-2.5 text-[11px] font-semibold border-t flex items-center gap-2 transition-colors ${
-          darkMode ? "border-[#2a2d44] text-blue-300 hover:bg-[#0f1224]" : "border-gray-100 text-blue-600 hover:bg-gray-50"
+          darkMode ? "border-[#3d4368] text-blue-300 hover:bg-[#0f1224]" : "border-gray-100 text-blue-600 hover:bg-gray-50"
         }`}
         type="button"
       >
@@ -383,7 +383,7 @@ export default function TaskRow({
         darkMode ? "bg-blue-500/10 border-blue-500/50" : "bg-blue-50 border-blue-300"
       } border-dashed opacity-50`
     : `flex border-b transition-colors items-center h-10 relative group ${
-        darkMode ? "border-[#2a2d44] hover:bg-[#202336] bg-[#1c213e]" : "border-[#eceff8] hover:bg-[#f0f0f0] bg-white"
+        darkMode ? "border-[#3d4368] hover:bg-[#202336] bg-[#1c213e]" : "border-[#eceff8] hover:bg-[#f0f0f0] bg-white"
       }`;
 
   return (
@@ -442,7 +442,7 @@ export default function TaskRow({
     >
       <div
         className={`border-r h-full flex items-center justify-center relative no-drag min-w-0 ${
-          darkMode ? "border-[#2a2d44]" : "border-[#eceff8]"
+          darkMode ? "border-[#3d4368]" : "border-[#eceff8]"
         }`}
         style={{ width: boardCol.select }}
         onMouseDown={(e) => e.stopPropagation()}
@@ -463,7 +463,7 @@ export default function TaskRow({
       </div>
 
       <div
-        className={`border-r h-full flex items-center px-4 relative min-w-0 ${darkMode ? "border-[#2a2d44]" : "border-[#eceff8]"}`}
+        className={`border-r h-full flex items-center px-4 relative min-w-0 ${darkMode ? "border-[#3d4368]" : "border-[#eceff8]"}`}
         style={{ width: boardCol.item }}
       >
         <div className={`flex items-center gap-2 w-full ${isSubitem ? "pl-10" : ""}`}>
@@ -520,7 +520,7 @@ export default function TaskRow({
       {activeTab === "board" && (
         <>
           <div
-            className={`border-r h-full flex items-center justify-center min-w-0 ${darkMode ? "border-[#2a2d44]" : "border-[#eceff8]"}`}
+            className={`border-r h-full flex items-center justify-center min-w-0 ${darkMode ? "border-[#3d4368]" : "border-[#eceff8]"}`}
             style={{ width: boardCol.person }}
           >
             <div className="w-6 h-6 rounded-full bg-gray-400 text-[10px] flex items-center justify-center text-white border-2 border-transparent shadow-sm">
@@ -529,7 +529,7 @@ export default function TaskRow({
           </div>
 
           <div
-            className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${darkMode ? "border-[#2a2d44]" : "border-[#eceff8]"}`}
+            className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${darkMode ? "border-[#3d4368]" : "border-[#eceff8]"}`}
             style={{ width: boardCol.status }}
           >
             <div
@@ -562,7 +562,7 @@ export default function TaskRow({
           </div>
 
           <div
-            className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${darkMode ? "border-[#2a2d44]" : "border-[#eceff8]"}`}
+            className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${darkMode ? "border-[#3d4368]" : "border-[#eceff8]"}`}
             style={{ width: boardCol.type }}
           >
             <div
