@@ -566,7 +566,7 @@ export function GanttView({
                             style={{
                               width: 320,
                               minWidth: 320,
-                              backgroundColor: `${group.color}${darkMode ? '33' : '1A'}`,
+                              backgroundColor: darkMode ? '#1c213e' : '#ffffff',
                               borderColor: darkMode ? '#2b2c32' : '#eceff8',
                             }}
                             {...groupListeners}
