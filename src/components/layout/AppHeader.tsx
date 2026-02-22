@@ -85,7 +85,7 @@ export function AppHeader({
           {/* Dark/light toggle — only shown when sidebar is hidden (mobile/tablet) */}
           <button
             onClick={toggleDarkMode}
-            className={`md:hidden p-2 rounded-lg transition-colors ${
+            className={`p-2 rounded-lg transition-colors ${
               darkMode ? 'text-yellow-400 hover:bg-white/10' : 'text-gray-500 hover:bg-gray-100'
             }`}
             title={darkMode ? 'Light mode' : 'Dark mode'}

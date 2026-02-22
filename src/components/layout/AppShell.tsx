@@ -184,7 +184,7 @@ export function AppShell() {
 
   return (
     <div
-      className={`h-screen flex overflow-hidden ${
+      className={`h-dvh flex overflow-hidden ${
         darkMode ? 'bg-[#181b34] text-gray-200' : 'bg-[#eceff8] text-[#323338]'
       }`}
     >
