@@ -227,7 +227,7 @@ export function GanttTaskRow({
         isDragging ? 'opacity-50' : ''
       } ${
         darkMode
-          ? 'border-b border-[#3d4368] hover:bg-[#202336]'
+          ? 'border-b border-[#343856] hover:bg-[#202336]'
           : 'border-b border-[#eceff8] hover:bg-[#f0f0f0]'
       } ${
         isBarSelected
@@ -251,7 +251,7 @@ export function GanttTaskRow({
         className={`sticky left-0 z-[200] flex items-center shrink-0 border-r px-3 overflow-hidden ${
           isDragging ? 'cursor-grabbing' : canEdit ? 'cursor-grab' : ''
         } ${labelBg} ${
-          darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'
+          darkMode ? 'border-[#343856]' : 'border-[#eceff8]'
         }`}
         style={{ width: 320, minWidth: 320, touchAction: 'none' }}
         onClick={handleLabelClick}
@@ -313,7 +313,7 @@ export function GanttTaskRow({
                     : day.isWeekend
                       ? darkMode ? 'bg-black/[0.10]' : 'bg-black/[0.05]'
                       : ''
-                } ${darkMode ? 'border-[#3d4368]' : 'border-[#eceff8]'}`}
+                } ${darkMode ? 'border-[#343856]' : 'border-[#eceff8]'}`}
                 style={{ width: zoomLevel, minWidth: zoomLevel }}
               />
             );

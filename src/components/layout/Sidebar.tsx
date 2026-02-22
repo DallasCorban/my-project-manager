@@ -41,7 +41,7 @@ export function Sidebar({
     return (
       <div
         className={`w-12 border-r flex flex-col items-center py-4 shrink-0 hidden md:flex ${
-          darkMode ? 'bg-[#111322] border-[#3d4368]' : 'bg-[#f7f7f9] border-[#bec3d4]'
+          darkMode ? 'bg-[#111322] border-[#343856]' : 'bg-[#f7f7f9] border-[#bec3d4]'
         }`}
       >
         <button
@@ -90,11 +90,11 @@ export function Sidebar({
   return (
     <div
       className={`w-60 border-r flex flex-col hidden md:flex shrink-0 transition-all ${
-        darkMode ? 'bg-[#111322] border-[#3d4368]' : 'bg-[#f7f7f9] border-[#bec3d4]'
+        darkMode ? 'bg-[#111322] border-[#343856]' : 'bg-[#f7f7f9] border-[#bec3d4]'
       }`}
     >
       {/* Workspace header */}
-      <div className={`px-4 py-3 border-b ${darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'}`}>
+      <div className={`px-4 py-3 border-b ${darkMode ? 'border-[#343856]' : 'border-[#bec3d4]'}`}>
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowWorkspaces(!showWorkspaces)}
@@ -126,7 +126,7 @@ export function Sidebar({
         {/* Workspace dropdown */}
         {showWorkspaces && (
           <div className={`mt-2 rounded-lg border overflow-hidden ${
-            darkMode ? 'bg-[#1c213e] border-[#3d4368]' : 'bg-white border-gray-300'
+            darkMode ? 'bg-[#1c213e] border-[#343856]' : 'bg-white border-gray-300'
           }`}>
             {workspaces.map((ws) => (
               <div
@@ -155,7 +155,7 @@ export function Sidebar({
               }}
               className={`px-3 py-2 text-xs cursor-pointer flex items-center gap-1.5 border-t transition-colors ${
                 darkMode
-                  ? 'border-[#3d4368] text-gray-400 hover:bg-white/5'
+                  ? 'border-[#343856] text-gray-400 hover:bg-white/5'
                   : 'border-gray-100 text-gray-500 hover:bg-gray-50'
               }`}
             >
@@ -219,7 +219,7 @@ export function Sidebar({
       {/* Footer — theme toggle + app name */}
       <div
         className={`px-4 py-3 border-t flex items-center justify-between ${
-          darkMode ? 'border-[#3d4368]' : 'border-[#bec3d4]'
+          darkMode ? 'border-[#343856]' : 'border-[#bec3d4]'
         }`}
       >
         <span className={`text-xs font-medium ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -228,7 +228,7 @@ export function Sidebar({
         <button
           onClick={toggleDarkMode}
           className={`p-1.5 rounded-lg transition-colors ${
-            darkMode ? 'bg-[#3d4368] text-yellow-400 hover:bg-[#3a3b44]' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            darkMode ? 'bg-[#343856] text-yellow-400 hover:bg-[#3a3b44]' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
           }`}
           title={darkMode ? 'Light mode' : 'Dark mode'}
         >
