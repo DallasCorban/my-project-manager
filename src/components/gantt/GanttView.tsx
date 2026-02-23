@@ -228,7 +228,10 @@ export function GanttView({
       e.preventDefault();
 
       const oldZoom = zoomLevelRef.current;
-      const step = e.deltaY > 0 ? -3 : 3;          // scroll down = zoom out
+      // Proportional step (~12% of current zoom, min 2) so zooming
+      // feels consistent at every level instead of sluggish when zoomed in.
+      const magnitude = Math.max(2, Math.round(oldZoom * 0.12));
+      const step = e.deltaY > 0 ? -magnitude : magnitude;
       const newZoom = Math.min(100, Math.max(10, oldZoom + step));
       if (newZoom === oldZoom) return;
 
