@@ -393,19 +393,25 @@ function GanttTaskRowInner({
           </div>
         )}
 
-        {/* Bin icon for resize-to-delete */}
-        {isThisBarDragging && dragState.isDeleteMode && dragState.deleteBinVisualSlot !== null && (
-          <div
-            className="absolute top-0 bottom-0 flex items-center justify-center pointer-events-none z-[15]"
-            style={{
-              left: dragState.deleteBinVisualSlot * zoomLevel,
-              width: Math.max(zoomLevel, actualRowHeight),
-              animation: 'deletePulse 1.2s ease-in-out infinite',
-            }}
-          >
-            <Trash2 size={Math.round(actualRowHeight * 0.45)} className="text-red-500" />
-          </div>
-        )}
+        {/* Bin icon for resize-to-delete — fixed 8px gap from bar edge */}
+        {isThisBarDragging && dragState.isDeleteMode && (() => {
+          const iconSize = Math.round(actualRowHeight * 0.45);
+          const gap = 8;
+          const binLeft = dragState.type === 'resize-right'
+            ? dragState.visualLeft - gap - iconSize
+            : dragState.visualLeft + dragState.visualWidth + gap;
+          return (
+            <div
+              className="absolute top-0 bottom-0 flex items-center pointer-events-none z-[15]"
+              style={{
+                left: binLeft,
+                animation: 'deletePulse 1.2s ease-in-out infinite',
+              }}
+            >
+              <Trash2 size={iconSize} className="text-red-500" />
+            </div>
+          );
+        })()}
 
         {/* Collapsed stack — unified parent + subitem bar layout */}
         {isCollapsed && hasSubitems && (

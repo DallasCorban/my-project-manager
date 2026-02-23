@@ -443,19 +443,25 @@ export function GanttSubitemStack({
                   );
                 }}
               />
-              {/* Bin icon for resize-to-delete */}
-              {isThisDragging && dragState.isDeleteMode && dragState.deleteBinVisualSlot !== null && (
-                <div
-                  className="absolute top-0 bottom-0 flex items-center justify-center pointer-events-none"
-                  style={{
-                    left: dragState.deleteBinVisualSlot * zoomLevel,
-                    width: Math.max(zoomLevel, rowHeight),
-                    animation: 'deletePulse 1.2s ease-in-out infinite',
-                  }}
-                >
-                  <Trash2 size={Math.round(rowHeight * 0.45)} className="text-red-500" />
-                </div>
-              )}
+              {/* Bin icon for resize-to-delete — fixed 8px gap from bar edge */}
+              {isThisDragging && dragState.isDeleteMode && (() => {
+                const iconSize = Math.round(rowHeight * 0.45);
+                const gap = 8;
+                const binLeft = dragState.type === 'resize-right'
+                  ? dragState.visualLeft - gap - iconSize
+                  : dragState.visualLeft + dragState.visualWidth + gap;
+                return (
+                  <div
+                    className="absolute top-0 bottom-0 flex items-center pointer-events-none"
+                    style={{
+                      left: binLeft,
+                      animation: 'deletePulse 1.2s ease-in-out infinite',
+                    }}
+                  >
+                    <Trash2 size={iconSize} className="text-red-500" />
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
