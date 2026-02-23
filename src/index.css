@@ -89,3 +89,8 @@ html.dark ::-webkit-scrollbar-corner {
   from { opacity: 1; }
   to   { opacity: 0; }
 }
+
+@keyframes deletePulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}

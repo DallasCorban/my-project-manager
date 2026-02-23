@@ -399,10 +399,11 @@ function GanttTaskRowInner({
             className="absolute top-0 bottom-0 flex items-center justify-center pointer-events-none z-[15]"
             style={{
               left: dragState.deleteBinVisualSlot * zoomLevel,
-              width: zoomLevel,
+              width: Math.max(zoomLevel, actualRowHeight),
+              animation: 'deletePulse 1.2s ease-in-out infinite',
             }}
           >
-            <Trash2 size={16} className="text-red-500" />
+            <Trash2 size={Math.round(actualRowHeight * 0.45)} className="text-red-500" />
           </div>
         )}
 

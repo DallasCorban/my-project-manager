@@ -449,10 +449,11 @@ export function GanttSubitemStack({
                   className="absolute top-0 bottom-0 flex items-center justify-center pointer-events-none"
                   style={{
                     left: dragState.deleteBinVisualSlot * zoomLevel,
-                    width: zoomLevel,
+                    width: Math.max(zoomLevel, rowHeight),
+                    animation: 'deletePulse 1.2s ease-in-out infinite',
                   }}
                 >
-                  <Trash2 size={16} className="text-red-500" />
+                  <Trash2 size={Math.round(rowHeight * 0.45)} className="text-red-500" />
                 </div>
               )}
             </div>
