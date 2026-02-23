@@ -112,6 +112,16 @@ export function useGanttDrag({
   const zoomRef = useRef(zoomLevel);
   zoomRef.current = zoomLevel;
 
+  // Settled overrides store pixel values from the old zoom level — stale after
+  // a zoom change. Clear them immediately so bars use store-computed positions.
+  const prevZoomRef = useRef(zoomLevel);
+  useEffect(() => {
+    if (zoomLevel !== prevZoomRef.current) {
+      prevZoomRef.current = zoomLevel;
+      setSettledOverrides({});
+    }
+  }, [zoomLevel]);
+
   const d2vRef = useRef(dayToVisualIndex);
   d2vRef.current = dayToVisualIndex;
 
