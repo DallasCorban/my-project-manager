@@ -157,6 +157,9 @@ export function GanttView({
 
   const bodyRef = useRef<HTMLDivElement>(null);
   const zoomFocusRef = useRef<number | null>(null);
+  /** Pixel offset from container left where the zoom anchor should stay.
+   *  null = viewport centre (slider zoom), set by Alt+scroll for mouse-anchored zoom. */
+  const zoomAnchorOffsetRef = useRef<number | null>(null);
   /** Groups that were open before a group drag started — restored on drop. */
   const preGroupDragOpen = useRef<string[]>([]);
   // Stores { dayIndex, fractionalOffset } so we can restore the exact scroll
@@ -208,6 +211,36 @@ export function GanttView({
       el.removeEventListener('pointercancel', onUp);
     };
   }, []);
+
+  // ── Alt + scroll-wheel zoom (anchored on mouse position) ────────────
+  const zoomLevelRef = useRef(zoomLevel);
+  zoomLevelRef.current = zoomLevel;
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (!e.altKey) return;
+      e.preventDefault();
+
+      const zoom = zoomLevelRef.current;
+      const step = e.deltaY > 0 ? -3 : 3;          // scroll down = zoom out
+      const newZoom = Math.min(100, Math.max(10, zoom + step));
+      if (newZoom === zoom) return;
+
+      // Compute visual-slot coordinate under the mouse cursor
+      const rect = el.getBoundingClientRect();
+      const mouseOffset = e.clientX - rect.left;     // px from container left
+      const absoluteX = el.scrollLeft + mouseOffset;  // px in the full timeline
+      zoomFocusRef.current = absoluteX / zoom;        // visual-slot anchor
+      zoomAnchorOffsetRef.current = mouseOffset;      // keep anchor at mouse pos
+
+      setZoomLevel(newZoom);
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [setZoomLevel]);
 
   const {
     rawDays,
@@ -443,10 +476,11 @@ export function GanttView({
     const container = bodyRef.current;
     if (!container) return;
     const sidebarWidth = 320;
-    const centerOffset = (container.clientWidth - sidebarWidth) / 2;
+    const offset = zoomAnchorOffsetRef.current ?? (container.clientWidth - sidebarWidth) / 2;
     const targetX = anchorVisual * zoomLevel;
-    container.scrollTo({ left: Math.max(0, targetX - centerOffset), behavior: 'auto' });
+    container.scrollTo({ left: Math.max(0, targetX - offset), behavior: 'auto' });
     zoomFocusRef.current = null;
+    zoomAnchorOffsetRef.current = null;
   }, [zoomLevel]);
 
   // Synchronous scroll restoration after weekends toggle — uses day index
