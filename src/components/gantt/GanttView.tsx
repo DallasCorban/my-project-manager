@@ -157,9 +157,9 @@ export function GanttView({
 
   const bodyRef = useRef<HTMLDivElement>(null);
   const zoomFocusRef = useRef<number | null>(null);
-  /** Pixel offset from container left where the zoom anchor should stay.
-   *  null = viewport centre (slider zoom), set by Alt+scroll for mouse-anchored zoom. */
-  const zoomAnchorOffsetRef = useRef<number | null>(null);
+  /** Scroll target for Alt+scroll wheel zoom — computed in the wheel handler,
+   *  applied before paint by a dedicated useLayoutEffect. */
+  const wheelScrollRef = useRef<number | null>(null);
   /** Groups that were open before a group drag started — restored on drop. */
   const preGroupDragOpen = useRef<string[]>([]);
   // Stores { dayIndex, fractionalOffset } so we can restore the exact scroll
@@ -213,6 +213,10 @@ export function GanttView({
   }, []);
 
   // ── Alt + scroll-wheel zoom (anchored on mouse position) ────────────
+  // Self-contained: computes the exact scrollLeft that keeps the point under
+  // the cursor fixed, stores it in wheelScrollRef, and a dedicated
+  // useLayoutEffect applies it before paint.  Doesn't touch zoomFocusRef
+  // so the slider's anchor system is unaffected.
   const zoomLevelRef = useRef(zoomLevel);
   zoomLevelRef.current = zoomLevel;
   useEffect(() => {
@@ -223,20 +227,25 @@ export function GanttView({
       if (!e.altKey) return;
       e.preventDefault();
 
-      const zoom = zoomLevelRef.current;
+      const oldZoom = zoomLevelRef.current;
       const step = e.deltaY > 0 ? -3 : 3;          // scroll down = zoom out
-      const newZoom = Math.min(100, Math.max(10, zoom + step));
-      if (newZoom === zoom) return;
+      const newZoom = Math.min(100, Math.max(10, oldZoom + step));
+      if (newZoom === oldZoom) return;
 
-      // Compute visual-slot coordinate under the mouse cursor.
-      // Subtract the 320px sticky sidebar so coordinates are in the
-      // pure timeline space (matching the slider zoom anchor maths).
-      const sidebarWidth = 320;
+      // Mouse position relative to Gantt body container
       const rect = el.getBoundingClientRect();
-      const mouseOffset = e.clientX - rect.left;                       // px from container left
-      const timelineX = el.scrollLeft + mouseOffset - sidebarWidth;    // px in pure timeline
-      zoomFocusRef.current = timelineX / zoom;                         // visual-slot anchor
-      zoomAnchorOffsetRef.current = mouseOffset - sidebarWidth;        // keep anchor at mouse pos
+      const mouseX = e.clientX - rect.left;
+
+      // Timeline pixel position under the cursor (subtracting the 320px
+      // sticky label column which doesn't scale with zoom)
+      const sidebarWidth = 320;
+      const timelineX = el.scrollLeft + mouseX - sidebarWidth;
+
+      // Scale by the zoom ratio so the same visual slot stays under the mouse
+      // newScrollLeft + mouseX - sidebar = timelineX * (newZoom / oldZoom)
+      wheelScrollRef.current = Math.max(0,
+        timelineX * (newZoom / oldZoom) - mouseX + sidebarWidth,
+      );
 
       setZoomLevel(newZoom);
     };
@@ -244,6 +253,14 @@ export function GanttView({
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [setZoomLevel]);
+
+  // Apply wheel-zoom scroll restoration before paint
+  useLayoutEffect(() => {
+    if (wheelScrollRef.current === null) return;
+    const container = bodyRef.current;
+    if (container) container.scrollLeft = wheelScrollRef.current;
+    wheelScrollRef.current = null;
+  }, [zoomLevel]);
 
   const {
     rawDays,
@@ -479,11 +496,10 @@ export function GanttView({
     const container = bodyRef.current;
     if (!container) return;
     const sidebarWidth = 320;
-    const offset = zoomAnchorOffsetRef.current ?? (container.clientWidth - sidebarWidth) / 2;
+    const centerOffset = (container.clientWidth - sidebarWidth) / 2;
     const targetX = anchorVisual * zoomLevel;
-    container.scrollTo({ left: Math.max(0, targetX - offset), behavior: 'auto' });
+    container.scrollTo({ left: Math.max(0, targetX - centerOffset), behavior: 'auto' });
     zoomFocusRef.current = null;
-    zoomAnchorOffsetRef.current = null;
   }, [zoomLevel]);
 
   // Synchronous scroll restoration after weekends toggle — uses day index
