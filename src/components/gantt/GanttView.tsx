@@ -163,6 +163,52 @@ export function GanttView({
   // position after weekends toggle without rounding drift.
   const weekendFocusRef = useRef<{ dayIndex: number; fraction: number } | null>(null);
 
+  // ── Middle-mouse panning ───────────────────────────────────────────
+  const [isPanning, setIsPanning] = useState(false);
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    let active = false;
+    let startX = 0;
+    let startY = 0;
+    let scrollX = 0;
+    let scrollY = 0;
+
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 1) return;          // middle-click only
+      e.preventDefault();
+      active = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      scrollX = el.scrollLeft;
+      scrollY = el.scrollTop;
+      el.setPointerCapture(e.pointerId);
+      setIsPanning(true);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!active) return;
+      el.scrollLeft = scrollX - (e.clientX - startX);
+      el.scrollTop = scrollY - (e.clientY - startY);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!active) return;
+      active = false;
+      el.releasePointerCapture(e.pointerId);
+      setIsPanning(false);
+    };
+
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+    return () => {
+      el.removeEventListener('pointerdown', onDown);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+    };
+  }, []);
+
   const {
     rawDays,
     visibleDays,
@@ -619,7 +665,9 @@ export function GanttView({
         <div
           ref={bodyRef}
           className="flex-1 overflow-auto"
+          style={isPanning ? { cursor: 'grabbing' } : undefined}
           onClick={() => setFocusedBar(null)}
+          onAuxClick={(e) => e.button === 1 && e.preventDefault()}
         >
           <div style={{ minWidth: totalTimelineWidth + 320 }}>
             {/* Sticky header with label column spacer */}
