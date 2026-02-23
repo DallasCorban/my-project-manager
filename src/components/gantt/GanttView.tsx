@@ -228,12 +228,15 @@ export function GanttView({
       const newZoom = Math.min(100, Math.max(10, zoom + step));
       if (newZoom === zoom) return;
 
-      // Compute visual-slot coordinate under the mouse cursor
+      // Compute visual-slot coordinate under the mouse cursor.
+      // Subtract the 320px sticky sidebar so coordinates are in the
+      // pure timeline space (matching the slider zoom anchor maths).
+      const sidebarWidth = 320;
       const rect = el.getBoundingClientRect();
-      const mouseOffset = e.clientX - rect.left;     // px from container left
-      const absoluteX = el.scrollLeft + mouseOffset;  // px in the full timeline
-      zoomFocusRef.current = absoluteX / zoom;        // visual-slot anchor
-      zoomAnchorOffsetRef.current = mouseOffset;      // keep anchor at mouse pos
+      const mouseOffset = e.clientX - rect.left;                       // px from container left
+      const timelineX = el.scrollLeft + mouseOffset - sidebarWidth;    // px in pure timeline
+      zoomFocusRef.current = timelineX / zoom;                         // visual-slot anchor
+      zoomAnchorOffsetRef.current = mouseOffset - sidebarWidth;        // keep anchor at mouse pos
 
       setZoomLevel(newZoom);
     };
