@@ -24,6 +24,8 @@ export interface DragState {
   currentVisualSlot: number;
   hasMoved: boolean;
   isDeleteMode: boolean;
+  /** Visual slot index where the bin icon should render during resize-to-delete (null when not in delete mode) */
+  deleteBinVisualSlot: number | null;
   origin: 'parent' | 'expanded' | null;
   /** Pixel position of the bar's left edge during drag (avoids store round-trip) */
   visualLeft: number;

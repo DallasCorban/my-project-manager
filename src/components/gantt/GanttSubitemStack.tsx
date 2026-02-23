@@ -18,6 +18,7 @@
 // - Z-indices are assigned sequentially per cluster with small gaps between.
 
 import { useCallback, useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { GanttBar } from './GanttBar';
 import { normalizeDateKey } from '../../utils/date';
@@ -442,6 +443,18 @@ export function GanttSubitemStack({
                   );
                 }}
               />
+              {/* Bin icon for resize-to-delete */}
+              {isThisDragging && dragState.isDeleteMode && dragState.deleteBinVisualSlot !== null && (
+                <div
+                  className="absolute top-0 bottom-0 flex items-center justify-center pointer-events-none"
+                  style={{
+                    left: dragState.deleteBinVisualSlot * zoomLevel,
+                    width: zoomLevel,
+                  }}
+                >
+                  <Trash2 size={16} className="text-red-500" />
+                </div>
+              )}
             </div>
           );
         })}

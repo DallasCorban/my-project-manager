@@ -166,12 +166,6 @@ export function GanttBar({
         </button>
       )}
 
-      {/* Delete mode overlay */}
-      {isDeleteMode && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-white/60 text-[10px] font-medium">Drop to clear</div>
-        </div>
-      )}
     </div>
   );
 }

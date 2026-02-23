@@ -26,6 +26,7 @@ const INITIAL_DRAG: DragState = {
   currentVisualSlot: 0,
   hasMoved: false,
   isDeleteMode: false,
+  deleteBinVisualSlot: null,
   origin: null,
   visualLeft: 0,
   visualWidth: 0,
@@ -212,6 +213,7 @@ export function useGanttDrag({
         currentVisualSlot: 0,
         hasMoved: false,
         isDeleteMode: false,
+        deleteBinVisualSlot: null,
         origin,
         visualLeft: origVisStart * zoom,
         visualWidth: origVisWidth * zoom,
@@ -278,11 +280,30 @@ export function useGanttDrag({
       // ── Resize left ──────────────────────────────────────────────
       if (ds.type === 'resize-left') {
         const origVisEnd = origVisStart + origVisWidth;
-        newVisStart = Math.max(0, Math.min(origVisEnd - 1, origVisStart + deltaVisual));
+        newVisStart = Math.max(0, origVisStart + deltaVisual);
         newVisWidth = origVisEnd - newVisStart;
         if (newVisWidth < 1) {
           isDelete = true;
+          // Clamp visual position to last occupied slot for rendering
+          newVisStart = origVisEnd - 1;
           newVisWidth = 1;
+        }
+      }
+
+      // ── Compute bin icon slot for resize-to-delete ─────────────
+      let deleteBinSlot: number | null = null;
+      if (isDelete) {
+        if (ds.type === 'resize-right') {
+          // Bin goes on the day BEFORE the original start
+          for (let raw = ds.originalStart - 1; raw >= ds.originalStart - 7; raw--) {
+            if (d2v[raw] !== undefined) { deleteBinSlot = d2v[raw]; break; }
+          }
+        } else if (ds.type === 'resize-left') {
+          // Bin goes on the day AFTER the original end
+          const endRaw = ds.originalStart + ds.originalDuration;
+          for (let raw = endRaw; raw <= endRaw + 7; raw++) {
+            if (d2v[raw] !== undefined) { deleteBinSlot = d2v[raw]; break; }
+          }
         }
       }
 
@@ -300,6 +321,7 @@ export function useGanttDrag({
         currentVisualSlot: deltaVisual,
         hasMoved: true,
         isDeleteMode: isDelete,
+        deleteBinVisualSlot: deleteBinSlot,
         visualLeft: newVisStart * zoom,
         visualWidth: Math.max(newVisWidth * zoom, zoom),
       }));

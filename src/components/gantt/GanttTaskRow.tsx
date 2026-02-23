@@ -3,7 +3,7 @@
 // Right side: bar area with day grid + GanttBar + creation preview.
 
 import { memo } from 'react';
-import { Square, CheckSquare } from 'lucide-react';
+import { Square, CheckSquare, Trash2 } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { useUIStore } from '../../stores/uiStore';
 import { ItemLabelCell } from '../shared/ItemLabelCell';
@@ -390,6 +390,19 @@ function GanttTaskRowInner({
               onSelect={onSelect}
               onOpenUpdates={onOpenUpdates}
             />
+          </div>
+        )}
+
+        {/* Bin icon for resize-to-delete */}
+        {isThisBarDragging && dragState.isDeleteMode && dragState.deleteBinVisualSlot !== null && (
+          <div
+            className="absolute top-0 bottom-0 flex items-center justify-center pointer-events-none z-[15]"
+            style={{
+              left: dragState.deleteBinVisualSlot * zoomLevel,
+              width: zoomLevel,
+            }}
+          >
+            <Trash2 size={16} className="text-red-500" />
           </div>
         )}
 
