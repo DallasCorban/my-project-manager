@@ -228,11 +228,15 @@ export function GanttView({
       e.preventDefault();
 
       const oldZoom = zoomLevelRef.current;
-      // Proportional step (~12% of current zoom, min 2) so zooming
-      // feels consistent at every level instead of sluggish when zoomed in.
-      const magnitude = Math.max(2, Math.round(oldZoom * 0.12));
-      const step = e.deltaY > 0 ? -magnitude : magnitude;
-      const newZoom = Math.min(100, Math.max(10, oldZoom + step));
+      // Geometric zoom (×1.15 per tick) — each scroll tick feels equally
+      // significant at every zoom level, like Figma / Google Maps.
+      const FACTOR = 1.15;
+      const raw = e.deltaY > 0 ? oldZoom / FACTOR : oldZoom * FACTOR;
+      let newZoom = Math.min(100, Math.max(10, Math.round(raw)));
+      // Guarantee at least 1px change so we never get stuck
+      if (newZoom === oldZoom) {
+        newZoom = Math.min(100, Math.max(10, oldZoom + (e.deltaY > 0 ? -1 : 1)));
+      }
       if (newZoom === oldZoom) return;
 
       // Mouse position relative to Gantt body container
