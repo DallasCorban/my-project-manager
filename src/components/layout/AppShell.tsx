@@ -240,13 +240,54 @@ export function AppShell() {
           )
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <p className={`text-lg font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            <div className="flex flex-col items-center text-center max-w-xs px-6">
+
+              {/* Board illustration */}
+              <div className={`mb-7 ${darkMode ? 'opacity-70' : 'opacity-100'}`}>
+                <svg width="128" height="100" viewBox="0 0 128 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  {/* Board background */}
+                  <rect x="6" y="14" width="116" height="72" rx="7" fill={darkMode ? '#323652' : '#e4e8f5'} />
+                  {/* Header bar */}
+                  <rect x="6" y="14" width="116" height="20" rx="7" fill={darkMode ? '#3d4268' : '#d0d5ea'} />
+                  <rect x="6" y="27" width="116" height="7" fill={darkMode ? '#3d4268' : '#d0d5ea'} />
+                  {/* Column labels */}
+                  <rect x="18" y="20" width="22" height="6" rx="2" fill={darkMode ? '#555b80' : '#b5bbcf'} />
+                  <rect x="54" y="20" width="22" height="6" rx="2" fill={darkMode ? '#555b80' : '#b5bbcf'} />
+                  <rect x="90" y="20" width="22" height="6" rx="2" fill={darkMode ? '#555b80' : '#b5bbcf'} />
+                  {/* Row 1 */}
+                  <rect x="18" y="42" width="20" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  <rect x="54" y="42" width="26" height="5" rx="1.5" fill="#3b82f6" opacity="0.65" />
+                  <rect x="90" y="42" width="16" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  {/* Row 2 */}
+                  <rect x="18" y="54" width="26" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  <rect x="54" y="54" width="18" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  <rect x="90" y="54" width="22" height="5" rx="1.5" fill="#3b82f6" opacity="0.4" />
+                  {/* Row 3 */}
+                  <rect x="18" y="66" width="16" height="5" rx="1.5" fill="#3b82f6" opacity="0.3" />
+                  <rect x="54" y="66" width="22" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  <rect x="90" y="66" width="20" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  {/* Plus badge */}
+                  <circle cx="106" cy="14" r="13" fill="#2563eb" />
+                  <path d="M106 8.5V19.5M100.5 14H111.5" stroke="white" strokeWidth="2.2" strokeLinecap="round" />
+                </svg>
+              </div>
+
+              <h3 className={`text-[15px] font-semibold mb-1.5 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                 No board selected
+              </h3>
+              <p className={`text-sm leading-relaxed mb-6 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                Boards help you organise tasks, track progress, and collaborate with your team.
               </p>
-              <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                Select a board from the sidebar or create a new one.
-              </p>
+              <button
+                onClick={handleCreateBoard}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
+              >
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <path d="M6.5 1V12M1 6.5H12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                Create a board
+              </button>
+
             </div>
           </div>
         )}

@@ -6,6 +6,7 @@ import {
   signOut as firebaseSignOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   GoogleAuthProvider,
   signInWithPopup,
   linkWithCredential,
@@ -64,6 +65,12 @@ export const upgradeWithGoogle = async (): Promise<void> => {
   if (!auth?.currentUser) throw new Error('No active user session.');
   const provider = new GoogleAuthProvider();
   await linkWithPopup(auth.currentUser, provider);
+};
+
+/** Send a password reset email */
+export const sendPasswordReset = async (email: string): Promise<void> => {
+  if (!auth) throw new Error('Firebase auth is not available.');
+  await sendPasswordResetEmail(auth, email);
 };
 
 /** Sign out */

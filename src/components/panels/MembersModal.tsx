@@ -6,6 +6,8 @@ import { X, Users, Shield, Clock } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useMemberStore } from '../../stores/memberStore';
 import { getProjectPermissions } from '../../stores/memberStore';
+import { useAuthStore } from '../../stores/authStore';
+import { createInvite } from '../../services/firebase/inviteSync';
 
 import {
   getMemberEffectiveRole,
@@ -33,7 +35,39 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
   const permissions = getProjectPermissions(projectId);
   const canManage = permissions.canManageMembers;
 
-  const [_inviteEmail, setInviteEmail] = useState('');
+  const user = useAuthStore((s) => s.user);
+
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('editor');
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [inviteSuccess, setInviteSuccess] = useState('');
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) {
+      setInviteError('Enter an email address.');
+      return;
+    }
+    if (!user || user.isAnonymous) return;
+    setInviteError('');
+    setInviteSuccess('');
+    setInviteBusy(true);
+    try {
+      await createInvite({
+        projectId,
+        email: inviteEmail.trim(),
+        role: inviteRole,
+        inviterUid: user.uid,
+        inviterEmail: user.email || '',
+      });
+      setInviteSuccess(`Invite sent to ${inviteEmail.trim()}`);
+      setInviteEmail('');
+    } catch (err) {
+      setInviteError((err as Error)?.message || 'Failed to send invite.');
+    } finally {
+      setInviteBusy(false);
+    }
+  };
 
   if (!membersModalOpen) return null;
 
@@ -89,19 +123,46 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
               <input
                 type="email"
                 placeholder="Invite by email..."
-                onChange={(e) => setInviteEmail(e.target.value)}
+                value={inviteEmail}
+                onChange={(e) => { setInviteEmail(e.target.value); setInviteError(''); setInviteSuccess(''); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleInvite(); }}
+                disabled={inviteBusy}
                 className={`flex-1 px-3 py-2 rounded text-sm border ${
                   darkMode
                     ? 'bg-[#181b34] border-[#323652] text-gray-200 placeholder-gray-500'
                     : 'bg-white border-gray-300 text-gray-800 placeholder-gray-400'
-                }`}
+                } disabled:opacity-60`}
               />
-              <button
-                className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                disabled={inviteBusy}
+                className={`px-2 py-2 rounded text-sm border ${
+                  darkMode
+                    ? 'bg-[#181b34] border-[#323652] text-gray-200'
+                    : 'bg-white border-gray-300 text-gray-800'
+                } disabled:opacity-60`}
               >
-                Invite
+                {ROLE_OPTIONS
+                  .filter((o) => o.value !== 'owner' && o.value !== 'contractor')
+                  .map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+              </select>
+              <button
+                onClick={() => void handleInvite()}
+                disabled={inviteBusy}
+                className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors disabled:opacity-60"
+              >
+                {inviteBusy ? 'Sending…' : 'Invite'}
               </button>
             </div>
+            {inviteError && (
+              <p className="mt-1.5 text-xs text-red-500">{inviteError}</p>
+            )}
+            {inviteSuccess && (
+              <p className="mt-1.5 text-xs text-green-500">{inviteSuccess}</p>
+            )}
           </div>
         )}
 
