@@ -89,6 +89,7 @@ export function AuthModal() {
 
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -109,6 +110,7 @@ export function AuthModal() {
     setMode(next);
     setError('');
     setConfirmPassword('');
+    setDisplayName('');
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -125,9 +127,9 @@ export function AuthModal() {
     setBusy(true);
     try {
       if (mode === 'upgrade') {
-        await upgradeWithEmail(email, password);
+        await upgradeWithEmail(email, password, displayName);
       } else if (mode === 'signup') {
-        await signUpWithEmail(email, password);
+        await signUpWithEmail(email, password, displayName);
       } else if (mode === 'signin') {
         await signInWithEmail(email, password);
       }
@@ -333,13 +335,18 @@ export function AuthModal() {
                 darkMode ? 'bg-white/5' : 'bg-gray-50'
               }`}>
                 <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold shrink-0">
-                  {(user?.email ?? '?').charAt(0).toUpperCase()}
+                  {(user?.displayName ?? user?.email ?? '?').charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className={`text-sm font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {user?.displayName && (
+                    <p className={`text-sm font-semibold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {user.displayName}
+                    </p>
+                  )}
+                  <p className={`text-sm truncate ${user?.displayName ? (darkMode ? 'text-gray-400' : 'text-gray-500') : (darkMode ? 'text-white font-medium' : 'text-gray-900 font-medium')}`}>
                     {user?.email}
                   </p>
-                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                     Synced across devices
                   </p>
                 </div>
@@ -398,6 +405,21 @@ export function AuthModal() {
                       {' '}to keep your current work.
                     </p>
                   </div>
+                </div>
+              )}
+
+              {/* Display name — sign-up modes only */}
+              {isSignupLike && (
+                <div>
+                  <label className={labelClass}>Your name</label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="e.g. Alex Smith"
+                    autoFocus
+                    className={inputClass}
+                  />
                 </div>
               )}
 

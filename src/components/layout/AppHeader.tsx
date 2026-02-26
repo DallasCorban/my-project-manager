@@ -115,17 +115,45 @@ export function AppHeader({
             <MessageCircle size={16} />
           </button>
 
-          <button
-            onClick={() => setMembersModalOpen(true)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
-              darkMode
-                ? 'bg-[#1c213e] border-[#323652] text-gray-200 hover:bg-[#202336]'
-                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-            }`}
-            disabled={!user || user.isAnonymous}
-          >
-            Members
-          </button>
+          {/* Members button — redirects guests to auth modal with tooltip */}
+          <div className="relative group">
+            <button
+              onClick={() => {
+                if (!user || user.isAnonymous) {
+                  openAuthModal();
+                } else {
+                  setMembersModalOpen(true);
+                }
+              }}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                !user || user.isAnonymous
+                  ? darkMode
+                    ? 'border-[#323652] text-gray-600 opacity-60 hover:opacity-80'
+                    : 'border-gray-200 text-gray-400 opacity-60 hover:opacity-80'
+                  : darkMode
+                    ? 'bg-[#1c213e] border-[#323652] text-gray-200 hover:bg-[#202336]'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Members
+            </button>
+            {/* Tooltip — only shown for guests */}
+            {(!user || user.isAnonymous) && (
+              <div
+                className={`pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 ${
+                  darkMode ? 'bg-[#2a2f52] text-gray-200' : 'bg-gray-800 text-white'
+                }`}
+              >
+                Sign in to invite &amp; manage members
+                {/* Arrow */}
+                <span
+                  className={`absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent ${
+                    darkMode ? 'border-t-[#2a2f52]' : 'border-t-gray-800'
+                  }`}
+                />
+              </div>
+            )}
+          </div>
           <button
             onClick={openAuthModal}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${

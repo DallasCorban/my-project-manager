@@ -67,6 +67,16 @@ export const ROLE_OPTIONS: RoleOption[] = [
   { value: 'contractor', label: 'Contractor' },
 ];
 
+/** Short description of what each role can do — shown in invite UI and tooltips. */
+export const ROLE_DESCRIPTIONS: Record<string, string> = {
+  owner:       'Full control — can delete the project and manage all members.',
+  admin:       'Can invite members, change roles, and edit everything.',
+  editor:      'Can create, edit, and delete tasks and groups.',
+  contributor: 'Can add tasks and post updates, but cannot delete.',
+  viewer:      'Read-only access — can view tasks and updates.',
+  contractor:  'Time-limited access that expires on a set date.',
+};
+
 /** Tailwind classes for role badge chips — single source of truth used in
  *  AppHeader and MembersModal so colors are always in sync. */
 export const ROLE_BADGE_CLASSES: Record<string, string> = {

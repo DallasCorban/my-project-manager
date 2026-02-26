@@ -7,6 +7,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
   linkWithCredential,
@@ -40,10 +41,13 @@ export const signInWithEmail = async (email: string, password: string): Promise<
   await signInWithEmailAndPassword(auth, email, password);
 };
 
-/** Create a new account with email/password */
-export const signUpWithEmail = async (email: string, password: string): Promise<void> => {
+/** Create a new account with email/password (optionally set display name) */
+export const signUpWithEmail = async (email: string, password: string, displayName?: string): Promise<void> => {
   if (!auth) throw new Error('Firebase auth is not available.');
-  await createUserWithEmailAndPassword(auth, email, password);
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  if (displayName?.trim()) {
+    await updateProfile(cred.user, { displayName: displayName.trim() });
+  }
 };
 
 /** Sign in with Google OAuth */
@@ -53,11 +57,14 @@ export const signInWithGoogle = async (): Promise<void> => {
   await signInWithPopup(auth, provider);
 };
 
-/** Upgrade anonymous account to email/password */
-export const upgradeWithEmail = async (email: string, password: string): Promise<void> => {
+/** Upgrade anonymous account to email/password (optionally set display name) */
+export const upgradeWithEmail = async (email: string, password: string, displayName?: string): Promise<void> => {
   if (!auth?.currentUser) throw new Error('No active user session.');
   const credential = EmailAuthProvider.credential(email, password);
   await linkWithCredential(auth.currentUser, credential);
+  if (displayName?.trim()) {
+    await updateProfile(auth.currentUser, { displayName: displayName.trim() });
+  }
 };
 
 /** Upgrade anonymous account to Google */

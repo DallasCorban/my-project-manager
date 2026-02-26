@@ -16,7 +16,7 @@ import {
 } from '../../services/permissions';
 import { updateMemberRole } from '../../services/firebase/inviteSync';
 import { ContractorDatePopover } from '../shared/ContractorDatePopover';
-import { ROLE_OPTIONS, ROLE_BADGE_CLASSES } from '../../config/constants';
+import { ROLE_OPTIONS, ROLE_BADGE_CLASSES, ROLE_DESCRIPTIONS } from '../../config/constants';
 import type { Member } from '../../types/member';
 
 const EMPTY_MEMBERS: Member[] = [];
@@ -157,6 +157,15 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
                 {inviteBusy ? 'Sending…' : 'Invite'}
               </button>
             </div>
+            {/* Role description — updates live as role changes */}
+            {!inviteError && !inviteSuccess && (
+              <p className={`mt-1.5 text-[11px] leading-relaxed ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                <span className={`font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {ROLE_OPTIONS.find(o => o.value === inviteRole)?.label}:
+                </span>{' '}
+                {ROLE_DESCRIPTIONS[inviteRole] ?? ''}
+              </p>
+            )}
             {inviteError && (
               <p className="mt-1.5 text-xs text-red-500">{inviteError}</p>
             )}
@@ -336,14 +345,26 @@ function MemberRow({
         </div>
       </div>
 
-      {/* Role badge */}
+      {/* Role badge with description tooltip */}
       {(() => {
         const displayRole = isContractor ? 'contractor' : member.role;
         const badgeClasses = ROLE_BADGE_CLASSES[displayRole] ?? ROLE_BADGE_CLASSES.viewer;
         return (
-          <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded ${badgeClasses}`}>
-            {member.role === 'owner' && <Shield size={10} />}
-            <span className="capitalize">{displayRole}</span>
+          <div className="relative group/badge">
+            <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded cursor-default ${badgeClasses}`}>
+              {member.role === 'owner' && <Shield size={10} />}
+              <span className="capitalize">{displayRole}</span>
+            </div>
+            {/* Tooltip */}
+            <div className={`pointer-events-none absolute bottom-full right-0 mb-2 w-52 px-2.5 py-2 rounded-lg text-[11px] leading-relaxed opacity-0 group-hover/badge:opacity-100 transition-opacity duration-150 z-50 ${
+              darkMode ? 'bg-[#2a2f52] text-gray-300' : 'bg-gray-800 text-white'
+            }`}>
+              <span className="font-semibold capitalize">{displayRole}: </span>
+              {ROLE_DESCRIPTIONS[displayRole] ?? ''}
+              <span className={`absolute top-full right-4 border-4 border-transparent ${
+                darkMode ? 'border-t-[#2a2f52]' : 'border-t-gray-800'
+              }`} />
+            </div>
           </div>
         );
       })()}
