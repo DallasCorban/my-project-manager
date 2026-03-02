@@ -55,10 +55,12 @@ export function MembersModal({ projectId, projectName }: MembersModalProps) {
     try {
       await createInvite({
         projectId,
+        projectName,
         email: inviteEmail.trim(),
         role: inviteRole,
         inviterUid: user.uid,
         inviterEmail: user.email || '',
+        inviterName: user.displayName || undefined,
       });
       setInviteSuccess(`Invite sent to ${inviteEmail.trim()}`);
       setInviteEmail('');
