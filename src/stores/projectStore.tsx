@@ -24,8 +24,8 @@ const TODAY_KEY = getTodayKey();
 const dateKeyFromRelativeIndex = (relIndex: number): string | null =>
   addDaysToKey(TODAY_KEY, relIndex);
 
-// --- Initial demo data ---
-const INITIAL_PROJECTS: Board[] = [
+// --- Demo data (kept for potential future use, e.g. "Load sample project") ---
+export const DEMO_PROJECTS: Board[] = [
   {
     id: 'p1',
     workspaceId: 'w1',
@@ -90,7 +90,7 @@ function updateTaskField(
 export function useProjectData() {
   const [projects, setProjects] = useHybridState<Board[]>(
     'pmai_projects',
-    INITIAL_PROJECTS,
+    [],
     'projects',
   );
 

@@ -5,9 +5,12 @@ import { ProjectDataProvider } from '../stores/projectStore';
 import { WorkspaceDataProvider } from '../stores/workspaceStore';
 import { AppShell } from '../components/layout/AppShell';
 import { AuthModal } from '../components/auth/AuthModal';
+import { LandingPage } from '../components/auth/LandingPage';
+import { OnboardingModal } from '../components/auth/OnboardingModal';
 
 export default function App() {
   const isLoading = useAuthStore((s) => s.isLoading);
+  const user = useAuthStore((s) => s.user);
 
   // Initialize auth listener + dark mode on mount
   useEffect(() => {
@@ -74,11 +77,29 @@ export default function App() {
     );
   }
 
+  // ── Auth gate ──
+  // Unauthenticated or anonymous users see the landing page.
+  // AuthModal renders on top so sign-in/sign-up works from the landing page.
+  if (!user || user.isAnonymous) {
+    const params = new URLSearchParams(window.location.search);
+    const inviteMode = params.has('invite');
+    return (
+      <>
+        <LandingPage inviteMode={inviteMode} />
+        <AuthModal />
+      </>
+    );
+  }
+
+  // ── Authenticated ──
+  // ProjectDataProvider and WorkspaceDataProvider are intentionally NOT mounted
+  // for unauthenticated users — they start Firestore listeners and read localStorage.
   return (
     <ProjectDataProvider>
       <WorkspaceDataProvider>
         <AppShell />
         <AuthModal />
+        <OnboardingModal />
       </WorkspaceDataProvider>
     </ProjectDataProvider>
   );

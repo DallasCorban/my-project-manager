@@ -42,11 +42,11 @@ export const useWorkspaceUIStore = create<WorkspaceUIState>((set) => ({
 // --- Synced hooks (these use useHybridState for persistence) ---
 
 export function useWorkspaces() {
-  return useHybridState<Workspace[]>('pmai_workspaces', INITIAL_WORKSPACES, 'workspaces');
+  return useHybridState<Workspace[]>('pmai_workspaces', [], 'workspaces');
 }
 
 export function useDashboards() {
-  return useHybridState<Dashboard[]>('pmai_dashboards', INITIAL_DASHBOARDS, 'dashboards');
+  return useHybridState<Dashboard[]>('pmai_dashboards', [], 'dashboards');
 }
 
 export function useStatuses() {

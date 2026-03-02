@@ -91,14 +91,9 @@ export function AppShell() {
     : null;
 
   const user = useAuthStore((s) => s.user);
-  const openAuthModal = useAuthStore((s) => s.openModal);
 
   // Auto-accept invite token once the user is signed in
   useInviteAccept();
-
-  // Detect invite URL param for the guest banner
-  const hasInviteParam = typeof window !== 'undefined'
-    && new URLSearchParams(window.location.search).has('invite');
 
   // ── Membership lifecycle ────────────────────────────────────────────
 
@@ -215,32 +210,6 @@ export function AppShell() {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-
-        {/* Guest invite banner — shown when ?invite= is in the URL and user is anonymous */}
-        {hasInviteParam && user?.isAnonymous && (
-          <div className={`shrink-0 flex items-center justify-between gap-4 px-5 py-3 text-sm ${
-            darkMode
-              ? 'bg-blue-600/15 border-b border-blue-500/20 text-blue-200'
-              : 'bg-blue-50 border-b border-blue-200 text-blue-900'
-          }`}>
-            <div className="flex items-center gap-2.5 min-w-0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-blue-500 shrink-0">
-                <path d="M20 4H4C2.9 4 2 4.9 2 6v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M22 6l-10 7L2 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span className="truncate">
-                <span className="font-semibold">You've been invited to join a project.</span>
-                {' '}Sign in or create an account to accept.
-              </span>
-            </div>
-            <button
-              onClick={openAuthModal}
-              className="shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-            >
-              Sign in to accept
-            </button>
-          </div>
-        )}
 
         {/* Header */}
         <AppHeader

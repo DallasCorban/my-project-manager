@@ -50,11 +50,12 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
   }
 };
 
-/** Sign in with Google OAuth */
-export const signInWithGoogle = async (): Promise<void> => {
+/** Sign in with Google OAuth. Returns whether this is a brand-new account. */
+export const signInWithGoogle = async (): Promise<{ isNewUser: boolean }> => {
   if (!auth) throw new Error('Firebase auth is not available.');
   const provider = new GoogleAuthProvider();
-  await signInWithPopup(auth, provider);
+  const result = await signInWithPopup(auth, provider);
+  return { isNewUser: result.additionalUserInfo?.isNewUser ?? false };
 };
 
 /** Upgrade anonymous account to email/password (optionally set display name) */

@@ -16,7 +16,8 @@
       "Bash(git push:*)",
       "Bash(git reset:*)",
       "Bash(curl:*)",
-      "Bash(xargs sed:*)"
+      "Bash(xargs sed:*)",
+      "Bash(node -e:*)"
     ]
   }
 }

@@ -85,6 +85,7 @@ export function AuthModal() {
   const user = useAuthStore((s) => s.user);
   const modalOpen = useAuthStore((s) => s.modalOpen);
   const closeModal = useAuthStore((s) => s.closeModal);
+  const setIsNewUser = useAuthStore((s) => s.setIsNewUser);
   const darkMode = useUIStore((s) => s.darkMode);
 
   const [mode, setMode] = useState<Mode>('signin');
@@ -97,7 +98,8 @@ export function AuthModal() {
 
   useEffect(() => {
     if (!user) return;
-    setMode(user.isAnonymous ? 'upgrade' : 'account');
+    // Anonymous users on the landing page see signin, not upgrade
+    setMode(user.isAnonymous ? 'signin' : 'account');
   }, [user]);
 
   if (!modalOpen) return null;
@@ -130,6 +132,7 @@ export function AuthModal() {
         await upgradeWithEmail(email, password, displayName);
       } else if (mode === 'signup') {
         await signUpWithEmail(email, password, displayName);
+        setIsNewUser(true);
       } else if (mode === 'signin') {
         await signInWithEmail(email, password);
       }
@@ -151,7 +154,8 @@ export function AuthModal() {
       if (mode === 'upgrade') {
         await upgradeWithGoogle();
       } else {
-        await signInWithGoogle();
+        const { isNewUser } = await signInWithGoogle();
+        if (isNewUser) setIsNewUser(true);
       }
       setPassword('');
       setConfirmPassword('');

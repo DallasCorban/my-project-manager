@@ -1,16 +1,19 @@
 import { create } from 'zustand';
 import type { User } from 'firebase/auth';
-import { onAuthChange, signInAsGuest } from '../services/firebase/auth';
+import { onAuthChange } from '../services/firebase/auth';
 
 interface AuthState {
   user: User | null;
   isLoading: boolean;
   modalOpen: boolean;
   initialized: boolean;
+  isNewUser: boolean;
 
   setUser: (user: User | null) => void;
   openModal: () => void;
   closeModal: () => void;
+  setIsNewUser: (val: boolean) => void;
+  clearNewUser: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -18,29 +21,22 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
   modalOpen: false,
   initialized: false,
+  isNewUser: false,
 
   setUser: (user) => set({ user, isLoading: false, initialized: true }),
   openModal: () => set({ modalOpen: true }),
   closeModal: () => set({ modalOpen: false }),
+  setIsNewUser: (val) => set({ isNewUser: val }),
+  clearNewUser: () => set({ isNewUser: false }),
 }));
 
 /**
  * Initialize auth listener. Call once at app startup.
- * Handles anonymous-first auth: if no user is signed in, auto-signs in anonymously.
+ * No anonymous sign-in — unauthenticated users see the landing page.
  */
 export function initAuth(): () => void {
-  const unsubscribe = onAuthChange(async (user) => {
-    if (user) {
-      useAuthStore.getState().setUser(user);
-      return;
-    }
-    // No user — try anonymous sign-in
-    try {
-      await signInAsGuest();
-    } catch (err) {
-      console.warn('Anonymous sign-in failed:', err);
-      useAuthStore.getState().setUser(null);
-    }
+  const unsubscribe = onAuthChange((user) => {
+    useAuthStore.getState().setUser(user);
   });
 
   return unsubscribe;
