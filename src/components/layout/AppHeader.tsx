@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useMemberStore } from '../../stores/memberStore';
 import { EditableText } from '../shared/EditableText';
 import { ROLE_BADGE_CLASSES } from '../../config/constants';
+import { generateAvatarColor, getInitials } from '../../utils/avatar';
 
 interface AppHeaderProps {
   entityName: string;
@@ -154,26 +155,36 @@ export function AppHeader({
               </div>
             )}
           </div>
-          <button
-            onClick={openAuthModal}
-            className={`flex items-center gap-2 text-xs font-semibold px-2.5 py-1.5 rounded-full border transition-colors ${
-              darkMode
-                ? 'bg-[#1c213e] border-[#323652] text-gray-200 hover:bg-[#202336]'
-                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            {/* Avatar */}
-            <span className="w-5 h-5 rounded-full overflow-hidden shrink-0 flex items-center justify-center bg-blue-600 text-white text-[10px] font-bold">
-              {user?.photoURL ? (
-                <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
-              ) : (
-                (user?.displayName ?? user?.email ?? 'A').charAt(0).toUpperCase()
-              )}
-            </span>
-            <span>
-              {user?.displayName || user?.email || 'Account'}
-            </span>
-          </button>
+          {(() => {
+            const avatarSeed = user?.displayName || user?.email || 'user';
+            const avatarBg   = generateAvatarColor(avatarSeed);
+            const avatarText = getInitials(user?.displayName ?? '', user?.email ?? '');
+            return (
+              <button
+                onClick={openAuthModal}
+                className={`flex items-center gap-2 text-xs font-semibold px-2.5 py-1.5 rounded-full border transition-colors ${
+                  darkMode
+                    ? 'bg-[#1c213e] border-[#323652] text-gray-200 hover:bg-[#202336]'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {/* Avatar */}
+                <span
+                  className="w-5 h-5 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-white text-[10px] font-bold"
+                  style={{ background: user?.photoURL ? undefined : avatarBg }}
+                >
+                  {user?.photoURL ? (
+                    <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    avatarText
+                  )}
+                </span>
+                <span>
+                  {user?.displayName || user?.email || 'Account'}
+                </span>
+              </button>
+            );
+          })()}
         </div>
       </div>
 

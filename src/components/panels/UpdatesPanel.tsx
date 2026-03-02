@@ -26,6 +26,7 @@ import {
   LayoutList,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
+import { generateAvatarColor, getInitials } from '../../utils/avatar';
 import type { Update, Reply, ChecklistItem } from '../../types/item';
 import type { ProjectFile } from '../../types/file';
 import type { MemberPermissions } from '../../types/member';
@@ -591,13 +592,6 @@ export function UpdatesPanel({
 
 // ── UpdateCard ────────────────────────────────────────────────────────
 
-const AVATAR_COLORS = ['#3b5bdb', '#7048e8', '#0ca678', '#e03131', '#e8590c', '#1971c2', '#c2255c'];
-
-function avatarColor(name: string) {
-  let n = 0;
-  for (let i = 0; i < name.length; i++) n += name.charCodeAt(i);
-  return AVATAR_COLORS[n % AVATAR_COLORS.length];
-}
 
 function UpdateCard({
   update,
@@ -620,8 +614,8 @@ function UpdateCard({
   onSubmitReply: (id: string) => void;
   onToggleChecklistItem: (uid: string, iid: string) => void;
 }) {
-  const initials = (update.author ?? 'U').slice(0, 2).toUpperCase();
-  const bg = avatarColor(update.author ?? '');
+  const initials = getInitials(update.author ?? '', update.author ?? '');
+  const bg = generateAvatarColor(update.author ?? '');
   const dateStr = formatDateTime(update.createdAt);
 
   return (
@@ -683,8 +677,8 @@ function UpdateCard({
         {update.replies && update.replies.length > 0 && (
           <div className={`mt-2.5 pt-2.5 border-t space-y-2.5 ${darkMode ? 'border-[#323652]' : 'border-gray-100'}`}>
             {update.replies.map((reply: Reply) => {
-              const ri = (reply.author ?? 'U').slice(0, 2).toUpperCase();
-              const rb = avatarColor(reply.author ?? '');
+              const ri = getInitials(reply.author ?? '', reply.author ?? '');
+              const rb = generateAvatarColor(reply.author ?? '');
               const rd = formatDateTime(reply.createdAt);
               return (
                 <div key={reply.id} className="flex gap-2">

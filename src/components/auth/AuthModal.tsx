@@ -14,8 +14,9 @@ import {
   sendPasswordReset,
   uploadProfilePhoto,
 } from '../../services/firebase/auth';
+import { generateAvatarColor, getInitials } from '../../utils/avatar';
 
-type Mode = 'signin' | 'signup' | 'upgrade' | 'account' | 'reset' | 'resetSent';
+type Mode = 'signin' | 'signup' | 'upgrade' | 'account' | 'reset' | 'resetSent' | 'avatar';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -94,7 +95,8 @@ export function AuthModal() {
 
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -104,18 +106,36 @@ export function AuthModal() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  // Apply requestedMode when modal opens
+  // Reset form when modal closes; apply correct mode when it opens
   useEffect(() => {
-    if (modalOpen && requestedMode) {
+    if (!modalOpen) {
+      // Fresh state for next open
+      setMode('signin');
+      setError('');
+      setPassword('');
+      setConfirmPassword('');
+      setFirstName('');
+      setLastName('');
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      // Keep email — convenient if user closed by accident
+    } else if (requestedMode) {
+      // Explicit mode requested (e.g. "Get started free" → signup)
       setMode(requestedMode as Mode);
       clearRequestedMode();
+    } else if (user && !user.isAnonymous) {
+      // Already signed in — show account panel, not sign-in form
+      setMode('account');
     }
-  }, [modalOpen, requestedMode, clearRequestedMode]);
+  }, [modalOpen, requestedMode, clearRequestedMode, user]);
 
   useEffect(() => {
     if (!user) return;
-    // Anonymous users on the landing page see signin, not upgrade
-    setMode(user.isAnonymous ? 'signin' : 'account');
+    // Don't override the avatar setup step that runs immediately after sign-up
+    setMode((prev) => {
+      if (prev === 'avatar') return 'avatar';
+      return user.isAnonymous ? 'signin' : 'account';
+    });
   }, [user]);
 
   if (!modalOpen) return null;
@@ -127,7 +147,8 @@ export function AuthModal() {
     setMode(next);
     setError('');
     setConfirmPassword('');
-    setDisplayName('');
+    setFirstName('');
+    setLastName('');
     setPhotoFile(null);
     setPhotoPreview(null);
   };
@@ -151,22 +172,26 @@ export function AuthModal() {
       setError('Passwords do not match.');
       return;
     }
+    // Combine first + last name into a single display name
+    const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
     setError('');
     setBusy(true);
     try {
       if (mode === 'upgrade') {
-        await upgradeWithEmail(email, password, displayName);
+        await upgradeWithEmail(email, password, fullName);
         // Upload photo for upgrade flow too
         if (photoFile && auth?.currentUser) {
           await uploadProfilePhoto(auth.currentUser, photoFile).catch(() => {/* non-critical */});
         }
       } else if (mode === 'signup') {
-        await signUpWithEmail(email, password, displayName);
+        await signUpWithEmail(email, password, fullName);
         setIsNewUser(true);
-        // Upload photo after account creation
-        if (photoFile && auth?.currentUser) {
-          await uploadProfilePhoto(auth.currentUser, photoFile).catch(() => {/* non-critical */});
-        }
+        // Clear sensitive fields and proceed to avatar setup — don't close yet
+        setPassword('');
+        setConfirmPassword('');
+        setError('');
+        setMode('avatar');
+        return; // finally still fires → setBusy(false)
       } else if (mode === 'signin') {
         await signInWithEmail(email, password);
       }
@@ -189,14 +214,17 @@ export function AuthModal() {
     try {
       if (mode === 'upgrade') {
         await upgradeWithGoogle();
+        closeModal();
       } else {
         const { isNewUser } = await signInWithGoogle();
-        if (isNewUser) setIsNewUser(true);
+        if (isNewUser) {
+          setIsNewUser(true);
+          setMode('avatar');
+          return; // finally fires → setBusy(false)
+        }
+        closeModal();
       }
-      setPassword('');
-      setConfirmPassword('');
       setError('');
-      closeModal();
     } catch (err) {
       setError(mapAuthError(err));
     } finally {
@@ -235,6 +263,18 @@ export function AuthModal() {
     }
   };
 
+  const handleAvatarDone = async () => {
+    setBusy(true);
+    try {
+      if (photoFile && auth?.currentUser) {
+        await uploadProfilePhoto(auth.currentUser, photoFile).catch(() => {/* non-critical */});
+      }
+      closeModal();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Shared input class
   const inputClass = [
     'w-full px-3 py-2.5 rounded-lg text-sm transition-colors outline-none',
@@ -262,7 +302,14 @@ export function AuthModal() {
     signin:    'Welcome back',
     reset:     'Password recovery',
     resetSent: 'Check your inbox',
+    avatar:    'One last thing',
   };
+
+  // Avatar step helpers — derived from the just-created user or form state
+  const formFullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
+  const avatarSeed = user?.displayName || user?.email || formFullName || email || 'user';
+  const avatarBg   = generateAvatarColor(avatarSeed);
+  const avatarText = getInitials(user?.displayName ?? formFullName, user?.email ?? email);
 
   return (
     <div
@@ -418,58 +465,110 @@ export function AuthModal() {
               </div>
             </div>
 
+          ) : mode === 'avatar' ? (
+            /* ── Avatar setup ── */
+            (() => {
+              // Google users already have a photo from their account
+              const googlePhoto = !photoPreview && user?.photoURL ? user.photoURL : null;
+              const greetName = avatarSeed.split(' ')[0];
+              return (
+            <div className="space-y-5">
+              <div className="text-center">
+                <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Welcome{greetName && greetName !== 'user' ? `, ${greetName}` : ''}! 🎉
+                </p>
+                <p className={`text-xs mt-1 leading-relaxed ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {googlePhoto
+                    ? 'We pulled your Google photo — upload a different one or keep it.'
+                    : 'Add a photo so teammates can recognise you, or keep your personalised avatar.'}
+                </p>
+              </div>
+
+              {/* Preview */}
+              <div className="flex flex-col items-center gap-3">
+                <label className="cursor-pointer group relative" title="Upload profile photo">
+                  <div
+                    className="w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-bold overflow-hidden shadow-lg select-none"
+                    style={{ background: photoPreview || googlePhoto ? 'transparent' : avatarBg }}
+                  >
+                    {photoPreview ? (
+                      <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : googlePhoto ? (
+                      <img src={googlePhoto} alt="Google photo" className="w-full h-full object-cover" />
+                    ) : (
+                      avatarText
+                    )}
+                  </div>
+                  {/* Camera overlay */}
+                  <div className="absolute inset-0 rounded-full flex items-center justify-center bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                    </svg>
+                  </div>
+                  <input type="file" accept="image/*" className="sr-only" onChange={handlePhotoChange} />
+                </label>
+                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  {photoPreview ? 'Click to change photo' : googlePhoto ? 'Click to upload a different photo' : 'Click to upload a photo'}
+                </span>
+              </div>
+
+              {error && <ErrorBanner text={error} darkMode={darkMode} />}
+
+              <button
+                type="button"
+                onClick={handleAvatarDone}
+                disabled={busy}
+                className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-60"
+              >
+                {busy ? 'Saving…' : photoPreview ? 'Save photo & continue' : 'Looks good, continue →'}
+              </button>
+
+              <div className={`text-xs text-center ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                <button
+                  type="button"
+                  className="hover:underline"
+                  onClick={closeModal}
+                  disabled={busy}
+                >
+                  Skip for now
+                </button>
+              </div>
+            </div>
+              );
+            })()
+
           ) : (
             /* ── Auth form (signin / signup / upgrade) ── */
             <form onSubmit={handleSubmit} className="space-y-4">
 
-              {/* Profile photo + name — sign-up modes only */}
+              {/* First + last name — sign-up modes only */}
               {isSignupLike && (
-                <>
-                  {/* Photo upload */}
-                  <div className="flex flex-col items-center gap-2 mb-1">
-                    <label className="cursor-pointer group relative" title="Upload profile photo">
-                      <div className={`w-16 h-16 rounded-full flex items-center justify-center overflow-hidden border-2 transition-colors ${
-                        darkMode
-                          ? 'border-[#323652] group-hover:border-blue-500'
-                          : 'border-gray-200 group-hover:border-blue-400'
-                      } ${photoPreview ? '' : (darkMode ? 'bg-[#242847]' : 'bg-gray-100')}`}>
-                        {photoPreview ? (
-                          <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="flex flex-col items-center gap-1">
-                            <svg className={`w-6 h-6 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-                      {/* Camera overlay on hover */}
-                      <div className="absolute inset-0 rounded-full flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-                        </svg>
-                      </div>
-                      <input type="file" accept="image/*" className="sr-only" onChange={handlePhotoChange} />
-                    </label>
-                    <span className={`text-[11px] ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
-                      {photoPreview ? 'Click to change photo' : 'Add a profile photo (optional)'}
-                    </span>
-                  </div>
-
-                  {/* Display name */}
-                  <div>
-                    <label className={labelClass}>Your name</label>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className={labelClass}>First name</label>
                     <input
                       type="text"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="e.g. Alex Smith"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Alex"
                       autoFocus
+                      autoComplete="given-name"
                       className={inputClass}
                     />
                   </div>
-                </>
+                  <div className="flex-1">
+                    <label className={labelClass}>Last name</label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Smith"
+                      autoComplete="family-name"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
               )}
 
               <div>

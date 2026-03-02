@@ -339,7 +339,7 @@ export function AppShell() {
                 id: `u${Date.now()}`,
                 text: payload.text,
                 checklist: payload.checklist,
-                author: 'You',
+                author: user?.displayName || user?.email || 'You',
                 createdAt: new Date().toISOString(),
                 replies: [],
               };
@@ -349,7 +349,7 @@ export function AppShell() {
               const reply = {
                 id: `r${Date.now()}`,
                 text,
-                author: 'You',
+                author: user?.displayName || user?.email || 'You',
                 createdAt: new Date().toISOString(),
               };
               addReply(projectId, taskId, subitemId, updateId, reply);
