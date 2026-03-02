@@ -227,7 +227,6 @@ export function AuthModal() {
   return (
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={closeModal}
     >
       <div
         className={`w-[440px] max-w-[92vw] rounded-2xl shadow-2xl overflow-hidden ${
