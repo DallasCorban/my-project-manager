@@ -72,7 +72,7 @@ export const useUIStore = create<UIState>()(
   persist(
     (set, get) => ({
       // Theme
-      darkMode: false,
+      darkMode: true,
       toggleDarkMode: () => {
         const next = !get().darkMode;
         set({ darkMode: next });
