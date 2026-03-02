@@ -156,17 +156,23 @@ export function AppHeader({
           </div>
           <button
             onClick={openAuthModal}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+            className={`flex items-center gap-2 text-xs font-semibold px-2.5 py-1.5 rounded-full border transition-colors ${
               darkMode
                 ? 'bg-[#1c213e] border-[#323652] text-gray-200 hover:bg-[#202336]'
                 : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
             }`}
           >
-            {user
-              ? user.isAnonymous
-                ? 'Guest'
-                : user.email || 'Account'
-              : 'Account'}
+            {/* Avatar */}
+            <span className="w-5 h-5 rounded-full overflow-hidden shrink-0 flex items-center justify-center bg-blue-600 text-white text-[10px] font-bold">
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+              ) : (
+                (user?.displayName ?? user?.email ?? 'A').charAt(0).toUpperCase()
+              )}
+            </span>
+            <span>
+              {user?.displayName || user?.email || 'Account'}
+            </span>
           </button>
         </div>
       </div>

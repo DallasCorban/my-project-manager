@@ -16,7 +16,8 @@ import {
   type User,
   type Auth,
 } from 'firebase/auth';
-import { auth } from '../../config/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, storage } from '../../config/firebase';
 
 export type AuthUser = User;
 
@@ -79,6 +80,19 @@ export const upgradeWithGoogle = async (): Promise<void> => {
 export const sendPasswordReset = async (email: string): Promise<void> => {
   if (!auth) throw new Error('Firebase auth is not available.');
   await sendPasswordResetEmail(auth, email);
+};
+
+/**
+ * Upload a profile photo to Firebase Storage and update the user's profile.
+ * Stores at users/{uid}/avatar — overwrites any previous photo.
+ */
+export const uploadProfilePhoto = async (user: User, file: File): Promise<string> => {
+  if (!storage) throw new Error('Firebase Storage is not available.');
+  const storageRef = ref(storage, `users/${user.uid}/avatar`);
+  const snapshot = await uploadBytes(storageRef, file, { contentType: file.type });
+  const photoURL = await getDownloadURL(snapshot.ref);
+  await updateProfile(user, { photoURL });
+  return photoURL;
 };
 
 /** Sign out */

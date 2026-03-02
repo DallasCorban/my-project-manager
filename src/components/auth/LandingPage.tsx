@@ -85,6 +85,7 @@ function AppPreview({ darkMode }: { darkMode: boolean }) {
 export function LandingPage({ inviteMode }: LandingPageProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const openModal = useAuthStore((s) => s.openModal);
+  const openModalInMode = useAuthStore((s) => s.openModalInMode);
 
   return (
     <div className={`min-h-screen flex flex-col ${
@@ -125,10 +126,10 @@ export function LandingPage({ inviteMode }: LandingPageProps) {
               {' '}Sign in or create an account to accept.
             </span>
             <button
-              onClick={openModal}
+              onClick={() => openModalInMode('signup')}
               className="shrink-0 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors"
             >
-              Accept invite
+              Accept invite →
             </button>
           </div>
         </div>
@@ -158,7 +159,7 @@ export function LandingPage({ inviteMode }: LandingPageProps) {
 
         <div className="flex items-center gap-3 flex-wrap justify-center">
           <button
-            onClick={openModal}
+            onClick={() => openModalInMode('signup')}
             className="px-7 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition-colors shadow-lg shadow-blue-600/25"
           >
             Get started free

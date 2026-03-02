@@ -1,6 +1,7 @@
 // Auth modal — sign in / sign up / upgrade / account / reset / resetSent.
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { auth } from '../../config/firebase';
 import { useAuthStore } from '../../stores/authStore';
 import { useUIStore } from '../../stores/uiStore';
 import {
@@ -11,6 +12,7 @@ import {
   upgradeWithGoogle,
   signOutUser,
   sendPasswordReset,
+  uploadProfilePhoto,
 } from '../../services/firebase/auth';
 
 type Mode = 'signin' | 'signup' | 'upgrade' | 'account' | 'reset' | 'resetSent';
@@ -86,6 +88,8 @@ export function AuthModal() {
   const modalOpen = useAuthStore((s) => s.modalOpen);
   const closeModal = useAuthStore((s) => s.closeModal);
   const setIsNewUser = useAuthStore((s) => s.setIsNewUser);
+  const requestedMode = useAuthStore((s) => s.requestedMode);
+  const clearRequestedMode = useAuthStore((s) => s.clearRequestedMode);
   const darkMode = useUIStore((s) => s.darkMode);
 
   const [mode, setMode] = useState<Mode>('signin');
@@ -96,6 +100,18 @@ export function AuthModal() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  // Photo upload state
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  // Apply requestedMode when modal opens
+  useEffect(() => {
+    if (modalOpen && requestedMode) {
+      setMode(requestedMode as Mode);
+      clearRequestedMode();
+    }
+  }, [modalOpen, requestedMode, clearRequestedMode]);
+
   useEffect(() => {
     if (!user) return;
     // Anonymous users on the landing page see signin, not upgrade
@@ -104,7 +120,6 @@ export function AuthModal() {
 
   if (!modalOpen) return null;
 
-  const isAnon = !!user?.isAnonymous;
   const strength = getPasswordStrength(password);
   const isSignupLike = mode === 'signup' || mode === 'upgrade';
 
@@ -113,6 +128,17 @@ export function AuthModal() {
     setError('');
     setConfirmPassword('');
     setDisplayName('');
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -130,14 +156,24 @@ export function AuthModal() {
     try {
       if (mode === 'upgrade') {
         await upgradeWithEmail(email, password, displayName);
+        // Upload photo for upgrade flow too
+        if (photoFile && auth?.currentUser) {
+          await uploadProfilePhoto(auth.currentUser, photoFile).catch(() => {/* non-critical */});
+        }
       } else if (mode === 'signup') {
         await signUpWithEmail(email, password, displayName);
         setIsNewUser(true);
+        // Upload photo after account creation
+        if (photoFile && auth?.currentUser) {
+          await uploadProfilePhoto(auth.currentUser, photoFile).catch(() => {/* non-critical */});
+        }
       } else if (mode === 'signin') {
         await signInWithEmail(email, password);
       }
       setPassword('');
       setConfirmPassword('');
+      setPhotoFile(null);
+      setPhotoPreview(null);
       setError('');
       closeModal();
     } catch (err) {
@@ -337,8 +373,12 @@ export function AuthModal() {
               <div className={`rounded-xl p-4 flex items-center gap-3 ${
                 darkMode ? 'bg-white/5' : 'bg-gray-50'
               }`}>
-                <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold shrink-0">
-                  {(user?.displayName ?? user?.email ?? '?').charAt(0).toUpperCase()}
+                <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold shrink-0 overflow-hidden">
+                  {user?.photoURL ? (
+                    <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    (user?.displayName ?? user?.email ?? '?').charAt(0).toUpperCase()
+                  )}
                 </div>
                 <div className="min-w-0">
                   {user?.displayName && (
@@ -382,48 +422,54 @@ export function AuthModal() {
             /* ── Auth form (signin / signup / upgrade) ── */
             <form onSubmit={handleSubmit} className="space-y-4">
 
-              {/* Guest data-loss warning — prominent banner */}
-              {isAnon && mode === 'signin' && (
-                <div className={`rounded-xl p-3.5 flex gap-2.5 ${
-                  darkMode
-                    ? 'bg-amber-500/10 border border-amber-500/25'
-                    : 'bg-amber-50 border border-amber-200'
-                }`}>
-                  <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                  </svg>
-                  <div>
-                    <p className={`text-xs font-semibold ${darkMode ? 'text-amber-400' : 'text-amber-800'}`}>
-                      Your guest data won't be kept
-                    </p>
-                    <p className={`text-[11px] mt-0.5 leading-relaxed ${darkMode ? 'text-amber-500/80' : 'text-amber-700'}`}>
-                      Signing in replaces your guest session.{' '}
-                      <button
-                        type="button"
-                        className="underline font-medium"
-                        onClick={() => switchMode('upgrade')}
-                      >
-                        Upgrade instead
-                      </button>
-                      {' '}to keep your current work.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Display name — sign-up modes only */}
+              {/* Profile photo + name — sign-up modes only */}
               {isSignupLike && (
-                <div>
-                  <label className={labelClass}>Your name</label>
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="e.g. Alex Smith"
-                    autoFocus
-                    className={inputClass}
-                  />
-                </div>
+                <>
+                  {/* Photo upload */}
+                  <div className="flex flex-col items-center gap-2 mb-1">
+                    <label className="cursor-pointer group relative" title="Upload profile photo">
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center overflow-hidden border-2 transition-colors ${
+                        darkMode
+                          ? 'border-[#323652] group-hover:border-blue-500'
+                          : 'border-gray-200 group-hover:border-blue-400'
+                      } ${photoPreview ? '' : (darkMode ? 'bg-[#242847]' : 'bg-gray-100')}`}>
+                        {photoPreview ? (
+                          <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="flex flex-col items-center gap-1">
+                            <svg className={`w-6 h-6 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                      {/* Camera overlay on hover */}
+                      <div className="absolute inset-0 rounded-full flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                        </svg>
+                      </div>
+                      <input type="file" accept="image/*" className="sr-only" onChange={handlePhotoChange} />
+                    </label>
+                    <span className={`text-[11px] ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                      {photoPreview ? 'Click to change photo' : 'Add a profile photo (optional)'}
+                    </span>
+                  </div>
+
+                  {/* Display name */}
+                  <div>
+                    <label className={labelClass}>Your name</label>
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="e.g. Alex Smith"
+                      autoFocus
+                      className={inputClass}
+                    />
+                  </div>
+                </>
               )}
 
               <div>
