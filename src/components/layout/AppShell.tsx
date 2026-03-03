@@ -1,0 +1,397 @@
+// AppShell — main layout: sidebar + header + content area.
+// Orchestrates workspace/board navigation and renders the active view.
+
+import { useEffect, useRef, useState } from 'react';
+import { useUIStore } from '../../stores/uiStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useProjectContext } from '../../stores/projectStore';
+import { useWorkspaceContext } from '../../stores/workspaceStore';
+import {
+  getProjectPermissions,
+  ensureProject,
+  startProjectMembershipListeners,
+  stopProjectMembershipListeners,
+  startMembershipDiscovery,
+  stopMembershipDiscovery,
+} from '../../stores/memberStore';
+import { useMemberStore } from '../../stores/memberStore';
+import { uploadFileWithProgress } from '../../services/firebase/fileSync';
+import { useInviteAccept } from '../../hooks/useInviteAccept';
+import { Sidebar } from './Sidebar';
+import { AppHeader } from './AppHeader';
+import { BoardView } from '../board/BoardView';
+import { GanttView } from '../gantt/GanttView';
+import { UpdatesPanel } from '../panels/UpdatesPanel';
+import { MembersModal } from '../panels/MembersModal';
+import { SelectionTray } from '../shared/SelectionTray';
+import { EmptyNameToast } from '../shared/EmptyNameToast';
+import { DatePickerPopup } from '../shared/DatePickerPopup';
+
+export function AppShell() {
+  const darkMode = useUIStore((s) => s.darkMode);
+  const activeTab = useUIStore((s) => s.activeTab);
+  const updatesPanelTarget = useUIStore((s) => s.updatesPanelTarget);
+  const closeUpdatesPanel = useUIStore((s) => s.closeUpdatesPanel);
+  const selectedItems = useUIStore((s) => s.selectedItems);
+
+  // ── Sidebar slide animation ──────────────────────────────────────────
+  // `shownTarget` holds the last non-null target so the panel keeps its
+  // content visible during the slide-out animation (300 ms).  When a
+  // different item is selected while the panel is open, content switches
+  // immediately (no close/re-open).
+  const [shownTarget, setShownTarget] = useState(updatesPanelTarget);
+  const isOpen = !!updatesPanelTarget;
+
+  useEffect(() => {
+    if (updatesPanelTarget) {
+      setShownTarget(updatesPanelTarget);
+    } else {
+      const t = setTimeout(() => setShownTarget(null), 300);
+      return () => clearTimeout(t);
+    }
+  }, [updatesPanelTarget]);
+
+  const {
+    projects,
+    addProjectToWorkspace,
+    updateTaskName,
+    updateSubitemName,
+    updateTaskDate,
+    changeStatus,
+    changeJobType,
+    addTaskToGroup,
+    addSubitem,
+    addUpdate,
+    addFile,
+    addReply,
+    toggleChecklistItem,
+  } = useProjectContext();
+  const {
+    workspaces,
+    setWorkspaces,
+    statuses,
+    jobTypes,
+    activeEntityId,
+    activeBoardId,
+    setActiveEntityId,
+    setActiveBoardId,
+  } = useWorkspaceContext();
+
+  // Derive active workspace
+  const activeWorkspace = workspaces.find((w) => w.id === activeEntityId) || workspaces[0];
+  const activeWorkspaceId = activeWorkspace?.id || '';
+
+  // Filter boards for the active workspace
+  const workspaceBoards = projects.filter((p) => p.workspaceId === activeWorkspaceId);
+
+  // Determine active board (first in workspace if none selected)
+  const effectiveBoardId = activeBoardId || workspaceBoards[0]?.id || null;
+  const activeProject = effectiveBoardId
+    ? projects.find((p) => p.id === effectiveBoardId)
+    : null;
+
+  const user = useAuthStore((s) => s.user);
+
+  // Auto-accept invite token once the user is signed in
+  useInviteAccept();
+
+  // ── Membership lifecycle ────────────────────────────────────────────
+
+  // Start membership discovery when the user logs in (finds all projects
+  // the user belongs to). Clean up on logout or unmount.
+  useEffect(() => {
+    if (!user || user.isAnonymous) return;
+    startMembershipDiscovery();
+    return () => stopMembershipDiscovery();
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the active project or auth state changes:
+  //  1. Stop listeners for any previous project (only when project ID changes)
+  //  2. Ensure the project exists in Firestore (creates owner membership)
+  //  3. Start membership listeners (loads members list + self-membership)
+  //
+  // NOTE: prevProjectIdRef is used ONLY to track which project needs its
+  // listeners torn down. It must NOT be used as a gate for the whole effect —
+  // doing so would prevent listeners from starting when the user?.uid dependency
+  // fires (e.g. auth resolving after a page refresh with the same project ID).
+  const prevProjectIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const pid = activeProject?.id ?? null;
+
+    // Clean up listeners from the previous project when project ID changes
+    if (pid !== prevProjectIdRef.current) {
+      if (prevProjectIdRef.current) {
+        stopProjectMembershipListeners(prevProjectIdRef.current);
+      }
+      prevProjectIdRef.current = pid;
+    }
+
+    if (!pid || !activeProject || !user || user.isAnonymous) return;
+
+    // Ensure project metadata + owner membership in Firestore
+    void ensureProject(pid, activeProject);
+
+    // Start real-time listeners for members
+    startProjectMembershipListeners(pid);
+
+    return () => stopProjectMembershipListeners(pid);
+  }, [activeProject?.id, user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Compute permissions for active project (reactive — updates when
+  // selfMembershipByProject changes after listeners load).
+  // We use a sentinel to distinguish "not yet loaded" (undefined) from
+  // "loaded but no membership" (null).
+  const MEMBERSHIP_NOT_LOADED = undefined;
+  const selfMembership = useMemberStore((s) => {
+    if (!activeProject?.id) return MEMBERSHIP_NOT_LOADED;
+    const map = s.selfMembershipByProject;
+    return activeProject.id in map ? (map[activeProject.id] ?? null) : MEMBERSHIP_NOT_LOADED;
+  });
+  const membershipLoaded = selfMembership !== MEMBERSHIP_NOT_LOADED;
+  const projectPermissions = activeProject?.id
+    ? getProjectPermissions(activeProject.id)
+    : null;
+  // Allow edits if:
+  //  - membership is loaded and permissions allow it, OR
+  //  - membership hasn't loaded yet but user is logged in (graceful default
+  //    so the creator isn't locked out while Firestore confirms ownership)
+  const canEdit = membershipLoaded
+    ? (projectPermissions?.canEdit ?? false)
+    : (!!user && !user.isAnonymous && !!activeProject);
+
+  // ── Handlers ────────────────────────────────────────────────────────
+  const handleCreateWorkspace = () => {
+    const id = `w${Date.now()}`;
+    setWorkspaces((prev) => [...prev, { id, name: 'New Workspace', type: 'workspace' as const }]);
+    setActiveEntityId(id);
+  };
+
+  const handleCreateBoard = () => {
+    if (!activeWorkspace) return;
+    const pid = addProjectToWorkspace(activeWorkspace.id, activeWorkspace.name);
+    setActiveBoardId(pid);
+
+    // Eagerly ensure the new project in Firestore so the owner membership
+    // is created immediately (the useEffect will also catch it, but this
+    // avoids any delay).
+    const newProject = projects.find((p) => p.id === pid)
+      ?? { id: pid, workspaceId: activeWorkspace.id, workspaceName: activeWorkspace.name, name: 'New Board', status: 'working' as const, groups: [], tasks: [] };
+    void ensureProject(pid, newProject);
+  };
+
+  const handleUpdateEntityName = (name: string) => {
+    if (!activeWorkspace) return;
+    setWorkspaces((prev) =>
+      prev.map((w) => (w.id === activeWorkspace.id ? { ...w, name } : w)),
+    );
+  };
+
+  return (
+    <div
+      className={`h-dvh flex overflow-hidden ${
+        darkMode ? 'bg-[#181b34] text-gray-200' : 'bg-[#eceff8] text-[#323338]'
+      }`}
+    >
+      {/* Sidebar */}
+      <Sidebar
+        workspaces={workspaces}
+        selectedWorkspaceId={activeWorkspaceId}
+        onSelectWorkspace={(id) => {
+          setActiveEntityId(id);
+          setActiveBoardId(null);
+        }}
+        boards={workspaceBoards}
+        activeBoardId={effectiveBoardId}
+        onSelectBoard={(id) => setActiveBoardId(id)}
+        onCreateWorkspace={handleCreateWorkspace}
+        onCreateBoard={handleCreateBoard}
+        canCreateBoard={!!activeWorkspaceId}
+      />
+
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+
+        {/* Header */}
+        <AppHeader
+          entityName={activeWorkspace?.name ?? ''}
+          entityType="workspace"
+          onUpdateEntityName={handleUpdateEntityName}
+          canEditEntityName={canEdit || !activeProject}
+          activeProjectId={activeProject?.id ?? null}
+        />
+
+        {/* View content */}
+        {activeProject ? (
+          activeTab === 'board' ? (
+            <BoardView project={activeProject} />
+          ) : (
+            <GanttView
+              project={activeProject}
+              statuses={statuses}
+              jobTypes={jobTypes}
+              canEdit={canEdit}
+              onUpdateTaskDate={(pid, tid, sid, start, dur) =>
+                updateTaskDate(pid, tid, sid, start, dur)
+              }
+              onUpdateTaskName={(pid, tid, v) => updateTaskName(pid, tid, v)}
+              onUpdateSubitemName={(pid, tid, sid, v) =>
+                updateSubitemName(pid, tid, sid, v)
+              }
+              onChangeStatus={(pid, tid, sid, val) => changeStatus(pid, tid, sid, val)}
+              onChangeJobType={(pid, tid, sid, val) => changeJobType(pid, tid, sid, val)}
+              onAddTaskToGroup={(pid, gid) => addTaskToGroup(pid, gid)}
+              onAddSubitem={(pid, tid) => addSubitem(pid, tid)}
+            />
+          )
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center text-center max-w-xs px-6">
+
+              {/* Board illustration */}
+              <div className={`mb-7 ${darkMode ? 'opacity-70' : 'opacity-100'}`}>
+                <svg width="128" height="100" viewBox="0 0 128 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  {/* Board background */}
+                  <rect x="6" y="14" width="116" height="72" rx="7" fill={darkMode ? '#323652' : '#e4e8f5'} />
+                  {/* Header bar */}
+                  <rect x="6" y="14" width="116" height="20" rx="7" fill={darkMode ? '#3d4268' : '#d0d5ea'} />
+                  <rect x="6" y="27" width="116" height="7" fill={darkMode ? '#3d4268' : '#d0d5ea'} />
+                  {/* Column labels */}
+                  <rect x="18" y="20" width="22" height="6" rx="2" fill={darkMode ? '#555b80' : '#b5bbcf'} />
+                  <rect x="54" y="20" width="22" height="6" rx="2" fill={darkMode ? '#555b80' : '#b5bbcf'} />
+                  <rect x="90" y="20" width="22" height="6" rx="2" fill={darkMode ? '#555b80' : '#b5bbcf'} />
+                  {/* Row 1 */}
+                  <rect x="18" y="42" width="20" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  <rect x="54" y="42" width="26" height="5" rx="1.5" fill="#3b82f6" opacity="0.65" />
+                  <rect x="90" y="42" width="16" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  {/* Row 2 */}
+                  <rect x="18" y="54" width="26" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  <rect x="54" y="54" width="18" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  <rect x="90" y="54" width="22" height="5" rx="1.5" fill="#3b82f6" opacity="0.4" />
+                  {/* Row 3 */}
+                  <rect x="18" y="66" width="16" height="5" rx="1.5" fill="#3b82f6" opacity="0.3" />
+                  <rect x="54" y="66" width="22" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  <rect x="90" y="66" width="20" height="5" rx="1.5" fill={darkMode ? '#484e72' : '#c8cde2'} />
+                  {/* Plus badge */}
+                  <circle cx="106" cy="14" r="13" fill="#2563eb" />
+                  <path d="M106 8.5V19.5M100.5 14H111.5" stroke="white" strokeWidth="2.2" strokeLinecap="round" />
+                </svg>
+              </div>
+
+              <h3 className={`text-[15px] font-semibold mb-1.5 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                No board selected
+              </h3>
+              <p className={`text-sm leading-relaxed mb-6 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                Boards help you organise tasks, track progress, and collaborate with your team.
+              </p>
+              <button
+                onClick={handleCreateBoard}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
+              >
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <path d="M6.5 1V12M1 6.5H12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                Create a board
+              </button>
+
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Updates Panel — always in DOM, slides in/out with a CSS transition.
+          This wrapper owns the fixed positioning and width so UpdatesPanel's
+          own root can be a plain h-full/w-full div.  z-[300] sits above the
+          Gantt sticky columns (z-[200]/z-[201]) and toolbar (z-40).
+          `shownTarget` keeps content alive during the slide-out so the panel
+          doesn't visually empty before it finishes animating off-screen. */}
+      <div
+        className={`fixed top-0 right-0 h-full w-[500px] z-[300] transition-transform duration-300 ease-in-out border-l ${
+          isOpen ? 'translate-x-0 shadow-[-20px_0_60px_rgba(0,0,0,0.35)]' : 'translate-x-full'
+        } ${darkMode ? 'border-l-white/5' : 'border-l-black/8'}`}
+      >
+      {shownTarget && activeProject && (() => {
+        const { taskId, subitemId, projectId } = shownTarget;
+        const task = activeProject.tasks.find((t) => t.id === taskId);
+        if (!task) return null;
+        const isSubitem = Boolean(subitemId);
+        const subitem = subitemId ? task.subitems.find((s) => s.id === subitemId) : null;
+        const targetName = isSubitem ? (subitem?.name || '') : task.name;
+        const updates = isSubitem ? (subitem?.updates || []) : (task.updates || []);
+        const files = isSubitem ? (subitem?.files || []) : (task.files || []);
+        // Use the already-computed permissions (which gracefully default
+        // to allowing edits while membership is loading).
+        const permissions = projectPermissions ?? getProjectPermissions(projectId);
+        const effectivePerms = !membershipLoaded && user && !user.isAnonymous
+          ? { ...permissions, canEdit: true, canUpload: true, canView: true, canDownload: true }
+          : permissions;
+
+        return (
+          <UpdatesPanel
+            taskName={targetName}
+            parentName={isSubitem ? task.name : undefined}
+            isSubitem={isSubitem}
+            updates={updates}
+            files={files}
+            permissions={effectivePerms}
+            onClose={closeUpdatesPanel}
+            onAddUpdate={(payload) => {
+              const update = {
+                id: `u${Date.now()}`,
+                text: payload.text,
+                checklist: payload.checklist,
+                author: user?.displayName || user?.email || 'You',
+                createdAt: new Date().toISOString(),
+                replies: [],
+              };
+              addUpdate(projectId, taskId, subitemId, update);
+            }}
+            onAddReply={(updateId, text) => {
+              const reply = {
+                id: `r${Date.now()}`,
+                text,
+                author: user?.displayName || user?.email || 'You',
+                createdAt: new Date().toISOString(),
+              };
+              addReply(projectId, taskId, subitemId, updateId, reply);
+            }}
+            onToggleChecklistItem={(updateId, itemId) => {
+              toggleChecklistItem(projectId, taskId, subitemId, updateId, itemId);
+            }}
+            onUploadFile={async (file, onProgress) => {
+              const uploaded = await uploadFileWithProgress(
+                projectId,
+                taskId,
+                subitemId,
+                file,
+                user?.uid ?? '',
+                user?.email ?? '',
+                onProgress,
+              );
+              addFile(projectId, taskId, subitemId, uploaded);
+            }}
+          />
+        );
+      })()}
+      </div>
+
+      {/* Members Modal */}
+      {activeProject && (
+        <MembersModal
+          projectId={activeProject.id}
+          projectName={activeProject.name}
+        />
+      )}
+
+      {/* Selection Tray */}
+      {activeProject && selectedItems.size > 0 && (
+        <SelectionTray projectId={activeProject.id} />
+      )}
+
+      {/* Date Picker Popup */}
+      <DatePickerPopup />
+
+      {/* Empty-name toast — slides in from top */}
+      <EmptyNameToast />
+    </div>
+  );
+}
