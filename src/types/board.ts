@@ -6,6 +6,8 @@ export interface Group {
   color: string;
 }
 
+export type OwnerType = 'personal' | 'org';
+
 export interface Board {
   id: string;
   workspaceId: string;
@@ -14,4 +16,6 @@ export interface Board {
   status: string;
   groups: Group[];
   tasks: Item[];
+  ownerType?: OwnerType;
+  ownerRef?: string;
 }

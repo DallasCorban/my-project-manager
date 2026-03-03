@@ -66,6 +66,10 @@ interface UIState {
   // Gantt options
   ganttHeatmap: boolean;
   toggleGanttHeatmap: () => void;
+
+  // Context — 'personal' or an orgId (wired for Phase 2)
+  activeContext: string;
+  setActiveContext: (ctx: string) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -160,6 +164,10 @@ export const useUIStore = create<UIState>()(
       // Gantt options (persisted)
       ganttHeatmap: true,
       toggleGanttHeatmap: () => set((state) => ({ ganttHeatmap: !state.ganttHeatmap })),
+
+      // Context (persisted)
+      activeContext: 'personal',
+      setActiveContext: (ctx) => set({ activeContext: ctx }),
     }),
     {
       name: 'pmai_ui',
@@ -170,6 +178,7 @@ export const useUIStore = create<UIState>()(
         collapsedGroups: state.collapsedGroups,
         expandedItems: state.expandedItems,
         ganttHeatmap: state.ganttHeatmap,
+        activeContext: state.activeContext,
       }),
     },
   ),

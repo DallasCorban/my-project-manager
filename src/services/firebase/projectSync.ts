@@ -175,6 +175,8 @@ export async function ensureProjectSetup(
         name: project.name,
         workspaceId: project.workspaceId || '',
         workspaceName: (project as Board & { workspaceName?: string }).workspaceName || '',
+        ownerType: project.ownerType || 'personal',
+        ownerRef: project.ownerRef || userId,
         createdAt: serverTimestamp(),
         createdBy: userId,
         updatedAt: serverTimestamp(),

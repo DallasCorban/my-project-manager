@@ -102,12 +102,20 @@ service cloud.firestore {
         : "viewer";
     }
 
+    // --- User profiles ---
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+    }
+
     match /artifacts/{appId}/users/{userId}/{collectionName}/{docId} {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /projects/{projectId} {
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.ownerType in ['personal', 'org'];
       allow read: if isSignedIn()
         && (
           resource.data.createdBy == request.auth.uid

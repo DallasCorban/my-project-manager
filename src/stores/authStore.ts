@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { User } from 'firebase/auth';
 import { onAuthChange } from '../services/firebase/auth';
+import { ensureUserProfile } from '../services/firebase/userProfileSync';
 
 type ModalMode = 'signin' | 'signup' | 'upgrade' | 'account' | 'reset' | 'resetSent';
 
@@ -45,6 +46,10 @@ export const useAuthStore = create<AuthState>((set) => ({
 export function initAuth(): () => void {
   const unsubscribe = onAuthChange((user) => {
     useAuthStore.getState().setUser(user);
+    // Sync user profile to Firestore on every sign-in (merge, non-blocking)
+    if (user && !user.isAnonymous) {
+      ensureUserProfile(user);
+    }
   });
 
   return unsubscribe;
