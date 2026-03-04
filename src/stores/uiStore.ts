@@ -32,6 +32,9 @@ interface UIState {
   membersModalOpen: boolean;
   setMembersModalOpen: (open: boolean) => void;
 
+  orgMembersModalOpen: boolean;
+  setOrgMembersModalOpen: (open: boolean) => void;
+
   /** The Gantt bar currently selected as the zoom anchor.
    *  Single-click on a bar sets this; click on empty space clears it. */
   focusedBar: { taskId: string; subitemId: string | null } | null;
@@ -106,6 +109,9 @@ export const useUIStore = create<UIState>()(
 
       membersModalOpen: false,
       setMembersModalOpen: (open) => set({ membersModalOpen: open }),
+
+      orgMembersModalOpen: false,
+      setOrgMembersModalOpen: (open) => set({ orgMembersModalOpen: open }),
 
       focusedBar: null,
       setFocusedBar: (bar) => set({ focusedBar: bar }),

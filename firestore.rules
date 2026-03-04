@@ -102,6 +102,65 @@ service cloud.firestore {
         : "viewer";
     }
 
+    // --- Org helpers ---
+    function orgMemberPath(orgId, uid) {
+      return /databases/$(database)/documents/orgs/$(orgId)/members/$(uid);
+    }
+
+    function isOrgMember(orgId) {
+      return isSignedIn() && exists(orgMemberPath(orgId, request.auth.uid));
+    }
+
+    function orgMemberData(orgId) {
+      return get(orgMemberPath(orgId, request.auth.uid)).data;
+    }
+
+    function isOrgAdmin(orgId) {
+      return isOrgMember(orgId)
+        && orgMemberData(orgId).orgRole in ['owner', 'admin'];
+    }
+
+    // --- Organisations ---
+    match /orgs/{orgId} {
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow read: if isOrgMember(orgId);
+      allow update: if isOrgAdmin(orgId);
+      allow delete: if isSignedIn()
+        && isOrgMember(orgId)
+        && orgMemberData(orgId).orgRole == 'owner';
+
+      match /members/{memberUid} {
+        allow read: if isOrgMember(orgId);
+        allow create: if isOrgAdmin(orgId)
+          || (isSignedIn() && request.auth.uid == memberUid
+              && request.resource.data.uid == request.auth.uid);
+        allow update, delete: if isOrgAdmin(orgId);
+      }
+
+      match /invites/{inviteId} {
+        allow read: if isOrgAdmin(orgId)
+          || (requestHasEmail()
+              && resource.data.email == request.auth.token.email);
+        allow create, delete: if isOrgAdmin(orgId);
+        allow update: if isOrgAdmin(orgId)
+          || (requestHasEmail()
+              && resource.data.status == 'pending'
+              && resource.data.email == request.auth.token.email
+              && request.resource.data.status == 'accepted');
+      }
+
+      match /workspaces/{wsId} {
+        allow read: if isOrgMember(orgId);
+        allow create, update, delete: if isOrgAdmin(orgId);
+
+        match /boardRefs/{refId} {
+          allow read: if isOrgMember(orgId);
+          allow create, delete: if isOrgAdmin(orgId);
+        }
+      }
+    }
+
     // --- User profiles ---
     match /users/{userId} {
       allow read: if isSignedIn();
