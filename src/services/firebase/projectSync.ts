@@ -4,6 +4,9 @@
 import {
   doc,
   setDoc,
+  deleteDoc,
+  collection,
+  getDocs,
   onSnapshot,
   serverTimestamp,
   type Unsubscribe,
@@ -222,5 +225,33 @@ function cleanup(projectId: string): void {
 export function cleanupAllProjectSync(): void {
   for (const [pid] of handles) {
     cleanup(pid);
+  }
+}
+
+/**
+ * Permanently delete a project and its subcollections from Firestore.
+ */
+export async function deleteProjectFromFirestore(projectId: string): Promise<void> {
+  if (!canUseFirestore()) return;
+
+  // Stop any active sync for this project
+  cleanup(projectId);
+
+  try {
+    const db = getDb();
+    const projectRef = doc(db, 'projects', projectId);
+
+    // Delete known subcollection docs (state, members, invites)
+    for (const sub of ['state', 'members', 'invites']) {
+      const snap = await getDocs(collection(projectRef, sub));
+      for (const d of snap.docs) {
+        await deleteDoc(d.ref);
+      }
+    }
+
+    // Delete the project document itself
+    await deleteDoc(projectRef);
+  } catch (err) {
+    handleFirestoreListenerError(err, `deleteProject:${projectId}`);
   }
 }

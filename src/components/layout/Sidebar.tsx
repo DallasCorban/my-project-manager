@@ -1,8 +1,8 @@
 // Sidebar — context switcher, workspace selector, board list, theme toggle.
 // Supports personal context (user workspaces) and org context (shared workspaces).
 
-import { useState } from 'react';
-import { Plus, LayoutGrid, Moon, Sun, ChevronDown, ChevronLeft, Layers, Users, User, UserPlus } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, LayoutGrid, Moon, Sun, ChevronDown, ChevronLeft, Layers, Users, User, UserPlus, MoreHorizontal, Pencil, Archive, RotateCcw, Trash2 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import type { Workspace } from '../../types/workspace';
 import type { Board } from '../../types/board';
@@ -27,12 +27,19 @@ interface SidebarProps {
 
   // Boards
   boards: Board[];
+  archivedBoards: Board[];
   activeBoardId: string | null;
   onSelectBoard: (id: string) => void;
   onCreateWorkspace: () => void;
   onCreateBoard: () => void;
   canCreateBoard: boolean;
   onOpenOrgMembers?: () => void;
+
+  // Board actions
+  onRenameBoard: (id: string, name: string) => void;
+  onArchiveBoard: (id: string) => void;
+  onRestoreBoard: (id: string) => void;
+  onDeleteBoard: (id: string) => void;
 }
 
 export function Sidebar({
@@ -48,18 +55,33 @@ export function Sidebar({
   onSelectOrgWorkspace,
   onCreateOrgWorkspace,
   boards,
+  archivedBoards,
   activeBoardId,
   onSelectBoard,
   onCreateWorkspace,
   onCreateBoard,
   canCreateBoard,
   onOpenOrgMembers,
+  onRenameBoard,
+  onArchiveBoard,
+  onRestoreBoard,
+  onDeleteBoard,
 }: SidebarProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const toggleDarkMode = useUIStore((s) => s.toggleDarkMode);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showWorkspaces, setShowWorkspaces] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
+
+  // Board action menu state
+  const [menuBoardId, setMenuBoardId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Inline rename state
+  const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   const isPersonal = activeContext === 'personal';
   const activeOrg = userOrgs.find((o) => o.id === activeContext);
@@ -68,6 +90,44 @@ export function Sidebar({
   // Context display
   const contextName = isPersonal ? 'My Boards' : (activeOrg?.name || 'Team');
   const contextInitial = isPersonal ? 'M' : (activeOrg?.name || 'T')[0].toUpperCase();
+
+  // Close board menu on outside click
+  useEffect(() => {
+    if (!menuBoardId) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuBoardId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuBoardId]);
+
+  // Focus rename input when entering rename mode
+  useEffect(() => {
+    if (renamingBoardId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingBoardId]);
+
+  const startRename = (board: Board) => {
+    setRenamingBoardId(board.id);
+    setRenameValue(board.name || '');
+    setMenuBoardId(null);
+  };
+
+  const commitRename = () => {
+    if (renamingBoardId && renameValue.trim()) {
+      onRenameBoard(renamingBoardId, renameValue.trim());
+    }
+    setRenamingBoardId(null);
+  };
+
+  const handleArchive = (boardId: string) => {
+    setMenuBoardId(null);
+    onArchiveBoard(boardId);
+  };
 
   if (isCollapsed) {
     return (
@@ -307,8 +367,7 @@ export function Sidebar({
           {boards.map((board) => (
             <div
               key={board.id}
-              onClick={() => onSelectBoard(board.id)}
-              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm cursor-pointer transition-all ${
+              className={`group relative flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm cursor-pointer transition-all ${
                 activeBoardId === board.id
                   ? darkMode
                     ? 'bg-blue-500/15 text-blue-400'
@@ -317,9 +376,73 @@ export function Sidebar({
                     ? 'hover:bg-white/5 text-gray-400'
                     : 'hover:bg-gray-100 text-gray-700'
               }`}
+              onClick={() => {
+                if (renamingBoardId !== board.id) onSelectBoard(board.id);
+              }}
             >
               <LayoutGrid size={15} className="shrink-0 opacity-60" />
-              <span className="truncate font-medium">{board.name || 'Untitled Board'}</span>
+
+              {/* Inline rename input or board name */}
+              {renamingBoardId === board.id ? (
+                <input
+                  ref={renameInputRef}
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename();
+                    if (e.key === 'Escape') setRenamingBoardId(null);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`flex-1 min-w-0 bg-transparent border-b font-medium text-sm outline-none ${
+                    darkMode ? 'border-blue-500 text-gray-200' : 'border-blue-500 text-gray-800'
+                  }`}
+                />
+              ) : (
+                <span className="truncate font-medium flex-1">{board.name || 'Untitled Board'}</span>
+              )}
+
+              {/* Kebab menu trigger */}
+              {renamingBoardId !== board.id && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuBoardId(menuBoardId === board.id ? null : board.id);
+                  }}
+                  className={`shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
+                    darkMode ? 'hover:bg-white/10 text-gray-500' : 'hover:bg-gray-200 text-gray-400'
+                  }`}
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+              )}
+
+              {/* Dropdown menu */}
+              {menuBoardId === board.id && (
+                <div
+                  ref={menuRef}
+                  className={`absolute right-1 top-full mt-0.5 z-50 rounded-lg border shadow-lg overflow-hidden min-w-[140px] ${
+                    darkMode ? 'bg-[#1c213e] border-[#323652]' : 'bg-white border-gray-200'
+                  }`}
+                >
+                  <button
+                    onClick={(e) => { e.stopPropagation(); startRename(board); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                      darkMode ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Pencil size={12} /> Rename
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleArchive(board.id); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                      darkMode ? 'text-orange-400 hover:bg-orange-500/10' : 'text-orange-600 hover:bg-orange-50'
+                    }`}
+                  >
+                    <Archive size={12} /> Archive
+                  </button>
+                </div>
+              )}
             </div>
           ))}
           {boards.length === 0 && (
@@ -342,6 +465,59 @@ export function Sidebar({
             <Plus size={14} />
             <span>New Board</span>
           </button>
+        )}
+
+        {/* Archive section */}
+        {archivedBoards.length > 0 && (
+          <div className="mt-3">
+            <button
+              onClick={() => setShowArchive(!showArchive)}
+              className={`flex items-center gap-1.5 px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider w-full ${
+                darkMode ? 'text-gray-600 hover:text-gray-500' : 'text-gray-400 hover:text-gray-500'
+              }`}
+            >
+              <Archive size={10} />
+              <span>Archive ({archivedBoards.length})</span>
+              <ChevronDown size={10} className={`ml-auto transition-transform ${showArchive ? 'rotate-180' : ''}`} />
+            </button>
+            {showArchive && (
+              <div className="space-y-0.5">
+                {archivedBoards.map((board) => (
+                  <div
+                    key={board.id}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs ${
+                      darkMode ? 'text-gray-600' : 'text-gray-400'
+                    }`}
+                  >
+                    <LayoutGrid size={13} className="shrink-0 opacity-40" />
+                    <span className="truncate flex-1 line-through">{board.name || 'Untitled'}</span>
+                    <button
+                      onClick={() => onRestoreBoard(board.id)}
+                      title="Restore"
+                      className={`p-0.5 rounded transition-colors ${
+                        darkMode ? 'hover:bg-white/10 text-gray-500 hover:text-green-400' : 'hover:bg-gray-100 text-gray-400 hover:text-green-600'
+                      }`}
+                    >
+                      <RotateCcw size={12} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Permanently delete this board? This cannot be undone.')) {
+                          onDeleteBoard(board.id);
+                        }
+                      }}
+                      title="Delete permanently"
+                      className={`p-0.5 rounded transition-colors ${
+                        darkMode ? 'hover:bg-white/10 text-gray-500 hover:text-red-400' : 'hover:bg-gray-100 text-gray-400 hover:text-red-500'
+                      }`}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
 

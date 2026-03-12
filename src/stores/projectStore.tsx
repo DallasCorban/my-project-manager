@@ -163,6 +163,22 @@ export function useProjectData() {
       setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, name: v } : p)));
     },
 
+    archiveProject: (id: string): void => {
+      setProjects((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p)),
+      );
+    },
+
+    restoreProject: (id: string): void => {
+      setProjects((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, archivedAt: null } : p)),
+      );
+    },
+
+    deleteProject: (id: string): void => {
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    },
+
     updateGroupName: (pid: string, gid: string, v: string): void => {
       setProjects((prev) =>
         prev.map((p) =>
@@ -220,14 +236,15 @@ export function useProjectData() {
     },
 
     addSubitem: (pid: string, tid: string, name?: string): void => {
+      const today = new Date().toISOString().slice(0, 10);
       const newSub: Subitem = {
         id: `s${Date.now()}`,
         name: name || 'New Subitem',
         status: 'pending',
         jobTypeId: 'dev',
         assignee: 'Unassigned',
-        start: null,
-        duration: null,
+        start: today,
+        duration: 1,
       };
       setProjects((prev) =>
         prev.map((p) =>

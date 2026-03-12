@@ -5,6 +5,7 @@ import {
   doc,
   setDoc,
   deleteDoc,
+  getDocs,
   onSnapshot,
   query,
   where,
@@ -117,6 +118,25 @@ export async function addBoardToOrgWorkspace(
     });
   } catch (err) {
     handleFirestoreListenerError(err, `addBoardRef:${orgId}/${workspaceId}`);
+  }
+}
+
+/** Remove a board reference from an org workspace. */
+export async function removeBoardFromOrgWorkspace(
+  orgId: string,
+  workspaceId: string,
+  projectId: string,
+): Promise<void> {
+  if (!canUseFirestore()) return;
+
+  try {
+    const refsCol = collection(getDb(), 'orgs', orgId, 'workspaces', workspaceId, 'boardRefs');
+    const snap = await getDocs(query(refsCol, where('projectId', '==', projectId)));
+    for (const d of snap.docs) {
+      await deleteDoc(d.ref);
+    }
+  } catch (err) {
+    handleFirestoreListenerError(err, `removeBoardRef:${orgId}/${workspaceId}/${projectId}`);
   }
 }
 

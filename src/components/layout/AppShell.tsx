@@ -23,7 +23,8 @@ import {
   stopOrgDetailListeners,
   startOrgBoardRefsListener,
 } from '../../stores/orgStore';
-import { createOrg, createOrgWorkspace, addBoardToOrgWorkspace } from '../../services/firebase/orgSync';
+import { createOrg, createOrgWorkspace, addBoardToOrgWorkspace, removeBoardFromOrgWorkspace } from '../../services/firebase/orgSync';
+import { deleteProjectFromFirestore } from '../../services/firebase/projectSync';
 import { uploadFileWithProgress } from '../../services/firebase/fileSync';
 import { useInviteAccept } from '../../hooks/useInviteAccept';
 import { Sidebar } from './Sidebar';
@@ -63,6 +64,10 @@ export function AppShell() {
   const {
     projects,
     addProjectToWorkspace,
+    updateProjectName,
+    archiveProject,
+    restoreProject,
+    deleteProject,
     updateTaskName,
     updateSubitemName,
     updateTaskDate,
@@ -100,12 +105,15 @@ export function AppShell() {
   const activeWorkspace = workspaces.find((w) => w.id === activeEntityId) || workspaces[0];
   const activeWorkspaceId = activeWorkspace?.id || '';
 
-  // Filter boards based on context
-  const workspaceBoards = isPersonal
+  // Filter boards based on context, separating active and archived
+  const allContextBoards = isPersonal
     ? projects.filter((p) => p.workspaceId === activeWorkspaceId)
     : activeOrgBoardRefs
         .map((ref) => projects.find((p) => p.id === ref.projectId))
         .filter((p): p is NonNullable<typeof p> => !!p);
+
+  const workspaceBoards = allContextBoards.filter((p) => !p.archivedAt);
+  const archivedBoards = allContextBoards.filter((p) => !!p.archivedAt);
 
   // Determine active board
   const effectiveBoardId = activeBoardId || workspaceBoards[0]?.id || null;
@@ -269,10 +277,39 @@ export function AppShell() {
   };
 
   const handleUpdateEntityName = (name: string) => {
+    if (activeProject) {
+      updateProjectName(activeProject.id, name);
+      return;
+    }
     if (!activeWorkspace) return;
     setWorkspaces((prev) =>
       prev.map((w) => (w.id === activeWorkspace.id ? { ...w, name } : w)),
     );
+  };
+
+  const handleRenameBoard = (boardId: string, name: string) => {
+    updateProjectName(boardId, name);
+  };
+
+  const handleArchiveBoard = async (boardId: string) => {
+    archiveProject(boardId);
+    // Clear active board if it's the one being archived
+    if (effectiveBoardId === boardId) {
+      setActiveBoardId(null);
+    }
+    // Remove org board ref if this is an org board
+    if (!isPersonal && activeOrgWorkspaceId) {
+      await removeBoardFromOrgWorkspace(activeContext, activeOrgWorkspaceId, boardId);
+    }
+  };
+
+  const handleRestoreBoard = (boardId: string) => {
+    restoreProject(boardId);
+  };
+
+  const handleDeleteBoard = async (boardId: string) => {
+    deleteProject(boardId);
+    await deleteProjectFromFirestore(boardId);
   };
 
   const handleSelectOrgWorkspace = (id: string) => {
@@ -303,12 +340,17 @@ export function AppShell() {
         onSelectOrgWorkspace={handleSelectOrgWorkspace}
         onCreateOrgWorkspace={handleCreateOrgWorkspace}
         boards={workspaceBoards}
+        archivedBoards={archivedBoards}
         activeBoardId={effectiveBoardId}
         onSelectBoard={(id) => setActiveBoardId(id)}
         onCreateWorkspace={handleCreateWorkspace}
         onCreateBoard={handleCreateBoard}
         canCreateBoard={isPersonal ? !!activeWorkspaceId : !!activeOrgWorkspaceId}
         onOpenOrgMembers={!isPersonal ? () => setOrgMembersModalOpen(true) : undefined}
+        onRenameBoard={handleRenameBoard}
+        onArchiveBoard={handleArchiveBoard}
+        onRestoreBoard={handleRestoreBoard}
+        onDeleteBoard={handleDeleteBoard}
       />
 
       {/* Main content area */}
@@ -316,10 +358,10 @@ export function AppShell() {
 
         {/* Header */}
         <AppHeader
-          entityName={isPersonal ? (activeWorkspace?.name ?? '') : (userOrgs.find((o) => o.id === activeContext)?.name ?? '')}
-          entityType="workspace"
+          entityName={activeProject ? activeProject.name : (isPersonal ? (activeWorkspace?.name ?? '') : (userOrgs.find((o) => o.id === activeContext)?.name ?? ''))}
+          entityType={activeProject ? 'dashboard' : 'workspace'}
           onUpdateEntityName={handleUpdateEntityName}
-          canEditEntityName={isPersonal && (canEdit || !activeProject)}
+          canEditEntityName={activeProject ? canEdit : (isPersonal && !activeProject)}
           activeProjectId={activeProject?.id ?? null}
         />
 

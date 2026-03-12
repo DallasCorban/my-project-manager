@@ -18,4 +18,5 @@ export interface Board {
   tasks: Item[];
   ownerType?: OwnerType;
   ownerRef?: string;
+  archivedAt?: string | null;
 }
