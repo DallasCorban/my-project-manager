@@ -93,11 +93,8 @@ export function GanttBar({
     <div
       className={`absolute flex items-center select-none pointer-events-auto
         ${isContainer ? 'rounded-lg cursor-grab active:cursor-grabbing' : 'rounded-md shadow-sm cursor-grab active:cursor-grabbing'}
-        ${isDeleteMode ? 'opacity-30' : isContainer ? '' : 'opacity-100'}
-        ${isContainer
-          ? (darkMode ? 'border border-dashed border-white/10' : 'border border-dashed border-black/10')
-          : (darkMode ? 'border border-[#181b34]' : 'border border-white/50')
-        }
+        ${isDeleteMode ? 'opacity-30' : 'opacity-100'}
+        ${!isContainer && (darkMode ? 'border border-[#181b34]' : 'border border-white/50')}
         ${isSelected && !isContainer ? 'ring-1 ring-white/50' : ''}`}
       style={{
         left,
@@ -105,8 +102,8 @@ export function GanttBar({
         height: barHeightPx,
         top: `calc(50% + ${verticalOffsetPx}px)`,
         transform: 'translateY(-50%)',
-        backgroundColor: color,
-        opacity: isDeleteMode ? 0.3 : isContainer ? 0.3 : 1,
+        backgroundColor: isContainer ? 'transparent' : color,
+        border: isContainer ? `1.5px dashed ${color}` : undefined,
         touchAction: 'none',
       }}
       onPointerDown={(e) => {
@@ -145,9 +142,12 @@ export function GanttBar({
 
       {/* Label text */}
       {showLabel && zoomLevel > 15 && width > 30 && (
-        <span className={`text-[9px] pl-3 truncate pointer-events-none leading-none flex-1 min-w-0 ${
-          isContainer ? 'text-white/60' : 'text-white'
-        }`}>
+        <span
+          className={`text-[9px] pl-3 truncate pointer-events-none leading-none flex-1 min-w-0 ${
+            isContainer ? 'font-medium' : 'text-white'
+          }`}
+          style={isContainer ? { color } : undefined}
+        >
           {label}
         </span>
       )}

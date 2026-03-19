@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { useUIStore } from '../../stores/uiStore';
@@ -47,6 +48,30 @@ interface GroupSectionProps {
   canEdit: boolean;
   /** Listeners from useSortable — spread on the header as the group drag handle. */
   dragHandleListeners?: SyntheticListenerMap;
+}
+
+/** Invisible droppable target inside empty groups so items can be dragged in. */
+function EmptyGroupDropZone({ groupId, darkMode }: { groupId: string; darkMode: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `group-drop-zone-${groupId}`,
+    data: { type: 'group-drop-zone', groupId },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex items-center justify-center h-9 transition-colors text-xs ${
+        isOver
+          ? darkMode
+            ? 'bg-blue-500/10 text-blue-400'
+            : 'bg-blue-50 text-blue-500'
+          : darkMode
+            ? 'text-gray-600'
+            : 'text-gray-400'
+      }`}
+    >
+      {isOver ? 'Drop here' : 'No items'}
+    </div>
+  );
 }
 
 export function GroupSection({
@@ -168,6 +193,10 @@ export function GroupSection({
             items={tasks.map((t) => t.id)}
             strategy={verticalListSortingStrategy}
           >
+            {/* Empty group drop zone — visible target for dragging into groups with no tasks */}
+            {tasks.length === 0 && (
+              <EmptyGroupDropZone groupId={group.id} darkMode={darkMode} />
+            )}
             {tasks.map((task) => (
               <div key={task.id}>
                 <TaskRow

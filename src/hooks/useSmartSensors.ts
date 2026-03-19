@@ -96,12 +96,15 @@ export const sortableCollisionDetection: CollisionDetection = (args) => {
   const activeType = (active.data.current as { type?: string } | undefined)?.type;
   const activeId = String(active.id);
 
-  // Filter: same type only. Active item's own droppable is intentionally kept
-  // in the candidate list (see JSDoc above).
+  // Filter: same type only, plus group-drop-zone targets when the active item
+  // is a task (allows dropping into empty groups).
   const candidates = activeType
-    ? droppableContainers.filter(
-        (c) => (c.data.current as { type?: string } | undefined)?.type === activeType,
-      )
+    ? droppableContainers.filter((c) => {
+        const type = (c.data.current as { type?: string } | undefined)?.type;
+        if (type === activeType) return true;
+        if (activeType === 'task' && type === 'group-drop-zone') return true;
+        return false;
+      })
     : droppableContainers;
 
   // Overlap-threshold pass:

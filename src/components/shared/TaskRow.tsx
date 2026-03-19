@@ -167,10 +167,10 @@ export function TaskRow({
     ? isSubitem ? 'bg-[#191c36]' : 'bg-[#1c213e]'
     : isSubitem ? 'bg-[#f4f5fc]' : 'bg-white';
 
-  // When dragging: the row itself IS the ghost (no separate DragOverlay).
-  // It follows the cursor via useSortable's transform and should look "lifted".
+  // When dragging: the original row becomes an invisible placeholder that reserves
+  // space in the layout. The DragOverlay renders the floating ghost instead.
   const containerClass = isDragging
-    ? `flex border-b items-center h-9 relative group cursor-grabbing z-50 shadow-lg opacity-80 ${
+    ? `flex border-b items-center h-9 relative group opacity-0 ${
         darkMode ? 'border-[#323652]' : 'border-[#eceff8]'
       } ${rowBg}`
     : `flex border-b items-center h-9 relative group transition-colors ${
