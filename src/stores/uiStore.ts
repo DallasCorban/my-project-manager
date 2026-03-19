@@ -25,6 +25,10 @@ interface UIState {
   openStatusMenu: (id: string, type: 'status' | 'type') => void;
   closeStatusMenu: () => void;
 
+  peopleMenuOpen: string | null;
+  openPeopleMenu: (id: string) => void;
+  closePeopleMenu: () => void;
+
   datePickerOpen: DatePickerState | null;
   openDatePicker: (state: DatePickerState) => void;
   closeDatePicker: () => void;
@@ -100,8 +104,12 @@ export const useUIStore = create<UIState>()(
 
       statusMenuOpen: null,
       statusMenuType: 'status' as const,
-      openStatusMenu: (id, type) => set({ statusMenuOpen: id, statusMenuType: type }),
+      openStatusMenu: (id, type) => set({ statusMenuOpen: id, statusMenuType: type, peopleMenuOpen: null }),
       closeStatusMenu: () => set({ statusMenuOpen: null }),
+
+      peopleMenuOpen: null,
+      openPeopleMenu: (id) => set({ peopleMenuOpen: id, statusMenuOpen: null }),
+      closePeopleMenu: () => set({ peopleMenuOpen: null }),
 
       datePickerOpen: null,
       openDatePicker: (state) => set({ datePickerOpen: state }),

@@ -7,6 +7,8 @@ import { useSortable } from '@dnd-kit/sortable';
 import { useUIStore } from '../../stores/uiStore';
 import { ItemLabelCell } from './ItemLabelCell';
 import { LabelDropdown } from './StatusDropdown';
+import { AvatarStack } from './AvatarStack';
+import { PeopleDropdown } from './PeopleDropdown';
 import { addDaysToKey, formatDateKey, normalizeDateKey } from '../../utils/date';
 import type { Item, Subitem } from '../../types/item';
 import type { BoardColumns } from '../../types/timeline';
@@ -35,6 +37,7 @@ interface TaskRowProps {
   onReorderTypes?: (labels: JobTypeLabel[]) => void;
   onUpdateStatusColor?: (id: string, color: string) => void;
   onUpdateTypeColor?: (id: string, color: string) => void;
+  onToggleAssignee?: (uid: string) => void;
   onOpenDatePicker?: () => void;
   onOpenUpdates?: () => void;
   boardColumns: BoardColumns;
@@ -64,6 +67,7 @@ export function TaskRow({
   onReorderTypes,
   onUpdateStatusColor,
   onUpdateTypeColor,
+  onToggleAssignee,
   onOpenDatePicker,
   onOpenUpdates,
   boardColumns: col,
@@ -73,9 +77,14 @@ export function TaskRow({
   const statusMenuOpen = useUIStore((s) => s.statusMenuOpen);
   const statusMenuType = useUIStore((s) => s.statusMenuType);
   const openStatusMenu = useUIStore((s) => s.openStatusMenu);
+  const closeStatusMenu = useUIStore((s) => s.closeStatusMenu);
+  const peopleMenuOpen = useUIStore((s) => s.peopleMenuOpen);
+  const openPeopleMenu = useUIStore((s) => s.openPeopleMenu);
+  const closePeopleMenu = useUIStore((s) => s.closePeopleMenu);
 
   const statusAnchorRef = useRef<HTMLDivElement>(null);
   const typeAnchorRef = useRef<HTMLDivElement>(null);
+  const peopleAnchorRef = useRef<HTMLDivElement>(null);
 
   // Optimistic label overrides — prevent snap-back from stale Firestore echoes.
   const [optimisticStatus, setOptimisticStatus] = useState<string | null>(null);
@@ -245,14 +254,42 @@ export function TaskRow({
         />
       </div>
 
-      {/* Person column */}
+      {/* People column */}
       <div
+        ref={peopleAnchorRef}
         className={`border-r h-full flex items-center justify-center min-w-0 ${cellBorder}`}
         style={{ width: col.person }}
+        data-no-dnd
       >
-        <div className="w-6 h-6 rounded-full bg-gray-400 text-[10px] flex items-center justify-center text-white border-2 border-transparent shadow-sm">
-          {task.assignee?.charAt(0)}
+        <div
+          onMouseDown={(e) => {
+            if (peopleMenuOpen === task.id) e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!canEdit) return;
+            if (peopleMenuOpen === task.id) closePeopleMenu();
+            else openPeopleMenu(task.id);
+          }}
+          className={`h-full flex items-center justify-center ${
+            canEdit ? 'cursor-pointer' : 'cursor-default'
+          }`}
+        >
+          <AvatarStack
+            assignees={task.assignees || []}
+            darkMode={darkMode}
+          />
         </div>
+
+        {canEdit && peopleMenuOpen === task.id && onToggleAssignee && (
+          <PeopleDropdown
+            assignees={task.assignees || []}
+            projectId={projectId}
+            onToggleAssignee={onToggleAssignee}
+            darkMode={darkMode}
+            anchorRef={peopleAnchorRef}
+          />
+        )}
       </div>
 
       {/* Status column */}
@@ -263,10 +300,15 @@ export function TaskRow({
         data-no-dnd
       >
         <div
+          onMouseDown={(e) => {
+            // Prevent click-outside handler from closing the dropdown before our click toggle fires
+            if (statusMenuOpen === task.id && statusMenuType === 'status') e.stopPropagation();
+          }}
           onClick={(e) => {
             e.stopPropagation();
             if (!canEdit) return;
-            openStatusMenu(task.id, 'status');
+            if (statusMenuOpen === task.id && statusMenuType === 'status') closeStatusMenu();
+            else openStatusMenu(task.id, 'status');
           }}
           className={`w-full h-full flex items-center justify-center text-xs font-medium text-white overflow-hidden ${
             canEdit ? 'cursor-pointer transition hover:brightness-110' : 'cursor-default'
@@ -302,10 +344,14 @@ export function TaskRow({
         data-no-dnd
       >
         <div
+          onMouseDown={(e) => {
+            if (statusMenuOpen === task.id && statusMenuType === 'type') e.stopPropagation();
+          }}
           onClick={(e) => {
             e.stopPropagation();
             if (!canEdit) return;
-            openStatusMenu(task.id, 'type');
+            if (statusMenuOpen === task.id && statusMenuType === 'type') closeStatusMenu();
+            else openStatusMenu(task.id, 'type');
           }}
           className={`w-full h-full flex items-center justify-center text-xs font-medium text-white overflow-hidden ${
             canEdit ? 'cursor-pointer transition hover:brightness-110' : 'cursor-default'

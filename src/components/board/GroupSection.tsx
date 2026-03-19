@@ -38,6 +38,7 @@ interface GroupSectionProps {
   onReorderTypes?: (labels: JobTypeLabel[]) => void;
   onUpdateStatusColor?: (id: string, color: string) => void;
   onUpdateTypeColor?: (id: string, color: string) => void;
+  onToggleAssignee?: (taskId: string, subitemId: string | null, uid: string) => void;
   onOpenDatePicker: (taskId: string, subitemId: string | null) => void;
   onOpenUpdates: (taskId: string, subitemId: string | null) => void;
   canEdit: boolean;
@@ -70,6 +71,7 @@ export function GroupSection({
   onReorderTypes,
   onUpdateStatusColor,
   onUpdateTypeColor,
+  onToggleAssignee,
   onOpenDatePicker,
   onOpenUpdates,
   canEdit,
@@ -183,6 +185,7 @@ export function GroupSection({
                   onReorderTypes={onReorderTypes}
                   onUpdateStatusColor={onUpdateStatusColor}
                   onUpdateTypeColor={onUpdateTypeColor}
+                  onToggleAssignee={onToggleAssignee ? (uid) => onToggleAssignee(task.id, null, uid) : undefined}
                   onOpenDatePicker={() => onOpenDatePicker(task.id, null)}
                   onOpenUpdates={() => onOpenUpdates(task.id, null)}
                   boardColumns={boardColumns}
@@ -219,6 +222,7 @@ export function GroupSection({
                         onReorderTypes={onReorderTypes}
                         onUpdateStatusColor={onUpdateStatusColor}
                         onUpdateTypeColor={onUpdateTypeColor}
+                        onToggleAssignee={onToggleAssignee ? (uid) => onToggleAssignee(task.id, sub.id, uid) : undefined}
                         onOpenDatePicker={() => onOpenDatePicker(task.id, sub.id)}
                         onOpenUpdates={() => onOpenUpdates(task.id, sub.id)}
                         boardColumns={boardColumns}

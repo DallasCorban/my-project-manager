@@ -43,7 +43,7 @@ export function GroupHeaderRow({ boardColumns: col, onStartResize }: GroupHeader
         <div className={resizerClass} onMouseDown={handle('item')} />
       </div>
       <div className={`${cellBase} px-4 justify-center`} style={{ width: col.person }}>
-        <span className="truncate">Person</span>
+        <span className="truncate">People</span>
         <div className={resizerClass} onMouseDown={handle('person')} />
       </div>
       <div className={`${cellBase} px-4 justify-center`} style={{ width: col.status }}>

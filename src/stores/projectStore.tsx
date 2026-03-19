@@ -39,15 +39,15 @@ export const DEMO_PROJECTS: Board[] = [
       {
         id: 't1', groupId: 'g1', name: 'Discovery Phase',
         start: dateKeyFromRelativeIndex(0), duration: 15, progress: 100,
-        status: 'done', assignee: 'Sarah', priority: 'High', jobTypeId: 'research',
+        status: 'done', assignees: [], priority: 'High', jobTypeId: 'research',
         subitems: [
-          { id: 's1', name: 'Stakeholder Interviews', status: 'done', assignee: 'Sarah', start: dateKeyFromRelativeIndex(0), duration: 5, jobTypeId: 'research' },
-          { id: 's2', name: 'Requirement Gathering', status: 'working', assignee: 'Mike', start: dateKeyFromRelativeIndex(5), duration: 10, jobTypeId: 'planning' },
+          { id: 's1', name: 'Stakeholder Interviews', status: 'done', assignees: [], start: dateKeyFromRelativeIndex(0), duration: 5, jobTypeId: 'research' },
+          { id: 's2', name: 'Requirement Gathering', status: 'working', assignees: [], start: dateKeyFromRelativeIndex(5), duration: 10, jobTypeId: 'planning' },
         ],
       },
-      { id: 't2', groupId: 'g1', name: 'Wireframing', start: dateKeyFromRelativeIndex(16), duration: 20, progress: 60, status: 'working', assignee: 'Mike', priority: 'Medium', jobTypeId: 'design', subitems: [] },
-      { id: 't3', groupId: 'g2', name: 'UI Design', start: dateKeyFromRelativeIndex(30), duration: 30, progress: 0, status: 'pending', assignee: 'Jessica', priority: 'High', jobTypeId: 'design', subitems: [] },
-      { id: 't4', groupId: 'g2', name: 'Frontend Dev', start: null, duration: null, progress: 0, status: 'pending', assignee: 'Dev Team', priority: 'High', jobTypeId: 'dev', subitems: [] },
+      { id: 't2', groupId: 'g1', name: 'Wireframing', start: dateKeyFromRelativeIndex(16), duration: 20, progress: 60, status: 'working', assignees: [], priority: 'Medium', jobTypeId: 'design', subitems: [] },
+      { id: 't3', groupId: 'g2', name: 'UI Design', start: dateKeyFromRelativeIndex(30), duration: 30, progress: 0, status: 'pending', assignees: [], priority: 'High', jobTypeId: 'design', subitems: [] },
+      { id: 't4', groupId: 'g2', name: 'Frontend Dev', start: null, duration: null, progress: 0, status: 'pending', assignees: [], priority: 'High', jobTypeId: 'dev', subitems: [] },
     ],
   },
 ];
@@ -116,11 +116,27 @@ export function useProjectData() {
       return item;
     };
 
+    // Migrate assignee (string) → assignees (string[])
+    const migrateAssignee = <T extends Record<string, unknown>>(item: T): T => {
+      if (item && !('assignees' in item) && 'assignee' in item) {
+        needsMigration = true;
+        const a = item.assignee as string;
+        const { assignee: _, ...rest } = item;
+        return { ...rest, assignees: a && a !== 'Unassigned' ? [a] : [] } as T;
+      }
+      // Ensure assignees is always an array (defensive)
+      if (item && 'assignees' in item && !Array.isArray(item.assignees)) {
+        needsMigration = true;
+        return { ...item, assignees: [] } as T;
+      }
+      return item;
+    };
+
     const nextProjects = projects.map((p) => ({
       ...p,
       tasks: (p.tasks || []).map((t) => ({
-        ...migrateItem(t),
-        subitems: (t.subitems || []).map((s) => migrateItem(s)),
+        ...migrateAssignee(migrateItem(t)),
+        subitems: (t.subitems || []).map((s) => migrateAssignee(migrateItem(s))),
       })),
     }));
 
@@ -226,7 +242,7 @@ export function useProjectData() {
         progress: 0,
         status: 'pending',
         jobTypeId: 'dev',
-        assignee: 'Unassigned',
+        assignees: [],
         priority: 'Low',
         subitems: [],
       };
@@ -241,7 +257,7 @@ export function useProjectData() {
         name: name || 'New Subitem',
         status: 'pending',
         jobTypeId: 'dev',
-        assignee: 'Unassigned',
+        assignees: [],
         start: null,
         duration: null,
       };
@@ -300,6 +316,42 @@ export function useProjectData() {
       } else {
         setProjects((prev) => updateTaskField(prev, pid, tid, null, 'jobTypeId', val, false));
       }
+    },
+
+    toggleAssignee: (pid: string, tid: string, sid: string | null, uid: string): void => {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== pid) return p;
+          return {
+            ...p,
+            tasks: p.tasks.map((t) => {
+              if (sid) {
+                // Subitem
+                if (t.subitems.some((s) => s.id === (sid || tid))) {
+                  return {
+                    ...t,
+                    subitems: t.subitems.map((s) => {
+                      if (s.id !== (sid || tid)) return s;
+                      const cur = s.assignees || [];
+                      return {
+                        ...s,
+                        assignees: cur.includes(uid) ? cur.filter((a) => a !== uid) : [...cur, uid],
+                      };
+                    }),
+                  };
+                }
+                return t;
+              }
+              if (t.id !== tid) return t;
+              const cur = t.assignees || [];
+              return {
+                ...t,
+                assignees: cur.includes(uid) ? cur.filter((a) => a !== uid) : [...cur, uid],
+              };
+            }),
+          };
+        }),
+      );
     },
 
     addUpdate: (pid: string, tid: string, sid: string | null, update: Update): void => {

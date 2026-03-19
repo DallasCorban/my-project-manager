@@ -29,7 +29,7 @@ export interface Subitem {
   duration: number | null;
   status: string;
   jobTypeId: string;
-  assignee: string;
+  assignees: string[];        // member UIDs (or legacy display names)
   updates?: Update[];
   files?: ProjectFile[];
 }
@@ -43,7 +43,7 @@ export interface Item {
   progress: number;
   status: string;
   jobTypeId: string;
-  assignee: string;
+  assignees: string[];        // member UIDs (or legacy display names)
   priority: string;
   subitems: Subitem[];
   updates?: Update[];

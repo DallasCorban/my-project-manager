@@ -67,6 +67,7 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
     addGroup,
     changeStatus,
     changeJobType,
+    toggleAssignee,
     reorderTasks,
     moveTaskToGroup,
     reorderSubitems,
@@ -265,6 +266,9 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
                       onReorderTypes={handleReorderTypes}
                       onUpdateStatusColor={handleUpdateStatusColor}
                       onUpdateTypeColor={handleUpdateTypeColor}
+                      onToggleAssignee={(taskId, subId, uid) =>
+                        toggleAssignee(project.id, taskId, subId, uid)
+                      }
                       onOpenDatePicker={(taskId, subId) =>
                         openDatePicker({ taskId, subitemId: subId, projectId: project.id })
                       }

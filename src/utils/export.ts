@@ -6,7 +6,7 @@ import type { Board } from '../types/board';
  * Export project data as CSV.
  */
 export function exportProjectAsCsv(project: Board): string {
-  const headers = ['Group', 'Task', 'Status', 'Type', 'Assignee', 'Priority', 'Start', 'Duration'];
+  const headers = ['Group', 'Task', 'Status', 'Type', 'People', 'Priority', 'Start', 'Duration'];
   const rows: string[][] = [];
 
   for (const group of project.groups) {
@@ -17,7 +17,7 @@ export function exportProjectAsCsv(project: Board): string {
         task.name,
         task.status || '',
         task.jobTypeId || '',
-        task.assignee || '',
+        (task.assignees || []).join(', '),
         task.priority || '',
         task.start || '',
         String(task.duration || ''),
@@ -30,7 +30,7 @@ export function exportProjectAsCsv(project: Board): string {
           `  ↳ ${sub.name}`,
           sub.status || '',
           sub.jobTypeId || '',
-          sub.assignee || '',
+          (sub.assignees || []).join(', '),
           '',
           sub.start || '',
           String(sub.duration || ''),
