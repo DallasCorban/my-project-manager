@@ -11,6 +11,8 @@ export interface Organization {
   createdBy: string;
   createdAt: unknown;
   archivedAt?: unknown;
+  /** Current user's role in this org (client-side only, not stored in Firestore). */
+  selfRole?: OrgRole;
   settings?: OrgSettings;
 }
 

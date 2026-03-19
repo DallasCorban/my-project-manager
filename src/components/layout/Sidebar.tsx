@@ -12,7 +12,12 @@ import { useUIStore } from '../../stores/uiStore';
 import type { Workspace } from '../../types/workspace';
 import type { Board } from '../../types/board';
 import type { Organization } from '../../types/org';
-import type { OrgWorkspace } from '../../services/firebase/orgSync';
+import {
+  subscribeToOrgWorkspaces,
+  subscribeToOrgBoardRefs,
+  type OrgWorkspace,
+  type OrgBoardRef,
+} from '../../services/firebase/orgSync';
 
 type SidebarMode = 'nav' | 'settings' | 'archive';
 
@@ -58,6 +63,14 @@ interface SidebarProps {
   // Org actions
   onRenameOrg: (id: string, name: string) => void;
   onArchiveOrg: (id: string) => void;
+
+  // Archived teams (for archive view)
+  archivedOrgs: Organization[];
+  onRestoreOrg: (id: string) => void;
+  onDeleteOrg: (id: string) => void;
+  onPreviewArchivedBoard: (boardId: string) => void;
+  /** All projects for looking up board names by ID. */
+  allProjects: Board[];
 }
 
 export function Sidebar({
@@ -91,6 +104,11 @@ export function Sidebar({
   onDeleteWorkspace,
   onRenameOrg,
   onArchiveOrg,
+  archivedOrgs,
+  onRestoreOrg,
+  onDeleteOrg,
+  onPreviewArchivedBoard,
+  allProjects,
 }: SidebarProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const toggleDarkMode = useUIStore((s) => s.toggleDarkMode);
@@ -102,6 +120,7 @@ export function Sidebar({
   // Board action menu state
   const [menuBoardId, setMenuBoardId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   // Inline rename state
   const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
@@ -125,6 +144,12 @@ export function Sidebar({
   // Archive view: expanded workspace IDs
   const [expandedArchivedWs, setExpandedArchivedWs] = useState<Set<string>>(new Set());
 
+  // Archive view: expanded archived teams and their loaded data
+  const [expandedArchivedOrgs, setExpandedArchivedOrgs] = useState<Set<string>>(new Set());
+  const [archivedOrgWorkspaces, setArchivedOrgWorkspaces] = useState<Record<string, OrgWorkspace[]>>({});
+  const [expandedArchivedOrgWs, setExpandedArchivedOrgWs] = useState<Set<string>>(new Set());
+  const [archivedOrgBoardRefs, setArchivedOrgBoardRefs] = useState<Record<string, OrgBoardRef[]>>({});
+
   const isPersonal = activeContext === 'personal';
   const activeOrg = userOrgs.find((o) => o.id === activeContext);
   const activeWorkspace = workspaces.find((ws) => ws.id === selectedWorkspaceId);
@@ -139,7 +164,7 @@ export function Sidebar({
   const individuallyArchivedBoards = allArchivedBoards.filter((b) => !archivedWsIds.has(b.workspaceId));
 
   // Total archive count for badge
-  const archiveCount = archivedWorkspaces.length + individuallyArchivedBoards.length;
+  const archiveCount = archivedOrgs.length + archivedWorkspaces.length + individuallyArchivedBoards.length;
 
   // Close board menu on outside click
   useEffect(() => {
@@ -147,6 +172,7 @@ export function Sidebar({
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuBoardId(null);
+        setMenuPos(null);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -167,6 +193,7 @@ export function Sidebar({
     const handleClick = (e: MouseEvent) => {
       if (wsMenuRef.current && !wsMenuRef.current.contains(e.target as Node)) {
         setWsMenuId(null);
+        setMenuPos(null);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -187,6 +214,7 @@ export function Sidebar({
     const handleClick = (e: MouseEvent) => {
       if (orgMenuRef.current && !orgMenuRef.current.contains(e.target as Node)) {
         setOrgMenuId(null);
+        setMenuPos(null);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -200,6 +228,51 @@ export function Sidebar({
       renameOrgInputRef.current.select();
     }
   }, [renamingOrgId]);
+
+  // Load workspaces when an archived team is expanded
+  useEffect(() => {
+    const unsubs: (() => void)[] = [];
+    for (const orgId of expandedArchivedOrgs) {
+      const unsub = subscribeToOrgWorkspaces(orgId, (ws) => {
+        setArchivedOrgWorkspaces((prev) => ({ ...prev, [orgId]: ws }));
+      });
+      unsubs.push(unsub);
+    }
+    return () => unsubs.forEach((u) => u());
+  }, [expandedArchivedOrgs]);
+
+  // Load board refs when an archived team workspace is expanded
+  useEffect(() => {
+    const unsubs: (() => void)[] = [];
+    for (const key of expandedArchivedOrgWs) {
+      // key format: "orgId/wsId"
+      const [orgId, wsId] = key.split('/');
+      const unsub = subscribeToOrgBoardRefs(orgId, wsId, (refs) => {
+        setArchivedOrgBoardRefs((prev) => ({ ...prev, [key]: refs }));
+      });
+      unsubs.push(unsub);
+    }
+    return () => unsubs.forEach((u) => u());
+  }, [expandedArchivedOrgWs]);
+
+  const toggleArchivedOrg = (orgId: string) => {
+    setExpandedArchivedOrgs((prev) => {
+      const next = new Set(prev);
+      if (next.has(orgId)) next.delete(orgId);
+      else next.add(orgId);
+      return next;
+    });
+  };
+
+  const toggleArchivedOrgWs = (orgId: string, wsId: string) => {
+    const key = `${orgId}/${wsId}`;
+    setExpandedArchivedOrgWs((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const startRename = (board: Board) => {
     setRenamingBoardId(board.id);
@@ -424,6 +497,111 @@ export function Sidebar({
             </div>
           )}
 
+          {/* Section 0: Archived Teams (expandable: team → workspaces → boards) */}
+          {archivedOrgs.length > 0 && (
+            <div className="mb-3">
+              <div className={`px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider ${
+                darkMode ? 'text-gray-500' : 'text-gray-400'
+              }`}>
+                Teams
+              </div>
+              <div className="space-y-0.5">
+                {archivedOrgs.map((org) => {
+                  const isOrgExpanded = expandedArchivedOrgs.has(org.id);
+                  const orgWsList = archivedOrgWorkspaces[org.id] || [];
+                  return (
+                    <div key={org.id}>
+                      <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs ${
+                        darkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        <button onClick={() => toggleArchivedOrg(org.id)} className="shrink-0 p-0.5">
+                          <ChevronDown size={12} className={`transition-transform ${isOrgExpanded ? '' : '-rotate-90'}`} />
+                        </button>
+                        <Users size={13} className="shrink-0 opacity-60" />
+                        <span className="flex-1 truncate font-medium">{org.name}</span>
+                        <button
+                          onClick={() => onRestoreOrg(org.id)}
+                          title="Restore team"
+                          className={`shrink-0 p-0.5 rounded transition-colors ${
+                            darkMode ? 'hover:bg-green-500/10 text-gray-500 hover:text-green-400' : 'hover:bg-green-50 text-gray-400 hover:text-green-600'
+                          }`}
+                        >
+                          <RotateCcw size={12} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Permanently delete team "${org.name}"? This cannot be undone.`)) {
+                              onDeleteOrg(org.id);
+                            }
+                          }}
+                          title="Delete permanently"
+                          className={`shrink-0 p-0.5 rounded transition-colors ${
+                            darkMode ? 'hover:bg-red-500/10 text-gray-500 hover:text-red-400' : 'hover:bg-red-50 text-gray-400 hover:text-red-600'
+                          }`}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                      {/* Nested workspaces */}
+                      {isOrgExpanded && (
+                        <div className="ml-5 space-y-0.5">
+                          {orgWsList.length === 0 && (
+                            <div className={`px-2 py-1 text-[10px] ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                              No workspaces
+                            </div>
+                          )}
+                          {orgWsList.map((ws) => {
+                            const wsKey = `${org.id}/${ws.id}`;
+                            const isWsExpanded = expandedArchivedOrgWs.has(wsKey);
+                            const wsBoardRefs = archivedOrgBoardRefs[wsKey] || [];
+                            return (
+                              <div key={ws.id}>
+                                <div className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${
+                                  darkMode ? 'text-gray-500' : 'text-gray-400'
+                                }`}>
+                                  <button onClick={() => toggleArchivedOrgWs(org.id, ws.id)} className="shrink-0 p-0.5">
+                                    <ChevronDown size={11} className={`transition-transform ${isWsExpanded ? '' : '-rotate-90'}`} />
+                                  </button>
+                                  <FolderOpen size={12} className="shrink-0 opacity-50" />
+                                  <span className="flex-1 truncate">{ws.name}</span>
+                                </div>
+                                {/* Nested boards */}
+                                {isWsExpanded && (
+                                  <div className="ml-5 space-y-0.5">
+                                    {wsBoardRefs.length === 0 && (
+                                      <div className={`px-2 py-1 text-[10px] ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                                        No boards
+                                      </div>
+                                    )}
+                                    {wsBoardRefs.map((ref) => {
+                                      const refBoard = allProjects.find((p) => p.id === ref.projectId);
+                                      return (
+                                        <div
+                                          key={ref.id}
+                                          onClick={() => onPreviewArchivedBoard(ref.projectId)}
+                                          className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs cursor-pointer transition-colors ${
+                                            darkMode ? 'text-gray-500 hover:bg-white/5 hover:text-gray-300' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                                          }`}
+                                        >
+                                          <LayoutGrid size={11} className="shrink-0 opacity-40" />
+                                          <span className="flex-1 truncate">{refBoard?.name || 'Untitled Board'}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Section 1: Archived Workspaces */}
           {archivedWorkspaces.length > 0 && (
             <div className="mb-3">
@@ -452,7 +630,12 @@ export function Sidebar({
                             <FolderOpen size={12} className="opacity-40" />
                           )}
                         </button>
-                        <span className="truncate flex-1 font-medium">{ws.name}</span>
+                        <span
+                          className="truncate flex-1 font-medium cursor-pointer"
+                          onClick={() => toggleArchivedWsExpand(ws.id)}
+                        >
+                          {ws.name}
+                        </span>
                         <button
                           onClick={() => onRestoreWorkspace(ws.id)}
                           title="Restore workspace & boards"
@@ -482,8 +665,9 @@ export function Sidebar({
                           {wsBoards.map((board) => (
                             <div
                               key={board.id}
-                              className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] ${
-                                darkMode ? 'text-gray-600' : 'text-gray-400'
+                              onClick={() => onPreviewArchivedBoard(board.id)}
+                              className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] cursor-pointer transition-colors ${
+                                darkMode ? 'text-gray-600 hover:bg-white/5 hover:text-gray-400' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
                               }`}
                             >
                               <LayoutGrid size={11} className="shrink-0 opacity-40" />
@@ -516,7 +700,12 @@ export function Sidebar({
                     }`}
                   >
                     <LayoutGrid size={13} className="shrink-0 opacity-40" />
-                    <span className="truncate flex-1">{board.name || 'Untitled'}</span>
+                    <span
+                      className="truncate flex-1 cursor-pointer hover:underline"
+                      onClick={() => onPreviewArchivedBoard(board.id)}
+                    >
+                      {board.name || 'Untitled'}
+                    </span>
                     <button
                       onClick={() => onRestoreBoard(board.id)}
                       title="Restore"
@@ -639,7 +828,17 @@ export function Sidebar({
                       {org.name}
                     </span>
                     <button
-                      onClick={(e) => { e.stopPropagation(); setOrgMenuId(orgMenuId === org.id ? null : org.id); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (orgMenuId === org.id) {
+                          setOrgMenuId(null);
+                          setMenuPos(null);
+                        } else {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setMenuPos({ top: rect.bottom + 2, left: rect.right });
+                          setOrgMenuId(org.id);
+                        }
+                      }}
                       className={`shrink-0 p-0.5 rounded opacity-0 group-hover/org:opacity-100 transition-opacity ${
                         darkMode ? 'hover:bg-white/10 text-gray-500' : 'hover:bg-gray-200 text-gray-400'
                       }`}
@@ -648,10 +847,11 @@ export function Sidebar({
                     </button>
                   </>
                 )}
-                {orgMenuId === org.id && (
+                {orgMenuId === org.id && menuPos && (
                   <div
                     ref={orgMenuRef}
-                    className={`absolute right-1 top-full mt-0.5 z-50 rounded-lg border shadow-lg overflow-hidden min-w-[120px] ${
+                    style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, transform: 'translateX(-100%)' }}
+                    className={`z-[9999] rounded-lg border shadow-lg overflow-hidden min-w-[120px] ${
                       darkMode ? 'bg-[#1c213e] border-[#323652]' : 'bg-white border-gray-200'
                     }`}
                   >
@@ -738,7 +938,17 @@ export function Sidebar({
                         {ws.name}
                       </span>
                       <button
-                        onClick={(e) => { e.stopPropagation(); setWsMenuId(wsMenuId === ws.id ? null : ws.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (wsMenuId === ws.id) {
+                            setWsMenuId(null);
+                            setMenuPos(null);
+                          } else {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setMenuPos({ top: rect.bottom + 2, left: rect.right });
+                            setWsMenuId(ws.id);
+                          }
+                        }}
                         className={`shrink-0 p-0.5 rounded opacity-0 group-hover/ws:opacity-100 transition-opacity ${
                           darkMode ? 'hover:bg-white/10 text-gray-500' : 'hover:bg-gray-200 text-gray-400'
                         }`}
@@ -747,10 +957,11 @@ export function Sidebar({
                       </button>
                     </>
                   )}
-                  {wsMenuId === ws.id && (
+                  {wsMenuId === ws.id && menuPos && (
                     <div
                       ref={wsMenuRef}
-                      className={`absolute right-1 top-full mt-0.5 z-50 rounded-lg border shadow-lg overflow-hidden min-w-[120px] ${
+                      style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, transform: 'translateX(-100%)' }}
+                      className={`z-[9999] rounded-lg border shadow-lg overflow-hidden min-w-[120px] ${
                         darkMode ? 'bg-[#1c213e] border-[#323652]' : 'bg-white border-gray-200'
                       }`}
                     >
@@ -888,7 +1099,14 @@ export function Sidebar({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setMenuBoardId(menuBoardId === board.id ? null : board.id);
+                    if (menuBoardId === board.id) {
+                      setMenuBoardId(null);
+                      setMenuPos(null);
+                    } else {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setMenuPos({ top: rect.bottom + 2, left: rect.right });
+                      setMenuBoardId(board.id);
+                    }
                   }}
                   className={`shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
                     darkMode ? 'hover:bg-white/10 text-gray-500' : 'hover:bg-gray-200 text-gray-400'
@@ -898,10 +1116,11 @@ export function Sidebar({
                 </button>
               )}
 
-              {menuBoardId === board.id && (
+              {menuBoardId === board.id && menuPos && (
                 <div
                   ref={menuRef}
-                  className={`absolute right-1 top-full mt-0.5 z-50 rounded-lg border shadow-lg overflow-hidden min-w-[140px] ${
+                  style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, transform: 'translateX(-100%)' }}
+                  className={`z-[9999] rounded-lg border shadow-lg overflow-hidden min-w-[140px] ${
                     darkMode ? 'bg-[#1c213e] border-[#323652]' : 'bg-white border-gray-200'
                   }`}
                 >

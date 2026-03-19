@@ -48,9 +48,10 @@ function SortableGroupContainer({
 
 interface BoardViewProps {
   project: Board;
+  canEdit?: boolean;
 }
 
-export function BoardView({ project }: BoardViewProps) {
+export function BoardView({ project, canEdit = true }: BoardViewProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const collapsedGroups = useUIStore((s) => s.collapsedGroups);
   const setCollapsedGroups = useUIStore((s) => s.setCollapsedGroups);
@@ -192,7 +193,7 @@ export function BoardView({ project }: BoardViewProps) {
 
   return (
     <DndContext
-      sensors={sensors}
+      sensors={canEdit ? sensors : []}
       collisionDetection={sortableCollisionDetection}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={handleDragStart}
@@ -253,7 +254,7 @@ export function BoardView({ project }: BoardViewProps) {
                       onOpenUpdates={(taskId, subId) =>
                         toggleUpdatesPanel({ taskId, subitemId: subId, projectId: project.id })
                       }
-                      canEdit={true}
+                      canEdit={canEdit}
                       dragHandleListeners={groupListeners}
                     />
                   </div>
@@ -264,16 +265,18 @@ export function BoardView({ project }: BoardViewProps) {
         </SortableContext>
 
         {/* Add group button */}
-        <button
-          onClick={() => addGroup(project.id)}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-            darkMode
-              ? 'text-gray-400 hover:bg-[#202336] hover:text-gray-200'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-          }`}
-        >
-          <Plus size={16} /> Add Group
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => addGroup(project.id)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              darkMode
+                ? 'text-gray-400 hover:bg-[#202336] hover:text-gray-200'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            }`}
+          >
+            <Plus size={16} /> Add Group
+          </button>
+        )}
       </div>
 
     </DndContext>

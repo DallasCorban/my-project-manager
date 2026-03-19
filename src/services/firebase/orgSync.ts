@@ -218,6 +218,18 @@ export async function restoreOrg(orgId: string): Promise<void> {
   }
 }
 
+/** Permanently delete an org. Note: subcollection cleanup (members, workspaces, boardRefs)
+ *  should be handled by a Cloud Function in production. */
+export async function deleteOrg(orgId: string): Promise<void> {
+  if (!canUseFirestore()) return;
+
+  try {
+    await deleteDoc(doc(getDb(), 'orgs', orgId));
+  } catch (err) {
+    handleFirestoreListenerError(err, `deleteOrg:${orgId}`);
+  }
+}
+
 // --- Real-time subscriptions ---
 
 /** Subscribe to all orgs the current user belongs to.
@@ -241,6 +253,7 @@ export function subscribeToUserOrgs(
     // Track org IDs to subscribe to their metadata
     const orgUnsubs = new Map<string, Unsubscribe>();
     const orgCache = new Map<string, Organization>();
+    const roleMap = new Map<string, Organization['selfRole']>();
 
     const memberUnsub = onSnapshot(
       q,
@@ -253,6 +266,9 @@ export function subscribeToUserOrgs(
           if (pathParts[0] !== 'orgs') continue;
           const orgId = pathParts[1];
           orgIds.add(orgId);
+          // Capture the user's own role in this org
+          const data = docSnap.data();
+          roleMap.set(orgId, data.orgRole || 'member');
         }
 
         // Subscribe to any new orgs
@@ -276,6 +292,7 @@ export function subscribeToUserOrgs(
                   createdBy: data.createdBy || '',
                   createdAt: data.createdAt,
                   archivedAt: data.archivedAt || null,
+                  selfRole: roleMap.get(orgId) || 'member',
                   settings: data.settings,
                 });
               }
