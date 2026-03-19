@@ -38,12 +38,11 @@ export function EditableText({
   const [width, setWidth] = useState('auto');
   const [localValue, setLocalValue] = useState(value);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guard against double-flush: Enter calls flush() then blur fires flush()
+  // again with a stale `value` closure, re-sending the same onChange.
+  const flushedRef = useRef(false);
 
   // Sync external value changes — but only when there's no pending local edit.
-  // Without this guard, the store's debounced value overwrites what the user
-  // is actively typing (e.g. user types "abc", debounce sends "ab" to store,
-  // store re-renders with value="ab", this effect resets localValue to "ab",
-  // and the "c" disappears).
   useEffect(() => {
     if (pendingRef.current === null) {
       setLocalValue(value);
@@ -62,6 +61,8 @@ export function EditableText({
       clearTimeout(pendingRef.current);
       pendingRef.current = null;
     }
+    // Skip if we already flushed (prevents Enter + blur double-fire)
+    if (flushedRef.current) return;
     if (!onChange || !inputRef.current) return;
     const current = inputRef.current.value;
     // If revertOnEmpty is set and the field is blank, silently snap back to
@@ -71,12 +72,17 @@ export function EditableText({
       setLocalValue(value);
       return;
     }
-    if (current !== value) onChange(current);
+    if (current !== value) {
+      flushedRef.current = true;
+      onChange(current);
+    }
   }, [onChange, value, revertOnEmpty, onEmpty]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const newVal = e.target.value;
     setLocalValue(newVal);
+    // Reset flushed guard — user is typing again
+    flushedRef.current = false;
 
     if (!onChange) return;
 
@@ -94,16 +100,23 @@ export function EditableText({
     // Schedule debounced update
     pendingRef.current = setTimeout(() => {
       pendingRef.current = null;
+      flushedRef.current = false;
       onChange(newVal);
     }, debounceMs);
   };
 
   const handleBlur = () => {
-    // Flush immediately on blur
     flush();
+    // Reset after blur completes so next focus cycle works normally
+    flushedRef.current = false;
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // Stop propagation for ALL keys while the input is focused so that
+    // parent listeners (e.g. dnd-kit's keyboard sensor which intercepts
+    // Space/Enter to start a drag) don't hijack normal typing.
+    e.stopPropagation();
+
     if (e.key === 'Enter') {
       flush();
       inputRef.current?.blur();
@@ -111,6 +124,7 @@ export function EditableText({
     if (e.key === 'Escape') {
       // Revert to original value
       setLocalValue(value);
+      flushedRef.current = false;
       if (pendingRef.current !== null) {
         clearTimeout(pendingRef.current);
         pendingRef.current = null;

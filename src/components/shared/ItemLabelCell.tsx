@@ -52,7 +52,7 @@ export function ItemLabelCell({
             hasSubitems
               ? 'cursor-pointer text-gray-400 hover:text-blue-500'
               : 'cursor-default text-gray-300 opacity-30'
-          } ${expandedItems.includes(task.id) ? 'rotate-90' : ''}`}
+          } ${hasSubitems && expandedItems.includes(task.id) ? 'rotate-90' : ''}`}
         >
           <ChevronRight size={14} />
         </div>
@@ -65,7 +65,7 @@ export function ItemLabelCell({
         readOnly={!canEdit}
         revertOnEmpty
         onEmpty={showEmptyNameToast}
-        className={`text-sm ${isSubitem ? 'text-xs' : ''} ${
+        className={`text-xs ${
           darkMode ? 'text-gray-200' : 'text-[#323338]'
         }`}
       />

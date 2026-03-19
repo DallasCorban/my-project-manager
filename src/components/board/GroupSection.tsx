@@ -32,6 +32,12 @@ interface GroupSectionProps {
   onAddTypeLabel: (label: string, color: string) => void;
   onRemoveStatusLabel?: (id: string) => void;
   onRemoveTypeLabel?: (id: string) => void;
+  onRenameStatusLabel?: (id: string, newLabel: string) => void;
+  onRenameTypeLabel?: (id: string, newLabel: string) => void;
+  onReorderStatuses?: (labels: StatusLabel[]) => void;
+  onReorderTypes?: (labels: JobTypeLabel[]) => void;
+  onUpdateStatusColor?: (id: string, color: string) => void;
+  onUpdateTypeColor?: (id: string, color: string) => void;
   onOpenDatePicker: (taskId: string, subitemId: string | null) => void;
   onOpenUpdates: (taskId: string, subitemId: string | null) => void;
   canEdit: boolean;
@@ -58,6 +64,12 @@ export function GroupSection({
   onAddTypeLabel,
   onRemoveStatusLabel,
   onRemoveTypeLabel,
+  onRenameStatusLabel,
+  onRenameTypeLabel,
+  onReorderStatuses,
+  onReorderTypes,
+  onUpdateStatusColor,
+  onUpdateTypeColor,
   onOpenDatePicker,
   onOpenUpdates,
   canEdit,
@@ -165,6 +177,12 @@ export function GroupSection({
                   onAddTypeLabel={onAddTypeLabel}
                   onRemoveStatusLabel={onRemoveStatusLabel}
                   onRemoveTypeLabel={onRemoveTypeLabel}
+                  onRenameStatusLabel={onRenameStatusLabel}
+                  onRenameTypeLabel={onRenameTypeLabel}
+                  onReorderStatuses={onReorderStatuses}
+                  onReorderTypes={onReorderTypes}
+                  onUpdateStatusColor={onUpdateStatusColor}
+                  onUpdateTypeColor={onUpdateTypeColor}
                   onOpenDatePicker={() => onOpenDatePicker(task.id, null)}
                   onOpenUpdates={() => onOpenUpdates(task.id, null)}
                   boardColumns={boardColumns}
@@ -195,6 +213,12 @@ export function GroupSection({
                         onAddTypeLabel={onAddTypeLabel}
                         onRemoveStatusLabel={onRemoveStatusLabel}
                         onRemoveTypeLabel={onRemoveTypeLabel}
+                        onRenameStatusLabel={onRenameStatusLabel}
+                        onRenameTypeLabel={onRenameTypeLabel}
+                        onReorderStatuses={onReorderStatuses}
+                        onReorderTypes={onReorderTypes}
+                        onUpdateStatusColor={onUpdateStatusColor}
+                        onUpdateTypeColor={onUpdateTypeColor}
                         onOpenDatePicker={() => onOpenDatePicker(task.id, sub.id)}
                         onOpenUpdates={() => onOpenUpdates(task.id, sub.id)}
                         boardColumns={boardColumns}
@@ -210,7 +234,7 @@ export function GroupSection({
           {/* Add item row — inline input */}
           {canEdit && (
             <div
-              className={`flex items-center h-10 px-4 transition-colors ${
+              className={`flex items-center h-9 px-4 transition-colors ${
                 darkMode
                   ? 'hover:bg-[#202336] text-gray-500'
                   : 'hover:bg-gray-50 text-gray-400'

@@ -236,15 +236,14 @@ export function useProjectData() {
     },
 
     addSubitem: (pid: string, tid: string, name?: string): void => {
-      const today = new Date().toISOString().slice(0, 10);
       const newSub: Subitem = {
         id: `s${Date.now()}`,
         name: name || 'New Subitem',
         status: 'pending',
         jobTypeId: 'dev',
         assignee: 'Unassigned',
-        start: today,
-        duration: 1,
+        start: null,
+        duration: null,
       };
       setProjects((prev) =>
         prev.map((p) =>

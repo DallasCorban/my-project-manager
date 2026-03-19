@@ -29,6 +29,12 @@ interface TaskRowProps {
   onAddTypeLabel?: (label: string, color: string) => void;
   onRemoveStatusLabel?: (id: string) => void;
   onRemoveTypeLabel?: (id: string) => void;
+  onRenameStatusLabel?: (id: string, newLabel: string) => void;
+  onRenameTypeLabel?: (id: string, newLabel: string) => void;
+  onReorderStatuses?: (labels: StatusLabel[]) => void;
+  onReorderTypes?: (labels: JobTypeLabel[]) => void;
+  onUpdateStatusColor?: (id: string, color: string) => void;
+  onUpdateTypeColor?: (id: string, color: string) => void;
   onOpenDatePicker?: () => void;
   onOpenUpdates?: () => void;
   boardColumns: BoardColumns;
@@ -52,6 +58,12 @@ export function TaskRow({
   onAddTypeLabel,
   onRemoveStatusLabel,
   onRemoveTypeLabel,
+  onRenameStatusLabel,
+  onRenameTypeLabel,
+  onReorderStatuses,
+  onReorderTypes,
+  onUpdateStatusColor,
+  onUpdateTypeColor,
   onOpenDatePicker,
   onOpenUpdates,
   boardColumns: col,
@@ -144,10 +156,10 @@ export function TaskRow({
   // When dragging: the row itself IS the ghost (no separate DragOverlay).
   // It follows the cursor via useSortable's transform and should look "lifted".
   const containerClass = isDragging
-    ? `flex border-b items-center h-10 relative group cursor-grabbing z-50 shadow-lg opacity-80 ${
+    ? `flex border-b items-center h-9 relative group cursor-grabbing z-50 shadow-lg opacity-80 ${
         darkMode ? 'border-[#323652]' : 'border-[#eceff8]'
       } ${rowBg}`
-    : `flex border-b items-center h-10 relative group transition-colors ${
+    : `flex border-b items-center h-9 relative group transition-colors ${
         darkMode
           ? 'border-[#323652] hover:bg-[#202336]'
           : 'border-[#eceff8] hover:bg-[#f0f0f0]'
@@ -246,7 +258,7 @@ export function TaskRow({
       {/* Status column */}
       <div
         ref={statusAnchorRef}
-        className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${cellBorder}`}
+        className={`border-r h-full flex items-center justify-center relative min-w-0 ${cellBorder}`}
         style={{ width: col.status }}
         data-no-dnd
       >
@@ -256,8 +268,8 @@ export function TaskRow({
             if (!canEdit) return;
             openStatusMenu(task.id, 'status');
           }}
-          className={`w-full h-8 flex items-center justify-center text-xs font-medium text-white rounded-sm overflow-hidden ${
-            canEdit ? 'cursor-pointer transition hover:opacity-90' : 'cursor-default opacity-90'
+          className={`w-full h-full flex items-center justify-center text-xs font-medium text-white overflow-hidden ${
+            canEdit ? 'cursor-pointer transition hover:brightness-110' : 'cursor-default'
           }`}
           style={{ backgroundColor: statusColor }}
         >
@@ -272,6 +284,9 @@ export function TaskRow({
             darkMode={darkMode}
             onAddLabel={onAddStatusLabel}
             onRemoveLabel={onRemoveStatusLabel}
+            onRenameLabel={onRenameStatusLabel}
+            onReorderLabels={onReorderStatuses}
+            onUpdateLabelColor={onUpdateStatusColor}
             title="Status"
             addPlaceholder="New status…"
             anchorRef={statusAnchorRef}
@@ -282,7 +297,7 @@ export function TaskRow({
       {/* Type column */}
       <div
         ref={typeAnchorRef}
-        className={`border-r h-full flex items-center justify-center px-2 relative min-w-0 ${cellBorder}`}
+        className={`border-r h-full flex items-center justify-center relative min-w-0 ${cellBorder}`}
         style={{ width: col.type }}
         data-no-dnd
       >
@@ -292,8 +307,8 @@ export function TaskRow({
             if (!canEdit) return;
             openStatusMenu(task.id, 'type');
           }}
-          className={`w-full h-8 flex items-center justify-center text-xs font-medium text-white rounded-sm overflow-hidden ${
-            canEdit ? 'cursor-pointer transition hover:opacity-90' : 'cursor-default opacity-90'
+          className={`w-full h-full flex items-center justify-center text-xs font-medium text-white overflow-hidden ${
+            canEdit ? 'cursor-pointer transition hover:brightness-110' : 'cursor-default'
           }`}
           style={{ backgroundColor: typeColor }}
         >
@@ -308,6 +323,9 @@ export function TaskRow({
             darkMode={darkMode}
             onAddLabel={onAddTypeLabel}
             onRemoveLabel={onRemoveTypeLabel}
+            onRenameLabel={onRenameTypeLabel}
+            onReorderLabels={onReorderTypes}
+            onUpdateLabelColor={onUpdateTypeColor}
             title="Type"
             addPlaceholder="New type…"
             anchorRef={typeAnchorRef}

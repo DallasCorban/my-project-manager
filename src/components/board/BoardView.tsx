@@ -93,6 +93,17 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
     setJobTypes((prev) => [...prev, { id, label, color }]);
   };
 
+  const handleRenameStatusLabel = (id: string, newLabel: string) =>
+    setStatuses((prev) => prev.map((s) => (s.id === id ? { ...s, label: newLabel } : s)));
+  const handleRenameTypeLabel = (id: string, newLabel: string) =>
+    setJobTypes((prev) => prev.map((t) => (t.id === id ? { ...t, label: newLabel } : t)));
+  const handleReorderStatuses = (reordered: typeof statuses) => setStatuses(reordered);
+  const handleReorderTypes = (reordered: typeof jobTypes) => setJobTypes(reordered);
+  const handleUpdateStatusColor = (id: string, color: string) =>
+    setStatuses((prev) => prev.map((s) => (s.id === id ? { ...s, color } : s)));
+  const handleUpdateTypeColor = (id: string, color: string) =>
+    setJobTypes((prev) => prev.map((t) => (t.id === id ? { ...t, color } : t)));
+
   /** Groups that were open before a group drag started — restored on drop. */
   const preGroupDragOpen = useRef<string[]>([]);
 
@@ -248,6 +259,12 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
                       onAddTypeLabel={handleAddTypeLabel}
                       onRemoveStatusLabel={(id) => setStatuses((prev) => prev.filter((s) => s.id !== id))}
                       onRemoveTypeLabel={(id) => setJobTypes((prev) => prev.filter((t) => t.id !== id))}
+                      onRenameStatusLabel={handleRenameStatusLabel}
+                      onRenameTypeLabel={handleRenameTypeLabel}
+                      onReorderStatuses={handleReorderStatuses}
+                      onReorderTypes={handleReorderTypes}
+                      onUpdateStatusColor={handleUpdateStatusColor}
+                      onUpdateTypeColor={handleUpdateTypeColor}
                       onOpenDatePicker={(taskId, subId) =>
                         openDatePicker({ taskId, subitemId: subId, projectId: project.id })
                       }
