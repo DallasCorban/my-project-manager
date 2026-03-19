@@ -194,6 +194,8 @@ export function TaskRow({
   return (
     <div
       ref={setNodeRef}
+      data-task-row-id={task.id}
+      data-task-group-id={!isSubitem ? (task as Item).groupId : undefined}
       className={containerClass}
       style={{
         // Always keep a concrete translate3d on every row — even when idle.

@@ -1,7 +1,7 @@
 // Board view — the main table view container.
 // Renders group sections for the active project with drag & drop reordering.
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { DndContext, DragOverlay, MeasuringStrategy } from '@dnd-kit/core';
 import type { DragStartEvent, DragEndEvent, DragOverEvent } from '@dnd-kit/core';
@@ -16,6 +16,7 @@ import { useSortableSensors, sortableCollisionDetection } from '../../hooks/useS
 import { GroupSection } from './GroupSection';
 import type { Board } from '../../types/board';
 import type { Item } from '../../types/item';
+import type { ClientRect } from '@dnd-kit/core';
 
 /**
  * Render-prop wrapper for useSortable on group headers.
@@ -50,6 +51,41 @@ function SortableGroupContainer({
 interface BoardViewProps {
   project: Board;
   canEdit?: boolean;
+}
+
+function getDraggedMidpoint(rect: ClientRect | null | undefined) {
+  if (!rect) return null;
+  return rect.top + rect.height / 2;
+}
+
+function getTaskRowMidpoint(taskId: string) {
+  if (typeof document === 'undefined') return null;
+  const row = document.querySelector<HTMLElement>(`[data-task-row-id="${taskId}"]`);
+  if (!row) return null;
+  const rect = row.getBoundingClientRect();
+  return rect.top + rect.height / 2;
+}
+
+function getVisualDropIndex(groupId: string, activeTaskId: string, draggedMidpoint: number | null) {
+  if (typeof document === 'undefined' || draggedMidpoint === null) return null;
+
+  const rows = Array.from(
+    document.querySelectorAll<HTMLElement>(`[data-task-group-id="${groupId}"]`),
+  )
+    .filter((row) => row.dataset.taskRowId !== activeTaskId)
+    .map((row) => {
+      const rect = row.getBoundingClientRect();
+      return {
+        top: rect.top,
+        midpoint: rect.top + rect.height / 2,
+      };
+    })
+    .sort((a, b) => a.top - b.top);
+
+  if (rows.length === 0) return 0;
+
+  const firstRowBelow = rows.findIndex((row) => draggedMidpoint < row.midpoint);
+  return firstRowBelow >= 0 ? firstRowBelow : rows.length;
 }
 
 export function BoardView({ project, canEdit = true }: BoardViewProps) {
@@ -120,15 +156,13 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
   // see the item in the target group, producing smooth shuffle animations.
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragTasks, setDragTasks] = useState<Item[] | null>(null);
+  const dragTasksRef = useRef<Item[] | null>(null);
   /** The original groupId of the actively-dragged task (before any cross-group moves). */
   const originalGroupIdRef = useRef<string | null>(null);
-  /** The `over` item id from the most recent cross-group insertion.
-   *  Used to suppress the immediate within-group reorder that fires when the
-   *  ghost naturally overlaps the adjacent item after being inserted. */
-  const crossGroupOverRef = useRef<string | null>(null);
 
   // Use dragTasks during drag so SortableContexts reflect cross-group moves.
   const effectiveTasks = dragTasks ?? project.tasks;
+  const orderedGroupIds = useMemo(() => project.groups.map((group) => group.id), [project.groups]);
 
   // The actively-dragged task (for DragOverlay rendering).
   const activeTask: Item | null = activeId
@@ -137,6 +171,30 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
 
   // --- dnd-kit row reorder ---
   const sensors = useSortableSensors();
+
+  const buildPreviewTasks = useCallback((tasks: Item[], movedTask: Item, targetGroupId: string, targetIndex: number) => {
+    const groupedTasks = new Map<string, Item[]>();
+    orderedGroupIds.forEach((groupId) => groupedTasks.set(groupId, []));
+
+    const extras: Item[] = [];
+
+    tasks.forEach((task) => {
+      if (task.id === movedTask.id) return;
+      const bucket = groupedTasks.get(task.groupId);
+      if (bucket) {
+        bucket.push(task);
+      } else {
+        extras.push(task);
+      }
+    });
+
+    const targetTasks = groupedTasks.get(targetGroupId) ?? [];
+    const clampedIndex = Math.max(0, Math.min(targetIndex, targetTasks.length));
+    targetTasks.splice(clampedIndex, 0, movedTask);
+    groupedTasks.set(targetGroupId, targetTasks);
+
+    return [...orderedGroupIds.flatMap((groupId) => groupedTasks.get(groupId) ?? []), ...extras];
+  }, [orderedGroupIds]);
 
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
     const data = active.data.current as { type?: string; groupId?: string } | undefined;
@@ -147,8 +205,10 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
       setCollapsedGroups(allIds);
     }
     if (data?.type === 'task') {
+      const initialDragTasks = [...project.tasks];
       setActiveId(String(active.id));
-      setDragTasks([...project.tasks]);
+      dragTasksRef.current = initialDragTasks;
+      setDragTasks(initialDragTasks);
       originalGroupIdRef.current = data.groupId ?? null;
     }
   }, [project, collapsedGroups, setCollapsedGroups]);
@@ -164,7 +224,7 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
    */
   const handleDragOver = useCallback(
     ({ active, over }: DragOverEvent) => {
-      if (!over || active.id === over.id) return;
+      if (!over) return;
       const activeData = active.data.current as { type?: string } | undefined;
       if (activeData?.type !== 'task') return;
 
@@ -175,98 +235,101 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
 
         const overData = over.data.current as { type?: string; groupId?: string } | undefined;
         const overType = overData?.type;
+        const translatedMidpoint = getDraggedMidpoint(active.rect.current.translated);
 
         // Determine which group the cursor is over.
         let targetGroupId: string | undefined;
-        if (overType === 'task') {
+        let anchorTaskId: string | null = null;
+        if (String(over.id) === String(active.id)) {
+          const activeTask = prev.find((t) => t.id === active.id);
+          targetGroupId = activeTask?.groupId;
+        } else if (overType === 'task') {
           const overTask = prev.find((t) => t.id === over.id);
           targetGroupId = overTask?.groupId;
+          anchorTaskId = overTask?.id ?? null;
         } else if (overType === 'group-drop-zone') {
           targetGroupId = overData?.groupId;
         } else if (overType === 'subitem') {
           const parentTask = prev.find((t) => t.subitems.some((s) => s.id === over.id));
           targetGroupId = parentTask?.groupId;
+          anchorTaskId = parentTask?.id ?? null;
         }
         if (!targetGroupId) return prev;
 
         const activeIdx = prev.findIndex((t) => t.id === active.id);
         if (activeIdx < 0) return prev;
-        const currentGroupId = prev[activeIdx].groupId;
+        const activeTaskInPrev = prev[activeIdx];
+        const currentGroupId = activeTaskInPrev.groupId;
+        const currentGroupTasks = prev.filter((t) => t.groupId === currentGroupId);
+        const currentIndexInGroup = currentGroupTasks.findIndex((t) => t.id === active.id);
 
-        if (currentGroupId === targetGroupId) {
-          // Within-group reorder — only keep dragTasks in sync if the item has
-          // already crossed groups (otherwise dnd-kit handles visual displacement
-          // and we don't want to fight it).
-          if (origGroup && currentGroupId !== origGroup && overType === 'task') {
-            // After a cross-group insertion, the ghost naturally overlaps the
-            // adjacent item (they're touching). The collision is noise, not an
-            // intentional reposition — skip it to prevent an unwanted swap.
-            if (crossGroupOverRef.current === String(over.id)) {
-              return prev;
-            }
-            // User has moved to a genuinely different item — clear the guard.
-            crossGroupOverRef.current = null;
-
-            const overIdx = prev.findIndex((t) => t.id === over.id);
-            if (overIdx >= 0 && activeIdx !== overIdx) {
-              const next = [...prev];
-              const [moved] = next.splice(activeIdx, 1);
-              next.splice(overIdx, 0, moved);
-              return next;
-            }
-          }
+        // Within-group reorder — only keep dragTasks in sync if the item has
+        // already crossed groups (otherwise dnd-kit handles visual displacement
+        // and we don't want to fight it).
+        if (currentGroupId === targetGroupId && (!origGroup || currentGroupId === origGroup)) {
           return prev;
         }
 
-        // Cross-group move — move active task to the target group, placed near
-        // the 'over' item so the SortableContext ordering matches visual intent.
-        //
-        // Direction matters: when dragging UP (active was below over in the flat
-        // array), the ghost enters from below and overlaps the bottom items first.
-        // Inserting AFTER the over item matches the user's visual intent (the
-        // displaced item shifts down). When dragging DOWN, inserting BEFORE is
-        // correct (the displaced item shifts up).
-        //
-        // Record the over item so the within-group guard can suppress the
-        // immediate adjacent-item collision after this insertion.
-        crossGroupOverRef.current = overType === 'task' ? String(over.id) : null;
+        const targetTasksWithoutActive = prev.filter(
+          (task) => task.groupId === targetGroupId && task.id !== active.id,
+        );
 
-        const overIdxInPrev = overType === 'task'
-          ? prev.findIndex((t) => t.id === over.id)
-          : -1;
+        let targetIndex = targetTasksWithoutActive.length;
 
-        const next = [...prev];
-        const [moved] = next.splice(activeIdx, 1);
-        const movedTask = { ...moved, groupId: targetGroupId };
+        const firstTaskId = targetTasksWithoutActive[0]?.id;
+        const lastTaskId = targetTasksWithoutActive[targetTasksWithoutActive.length - 1]?.id;
+        const firstMidpoint = firstTaskId ? getTaskRowMidpoint(firstTaskId) : null;
+        const lastMidpoint = lastTaskId ? getTaskRowMidpoint(lastTaskId) : null;
 
-        if (overType === 'task') {
-          const overIdx = next.findIndex((t) => t.id === over.id);
-          if (overIdx < 0) {
-            next.push(movedTask);
-          } else if (activeIdx > overIdxInPrev) {
-            // Dragging UP — insert AFTER the over item
-            next.splice(overIdx + 1, 0, movedTask);
-          } else {
-            // Dragging DOWN — insert BEFORE the over item
-            next.splice(overIdx, 0, movedTask);
-          }
-        } else {
-          // Dropping into empty group or subitem — append at end of that group.
-          const lastInGroup = next.reduce(
-            (acc, t, i) => (t.groupId === targetGroupId ? i : acc),
-            -1,
-          );
-          next.splice(lastInGroup + 1, 0, movedTask);
+        if (
+          translatedMidpoint !== null &&
+          firstMidpoint !== null &&
+          translatedMidpoint <= firstMidpoint
+        ) {
+          targetIndex = 0;
+        } else if (
+          translatedMidpoint !== null &&
+          lastMidpoint !== null &&
+          translatedMidpoint >= lastMidpoint
+        ) {
+          targetIndex = targetTasksWithoutActive.length;
+        } else if (String(over.id) === String(active.id)) {
+          // Stay put when dnd-kit reports the active placeholder itself as the
+          // current collision target and we're not clearly beyond either edge.
+          targetIndex = currentIndexInGroup;
         }
+
+        if (anchorTaskId && targetIndex !== 0 && targetIndex !== targetTasksWithoutActive.length) {
+          const anchorIndex = targetTasksWithoutActive.findIndex((task) => task.id === anchorTaskId);
+
+          if (anchorIndex >= 0) {
+            // Use the dragged card's translated midpoint, not the previous array
+            // order, to decide before/after. This prevents the preview item from
+            // "walking" past adjacent rows just because they became touch-adjacent
+            // after a cross-group insertion.
+            const overMidpoint = over.rect.top + over.rect.height / 2;
+            const insertAfter = translatedMidpoint !== null && translatedMidpoint > overMidpoint;
+            targetIndex = anchorIndex + (insertAfter ? 1 : 0);
+          }
+        }
+
+        if (currentGroupId === targetGroupId && currentIndexInGroup === targetIndex) {
+          return prev;
+        }
+
+        const movedTask = { ...activeTaskInPrev, groupId: targetGroupId };
+        const next = buildPreviewTasks(prev, movedTask, targetGroupId, targetIndex);
+        dragTasksRef.current = next;
         return next;
       });
     },
-    [],
+    [buildPreviewTasks],
   );
 
   const handleDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
       const activeData = active.data.current as { type: string; groupId?: string; parentTaskId?: string } | undefined;
+      const liveDragTasks = dragTasksRef.current;
 
       // Always restore group open/close state after a group drag ends
       if (activeData?.type === 'group') {
@@ -275,10 +338,20 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
         preGroupDragOpen.current = [];
       }
 
-      if (activeData?.type === 'task' && dragTasks) {
+      if (activeData?.type === 'task' && liveDragTasks) {
         const originalGroupId = originalGroupIdRef.current ?? activeData.groupId ?? '';
-        const movedTask = dragTasks.find((t) => t.id === active.id);
-        const finalGroupId = movedTask?.groupId ?? originalGroupId;
+        const movedTask = liveDragTasks.find((t) => t.id === active.id);
+        const overData = over?.data.current as { type?: string; groupId?: string } | undefined;
+
+        let finalGroupId = movedTask?.groupId ?? originalGroupId;
+        if (overData?.type === 'task') {
+          finalGroupId = overData.groupId ?? finalGroupId;
+        } else if (overData?.type === 'group-drop-zone') {
+          finalGroupId = overData.groupId ?? finalGroupId;
+        } else if (overData?.type === 'subitem') {
+          const parentTask = liveDragTasks.find((t) => t.subitems.some((s) => s.id === over?.id));
+          finalGroupId = parentTask?.groupId ?? finalGroupId;
+        }
 
         if (originalGroupId === finalGroupId) {
           // Same-group reorder — dnd-kit handled visual displacement; use
@@ -286,7 +359,6 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
           if (over && active.id !== over.id) {
             const groupTasks = project.tasks.filter((t) => t.groupId === finalGroupId);
             const fromIndex = groupTasks.findIndex((t) => t.id === active.id);
-            const overData = over.data.current as { type?: string; groupId?: string } | undefined;
 
             let toIndex = -1;
             if (overData?.type === 'task') {
@@ -301,19 +373,25 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
             }
           }
         } else {
-          // Cross-group move — dragTasks has been kept in sync with the visual
-          // order throughout the drag (via onDragOver), so we read the final
-          // position directly from the array. No guessing from over.id needed.
-          const targetGroupTasks = dragTasks.filter((t) => t.groupId === finalGroupId);
-          const activeIdxInGroup = targetGroupTasks.findIndex((t) => t.id === String(active.id));
-          const toIndex = activeIdxInGroup >= 0 ? activeIdxInGroup : targetGroupTasks.length;
+          // Cross-group move — persist against the actual on-screen preview,
+          // not just the optimistic array. dnd-kit can still show a transformed
+          // edge slot even when the active placeholder is the current collision.
+          const draggedMidpoint = getDraggedMidpoint(active.rect.current.translated);
+          const visualIndex = getVisualDropIndex(finalGroupId, String(active.id), draggedMidpoint);
+          const targetGroupTasks = project.tasks.filter(
+            (t) => t.groupId === finalGroupId && t.id !== String(active.id),
+          );
+          const previewGroupTasks = liveDragTasks.filter((t) => t.groupId === finalGroupId);
+          const previewIndex = previewGroupTasks.findIndex((t) => t.id === String(active.id));
+          const fallbackIndex = previewIndex >= 0 ? previewIndex : targetGroupTasks.length;
+          const toIndex = visualIndex ?? fallbackIndex;
           moveTaskToGroup(project.id, String(active.id), originalGroupId, finalGroupId, toIndex);
         }
 
         setDragTasks(null);
+        dragTasksRef.current = null;
         setActiveId(null);
         originalGroupIdRef.current = null;
-        crossGroupOverRef.current = null;
       } else if (over && active.id !== over.id && activeData) {
         const overData = over.data.current as { type: string; groupId?: string } | undefined;
         if (!overData) { /* no-op */ }
@@ -337,7 +415,7 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
         }
       }
     },
-    [project, dragTasks, reorderGroups, reorderTasks, moveTaskToGroup, reorderSubitems, setCollapsedGroups],
+    [project, reorderGroups, reorderTasks, moveTaskToGroup, reorderSubitems, setCollapsedGroups],
   );
 
   /** Called when the user cancels a drag (e.g. presses Escape). */
@@ -348,9 +426,9 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
       preGroupDragOpen.current = [];
     }
     setDragTasks(null);
+    dragTasksRef.current = null;
     setActiveId(null);
     originalGroupIdRef.current = null;
-    crossGroupOverRef.current = null;
   }, [project, setCollapsedGroups]);
 
   return (
