@@ -10,7 +10,7 @@ import { TaskRow } from '../shared/TaskRow';
 import { EditableText } from '../shared/EditableText';
 import type { Board, Group } from '../../types/board';
 import type { Item } from '../../types/item';
-import type { BoardColumns } from '../../types/timeline';
+import type { BoardColumns, DraggableColumnKey } from '../../types/timeline';
 import type { StatusLabel, JobTypeLabel } from '../../config/constants';
 
 interface GroupSectionProps {
@@ -18,6 +18,8 @@ interface GroupSectionProps {
   tasks: Item[];
   project: Board;
   boardColumns: BoardColumns;
+  columnOrder: DraggableColumnKey[];
+  onReorderColumns: (order: DraggableColumnKey[]) => void;
   statuses: StatusLabel[];
   jobTypes: JobTypeLabel[];
   onStartResize: (key: keyof BoardColumns, clientX: number) => void;
@@ -38,6 +40,7 @@ interface GroupSectionProps {
   onReorderTypes?: (labels: JobTypeLabel[]) => void;
   onUpdateStatusColor?: (id: string, color: string) => void;
   onUpdateTypeColor?: (id: string, color: string) => void;
+  onToggleTypeContainer?: (id: string) => void;
   onToggleAssignee?: (taskId: string, subitemId: string | null, uid: string) => void;
   onOpenDatePicker: (taskId: string, subitemId: string | null) => void;
   onOpenUpdates: (taskId: string, subitemId: string | null) => void;
@@ -51,6 +54,8 @@ export function GroupSection({
   tasks,
   project,
   boardColumns,
+  columnOrder,
+  onReorderColumns,
   statuses,
   jobTypes,
   onStartResize,
@@ -71,6 +76,7 @@ export function GroupSection({
   onReorderTypes,
   onUpdateStatusColor,
   onUpdateTypeColor,
+  onToggleTypeContainer,
   onToggleAssignee,
   onOpenDatePicker,
   onOpenUpdates,
@@ -155,7 +161,7 @@ export function GroupSection({
           style={{ borderLeftColor: group.color, borderLeftWidth: 3 }}
         >
           {/* Column headers */}
-          <GroupHeaderRow boardColumns={boardColumns} onStartResize={onStartResize} />
+          <GroupHeaderRow boardColumns={boardColumns} columnOrder={columnOrder} onStartResize={onStartResize} onReorderColumns={onReorderColumns} />
 
           {/* Task rows — wrapped in SortableContext for @dnd-kit row reorder */}
           <SortableContext
@@ -185,10 +191,12 @@ export function GroupSection({
                   onReorderTypes={onReorderTypes}
                   onUpdateStatusColor={onUpdateStatusColor}
                   onUpdateTypeColor={onUpdateTypeColor}
+                  onToggleTypeContainer={onToggleTypeContainer}
                   onToggleAssignee={onToggleAssignee ? (uid) => onToggleAssignee(task.id, null, uid) : undefined}
                   onOpenDatePicker={() => onOpenDatePicker(task.id, null)}
                   onOpenUpdates={() => onOpenUpdates(task.id, null)}
                   boardColumns={boardColumns}
+                  columnOrder={columnOrder}
                   canEdit={canEdit}
                 />
 
@@ -226,6 +234,7 @@ export function GroupSection({
                         onOpenDatePicker={() => onOpenDatePicker(task.id, sub.id)}
                         onOpenUpdates={() => onOpenUpdates(task.id, sub.id)}
                         boardColumns={boardColumns}
+                        columnOrder={columnOrder}
                         canEdit={canEdit}
                       />
                     ))}

@@ -77,6 +77,8 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
   const { statuses, setStatuses, jobTypes, setJobTypes, activeEntityId } = useWorkspaceContext();
 
   const boardColumns = useTimelineStore((s) => s.getBoardColumns(activeEntityId));
+  const columnOrder = useTimelineStore((s) => s.getColumnOrder(activeEntityId));
+  const setColumnOrder = useTimelineStore((s) => s.setColumnOrder);
   const setBoardColumns = useTimelineStore((s) => s.setBoardColumns);
 
   const { handleStartResize } = useBoardColumns(boardColumns, (cols) =>
@@ -104,6 +106,9 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
     setStatuses((prev) => prev.map((s) => (s.id === id ? { ...s, color } : s)));
   const handleUpdateTypeColor = (id: string, color: string) =>
     setJobTypes((prev) => prev.map((t) => (t.id === id ? { ...t, color } : t)));
+
+  const handleToggleTypeContainer = (id: string) =>
+    setJobTypes((prev) => prev.map((t) => (t.id === id ? { ...t, isContainer: !t.isContainer } : t)));
 
   /** Groups that were open before a group drag started — restored on drop. */
   const preGroupDragOpen = useRef<string[]>([]);
@@ -240,6 +245,8 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
                       tasks={groupTasks}
                       project={project}
                       boardColumns={boardColumns}
+                      columnOrder={columnOrder}
+                      onReorderColumns={(order) => setColumnOrder(activeEntityId, order)}
                       statuses={statuses}
                       jobTypes={jobTypes}
                       onStartResize={handleStartResize}
@@ -266,6 +273,7 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
                       onReorderTypes={handleReorderTypes}
                       onUpdateStatusColor={handleUpdateStatusColor}
                       onUpdateTypeColor={handleUpdateTypeColor}
+                      onToggleTypeContainer={handleToggleTypeContainer}
                       onToggleAssignee={(taskId, subId, uid) =>
                         toggleAssignee(project.id, taskId, subId, uid)
                       }

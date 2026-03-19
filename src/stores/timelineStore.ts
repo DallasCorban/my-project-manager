@@ -2,8 +2,8 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { BoardColumns } from '../types/timeline';
-import { DEFAULT_BOARD_COLUMNS } from '../config/constants';
+import type { BoardColumns, DraggableColumnKey } from '../types/timeline';
+import { DEFAULT_BOARD_COLUMNS, DEFAULT_COLUMN_ORDER } from '../config/constants';
 
 interface TimelineState {
   showWeekends: boolean;
@@ -12,6 +12,7 @@ interface TimelineState {
   zoomLevel: number;
   rowHeight: number;
   boardColumnsByEntity: Record<string, BoardColumns>;
+  columnOrderByEntity: Record<string, DraggableColumnKey[]>;
 
   setShowWeekends: (show: boolean) => void;
   toggleWeekends: () => void;
@@ -21,6 +22,8 @@ interface TimelineState {
   setRowHeight: (height: number) => void;
   setBoardColumns: (entityId: string, columns: BoardColumns) => void;
   getBoardColumns: (entityId: string) => BoardColumns;
+  setColumnOrder: (entityId: string, order: DraggableColumnKey[]) => void;
+  getColumnOrder: (entityId: string) => DraggableColumnKey[];
 }
 
 export const useTimelineStore = create<TimelineState>()(
@@ -32,6 +35,7 @@ export const useTimelineStore = create<TimelineState>()(
       zoomLevel: 36,
       rowHeight: 40,
       boardColumnsByEntity: {},
+      columnOrderByEntity: {},
 
       setShowWeekends: (show) => set({ showWeekends: show }),
       toggleWeekends: () => set((s) => ({ showWeekends: !s.showWeekends })),
@@ -45,6 +49,13 @@ export const useTimelineStore = create<TimelineState>()(
         })),
       getBoardColumns: (entityId) => {
         return get().boardColumnsByEntity[entityId] || DEFAULT_BOARD_COLUMNS;
+      },
+      setColumnOrder: (entityId, order) =>
+        set((s) => ({
+          columnOrderByEntity: { ...s.columnOrderByEntity, [entityId]: order },
+        })),
+      getColumnOrder: (entityId) => {
+        return get().columnOrderByEntity[entityId] || DEFAULT_COLUMN_ORDER;
       },
     }),
     {

@@ -43,6 +43,9 @@ export interface BoardColumns {
   date: number;
 }
 
+/** Column keys that can be reordered by drag-and-drop */
+export type DraggableColumnKey = 'person' | 'status' | 'type' | 'date';
+
 export interface DatePickerState {
   taskId: string;
   subitemId: string | null;

@@ -143,6 +143,9 @@ function GanttTaskRowInner({
     return jobTypes.find((jt) => jt.id === t.jobTypeId)?.color || '#c4c4c4';
   };
 
+  const isTaskContainer = (t: Item | Subitem): boolean =>
+    jobTypes.find((jt) => jt.id === t.jobTypeId)?.isContainer === true;
+
   // Bar positioning calculations
   const normalizedStart = normalizeDateKey(task.start);
   const hasDates = Boolean(normalizedStart);
@@ -389,6 +392,7 @@ function GanttTaskRowInner({
               isSelected={isBarSelected}
               onSelect={onSelect}
               onOpenUpdates={onOpenUpdates}
+              isContainer={isTaskContainer(task)}
             />
           </div>
         )}
@@ -425,6 +429,7 @@ function GanttTaskRowInner({
             getRelativeIndex={getRelativeIndex}
             dayToVisualIndex={dayToVisualIndex}
             getColor={getTaskColor}
+            getIsContainer={isTaskContainer}
             dragState={dragState}
             settledOverrides={settledOverrides}
             clearSettledOverride={clearSettledOverride}

@@ -41,6 +41,8 @@ interface GanttBarProps {
   isSelected?: boolean;
   /** Called when the user single-clicks this bar to select it as the zoom anchor. */
   onSelect?: () => void;
+  /** Container bars render as semi-transparent background placeholders. */
+  isContainer?: boolean;
 }
 
 export function GanttBar({
@@ -62,6 +64,7 @@ export function GanttBar({
   onOpenUpdates,
   isSelected = false,
   onSelect,
+  isContainer = false,
 }: GanttBarProps) {
   const darkMode = useUIStore((s) => s.darkMode);
   const [isHovered, setIsHovered] = useState(false);
@@ -77,19 +80,25 @@ export function GanttBar({
   // interaction (move / resize) is active on it.  The 10 px hit-target divs
   // remain in the DOM at all times so cursor feedback and pointer events still
   // work even when the pill is invisible.
-  const showHandles = isHovered || isThisBarDragging;
+  // Container bars don't show handles on hover (only during active drag).
+  const showHandles = isContainer ? isThisBarDragging : (isHovered || isThisBarDragging);
 
-  // Fixed pixel height: ~72% of row height, clamped to a sensible range.
+  // Fixed pixel height: ~72% of row height for normal bars, ~90% for containers.
   // This NEVER changes based on overlap/lane count.
-  const barHeightPx = clamp(Math.round(rowHeight * 0.72), 14, 24);
+  const barHeightPx = isContainer
+    ? clamp(Math.round(rowHeight * 0.9), 18, 30)
+    : clamp(Math.round(rowHeight * 0.72), 14, 24);
 
   return (
     <div
-      className={`absolute rounded-md flex items-center
-        shadow-sm cursor-grab active:cursor-grabbing select-none pointer-events-auto
-        ${isDeleteMode ? 'opacity-30' : 'opacity-100'}
-        ${darkMode ? 'border border-[#181b34]' : 'border border-white/50'}
-        ${isSelected ? 'ring-1 ring-white/50' : ''}`}
+      className={`absolute flex items-center select-none pointer-events-auto
+        ${isContainer ? 'rounded-lg cursor-grab active:cursor-grabbing' : 'rounded-md shadow-sm cursor-grab active:cursor-grabbing'}
+        ${isDeleteMode ? 'opacity-30' : isContainer ? '' : 'opacity-100'}
+        ${isContainer
+          ? (darkMode ? 'border border-dashed border-white/10' : 'border border-dashed border-black/10')
+          : (darkMode ? 'border border-[#181b34]' : 'border border-white/50')
+        }
+        ${isSelected && !isContainer ? 'ring-1 ring-white/50' : ''}`}
       style={{
         left,
         width: Math.max(width, zoomLevel * 0.5),
@@ -97,6 +106,7 @@ export function GanttBar({
         top: `calc(50% + ${verticalOffsetPx}px)`,
         transform: 'translateY(-50%)',
         backgroundColor: color,
+        opacity: isDeleteMode ? 0.3 : isContainer ? 0.3 : 1,
         touchAction: 'none',
       }}
       onPointerDown={(e) => {
@@ -111,14 +121,15 @@ export function GanttBar({
         onSelect?.();
       }}
       onDoubleClick={(e) => {
-        // Double-click on the bar body (not on handles or delete) toggles the
-        // updates panel. The browser only fires dblclick when the pointer hasn't
-        // moved significantly between clicks, so drag interactions are safe.
         e.stopPropagation();
         onOpenUpdates?.();
       }}
-      onPointerEnter={() => { setIsHovered(true); onHoverChange?.(true); }}
-      onPointerLeave={() => { setIsHovered(false); onHoverChange?.(false); }}
+      onPointerEnter={() => {
+        if (!isContainer) { setIsHovered(true); onHoverChange?.(true); }
+      }}
+      onPointerLeave={() => {
+        if (!isContainer) { setIsHovered(false); onHoverChange?.(false); }
+      }}
     >
       {/* Left resize handle — 10px wide, extends outside */}
       <div
@@ -134,7 +145,9 @@ export function GanttBar({
 
       {/* Label text */}
       {showLabel && zoomLevel > 15 && width > 30 && (
-        <span className="text-[9px] text-white pl-3 truncate pointer-events-none leading-none flex-1 min-w-0">
+        <span className={`text-[9px] pl-3 truncate pointer-events-none leading-none flex-1 min-w-0 ${
+          isContainer ? 'text-white/60' : 'text-white'
+        }`}>
           {label}
         </span>
       )}
@@ -151,8 +164,8 @@ export function GanttBar({
         <div className={`absolute right-1 top-1/2 -translate-y-1/2 w-[3px] h-3/5 rounded-full bg-white/40 group-hover/handle:bg-white/70 transition-[colors,opacity] ${showHandles ? 'opacity-100' : 'opacity-0'}`} />
       </div>
 
-      {/* Delete button — appears on hover, top-right */}
-      {isHovered && onDelete && !dragState.isDragging && (
+      {/* Delete button — appears on hover, top-right (not on containers) */}
+      {!isContainer && isHovered && onDelete && !dragState.isDragging && (
         <button
           className="absolute -top-2.5 -right-2.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:bg-red-600 transition-colors z-20"
           onClick={(e) => {

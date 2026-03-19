@@ -1,5 +1,5 @@
 import type { Role, RoleOption } from '../types/member';
-import type { BoardColumns } from '../types/timeline';
+import type { BoardColumns, DraggableColumnKey } from '../types/timeline';
 
 // --- Status labels ---
 export interface StatusLabel {
@@ -21,6 +21,7 @@ export interface JobTypeLabel {
   id: string;
   label: string;
   color: string;
+  isContainer?: boolean;
 }
 
 export const DEFAULT_JOB_TYPES: JobTypeLabel[] = [
@@ -40,6 +41,9 @@ export const DEFAULT_BOARD_COLUMNS: BoardColumns = {
   type: 144,
   date: 192,
 };
+
+// --- Default column order (draggable columns only; select + item are pinned) ---
+export const DEFAULT_COLUMN_ORDER: DraggableColumnKey[] = ['person', 'status', 'type', 'date'];
 
 // --- Color palette (Monday.com-inspired) ---
 export const MONDAY_PALETTE = [

@@ -48,6 +48,7 @@ interface LaneBar {
   duration: number;
   isParent: boolean;
   subitemId: string | null;
+  isContainer: boolean;
   /** Vertical offset in px from row center. Only nudge, never height. */
   offsetY: number;
 }
@@ -62,6 +63,7 @@ interface GanttSubitemStackProps {
   getRelativeIndex: (dateKey: string | null | undefined) => number | null;
   dayToVisualIndex: Record<number, number>;
   getColor: (item: Item | Subitem) => string;
+  getIsContainer: (item: Item | Subitem) => boolean;
   dragState: DragState;
   settledOverrides: Record<string, SettledOverride>;
   clearSettledOverride: (key: string) => void;
@@ -173,6 +175,7 @@ function computeStackOrder(
     clusterBars.sort((a, b) => {
       // Interaction priority: dragged/hovered bars go to front (higher z)
       const rank = (x: ClusteredBar): number => {
+        if (x.isContainer) return 0; // always behind everything
         if (activeId && x.id === activeId) return 3;
         if (hoverId && x.id === hoverId) return 2;
         return 1;
@@ -215,6 +218,7 @@ export function GanttSubitemStack({
   getRelativeIndex,
   dayToVisualIndex,
   getColor,
+  getIsContainer,
   dragState,
   settledOverrides,
   clearSettledOverride: _clearSettledOverride,
@@ -236,6 +240,7 @@ export function GanttSubitemStack({
       subitemId: string | null;
       start: number;
       end: number;
+      isContainer: boolean;
     };
 
     const rawBars: RawBar[] = [];
@@ -255,6 +260,7 @@ export function GanttSubitemStack({
         subitemId: null,
         start: parentRange.start,
         end: parentRange.end,
+        isContainer: getIsContainer(parentTask),
       });
     }
 
@@ -276,6 +282,7 @@ export function GanttSubitemStack({
         subitemId: sub.id,
         start: subRange.start,
         end: subRange.end,
+        isContainer: getIsContainer(sub),
       });
     }
 
@@ -289,11 +296,17 @@ export function GanttSubitemStack({
       return a.id.localeCompare(b.id);
     });
 
-    // Lane assignment — pack ALL bars into horizontal lanes
+    // Lane assignment — pack non-container bars into horizontal lanes.
+    // Container bars skip lane assignment (always centered at offsetY=0).
     const laneEnds: number[] = [];
     const assigned: Array<RawBar & { laneIndex: number }> = [];
 
     for (const bar of rawBars) {
+      if (bar.isContainer) {
+        // Container bars don't participate in lane packing — assign lane -1
+        assigned.push({ ...bar, laneIndex: -1 });
+        continue;
+      }
       let assignedLane = -1;
       for (let l = 0; l < laneEnds.length; l++) {
         if (laneEnds[l] <= bar.start) {
@@ -311,9 +324,30 @@ export function GanttSubitemStack({
     }
 
     // Compute per-bar offsetY from local overlap cluster.
+    // Container bars always get offsetY=0 (centered background).
     const result: LaneBar[] = assigned.map((bar) => {
+      if (bar.isContainer) {
+        return {
+          id: bar.id,
+          name: bar.name,
+          color: bar.color,
+          laneIndex: bar.laneIndex,
+          startVisual: bar.start,
+          endVisual: bar.end,
+          widthVisual: bar.end - bar.start,
+          normalizedStart: bar.normalizedStart,
+          duration: bar.duration,
+          isParent: bar.isParent,
+          subitemId: bar.subitemId,
+          isContainer: true,
+          offsetY: 0,
+        };
+      }
+
+      // Only count non-container bars for overlap offset
       const overlapLaneSet = new Set<number>();
       for (const other of assigned) {
+        if (other.isContainer) continue; // skip containers
         if (other.start < bar.end && other.end > bar.start) {
           overlapLaneSet.add(other.laneIndex);
         }
@@ -335,12 +369,13 @@ export function GanttSubitemStack({
         duration: bar.duration,
         isParent: bar.isParent,
         subitemId: bar.subitemId,
+        isContainer: false,
         offsetY,
       };
     });
 
     return result;
-  }, [parentTask, getRelativeIndex, dayToVisualIndex, getColor]);
+  }, [parentTask, getRelativeIndex, dayToVisualIndex, getColor, getIsContainer]);
 
   // Determine actively dragged bar id
   const activeBarId = useMemo(() => {
@@ -425,6 +460,7 @@ export function GanttSubitemStack({
                 zoomLevel={zoomLevel}
                 rowHeight={rowHeight}
                 verticalOffsetPx={bar.offsetY}
+                isContainer={bar.isContainer}
                 dragState={dragState}
                 taskId={parentTaskId}
                 subitemId={bar.subitemId}

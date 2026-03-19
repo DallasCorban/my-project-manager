@@ -5,7 +5,7 @@
 
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Pencil, Plus, MoreHorizontal, Trash2, GripVertical } from 'lucide-react';
+import { Pencil, Plus, MoreHorizontal, Trash2, GripVertical, Box } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -69,10 +69,14 @@ function LabelMenu({
   onDelete,
   darkMode,
   onClose,
+  isContainer,
+  onToggleContainer,
 }: {
   onDelete: () => void;
   darkMode: boolean;
   onClose: () => void;
+  isContainer?: boolean;
+  onToggleContainer?: () => void;
 }) {
   return (
     <>
@@ -81,12 +85,23 @@ function LabelMenu({
         onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); onClose(); }}
       />
       <div
-        className={`absolute right-0 top-full mt-1 w-44 rounded-lg shadow-xl border z-50 py-1 ${
+        className={`absolute right-0 top-full mt-1 w-48 rounded-lg shadow-xl border z-50 py-1 ${
           darkMode ? 'bg-[#1e2243] border-[#323652]' : 'bg-white border-gray-200'
         }`}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
+        {onToggleContainer && (
+          <button
+            onClick={() => { onToggleContainer(); onClose(); }}
+            className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs ${
+              darkMode ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
+            } transition-colors`}
+          >
+            <Box size={13} />
+            {isContainer ? 'Remove container' : 'Mark as container'}
+          </button>
+        )}
         <button
           onClick={() => { onDelete(); onClose(); }}
           className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs ${
@@ -112,6 +127,7 @@ function LabelRow({
   onRename,
   onColorChange,
   onDelete,
+  onToggleContainer,
   sortableProps,
 }: {
   label: StatusLabel;
@@ -122,6 +138,7 @@ function LabelRow({
   onRename?: (newName: string) => void;
   onColorChange?: (newColor: string) => void;
   onDelete?: () => void;
+  onToggleContainer?: () => void;
   sortableProps?: ReturnType<typeof useSortable>;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -285,6 +302,8 @@ function LabelRow({
             onDelete={() => { onDelete?.(); setMenuOpen(false); }}
             darkMode={darkMode}
             onClose={() => setMenuOpen(false)}
+            isContainer={'isContainer' in label ? (label as { isContainer?: boolean }).isContainer : undefined}
+            onToggleContainer={onToggleContainer}
           />
         )}
       </div>
@@ -311,6 +330,7 @@ interface LabelDropdownProps {
   onRenameLabel?: (id: string, newLabel: string) => void;
   onReorderLabels?: (labels: StatusLabel[]) => void;
   onUpdateLabelColor?: (id: string, newColor: string) => void;
+  onToggleLabelContainer?: (id: string) => void;
   title?: string;
   addPlaceholder?: string;
   anchorRef?: React.RefObject<HTMLElement | null>;
@@ -326,6 +346,7 @@ export function LabelDropdown({
   onRenameLabel,
   onReorderLabels,
   onUpdateLabelColor,
+  onToggleLabelContainer,
   title: _title = 'Status',
   addPlaceholder = 'New label…',
   anchorRef,
@@ -495,6 +516,7 @@ export function LabelDropdown({
                   onRename={(name) => onRenameLabel?.(l.id, name)}
                   onColorChange={(color) => onUpdateLabelColor?.(l.id, color)}
                   onDelete={() => onRemoveLabel?.(l.id)}
+                  onToggleContainer={onToggleLabelContainer ? () => onToggleLabelContainer(l.id) : undefined}
                 />
               ))}
             </SortableContext>

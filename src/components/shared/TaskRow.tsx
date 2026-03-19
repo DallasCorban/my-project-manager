@@ -11,8 +11,9 @@ import { AvatarStack } from './AvatarStack';
 import { PeopleDropdown } from './PeopleDropdown';
 import { addDaysToKey, formatDateKey, normalizeDateKey } from '../../utils/date';
 import type { Item, Subitem } from '../../types/item';
-import type { BoardColumns } from '../../types/timeline';
+import type { BoardColumns, DraggableColumnKey } from '../../types/timeline';
 import type { StatusLabel, JobTypeLabel } from '../../config/constants';
+import { DEFAULT_COLUMN_ORDER } from '../../config/constants';
 
 interface TaskRowProps {
   task: Item | Subitem;
@@ -37,10 +38,12 @@ interface TaskRowProps {
   onReorderTypes?: (labels: JobTypeLabel[]) => void;
   onUpdateStatusColor?: (id: string, color: string) => void;
   onUpdateTypeColor?: (id: string, color: string) => void;
+  onToggleTypeContainer?: (id: string) => void;
   onToggleAssignee?: (uid: string) => void;
   onOpenDatePicker?: () => void;
   onOpenUpdates?: () => void;
   boardColumns: BoardColumns;
+  columnOrder?: DraggableColumnKey[];
   canEdit?: boolean;
 }
 
@@ -67,10 +70,12 @@ export function TaskRow({
   onReorderTypes,
   onUpdateStatusColor,
   onUpdateTypeColor,
+  onToggleTypeContainer,
   onToggleAssignee,
   onOpenDatePicker,
   onOpenUpdates,
   boardColumns: col,
+  columnOrder = DEFAULT_COLUMN_ORDER,
   canEdit = true,
 }: TaskRowProps) {
   const darkMode = useUIStore((s) => s.darkMode);
@@ -254,165 +259,188 @@ export function TaskRow({
         />
       </div>
 
-      {/* People column */}
-      <div
-        ref={peopleAnchorRef}
-        className={`border-r h-full flex items-center justify-center min-w-0 ${cellBorder}`}
-        style={{ width: col.person }}
-        data-no-dnd
-      >
-        <div
-          onMouseDown={(e) => {
-            if (peopleMenuOpen === task.id) e.stopPropagation();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!canEdit) return;
-            if (peopleMenuOpen === task.id) closePeopleMenu();
-            else openPeopleMenu(task.id);
-          }}
-          className={`h-full flex items-center justify-center ${
-            canEdit ? 'cursor-pointer' : 'cursor-default'
-          }`}
-        >
-          <AvatarStack
-            assignees={task.assignees || []}
-            darkMode={darkMode}
-          />
-        </div>
+      {/* Dynamic columns — rendered in columnOrder */}
+      {columnOrder.map((key, colIdx) => {
+        const borderClass = 'border-r';
 
-        {canEdit && peopleMenuOpen === task.id && onToggleAssignee && (
-          <PeopleDropdown
-            assignees={task.assignees || []}
-            projectId={projectId}
-            onToggleAssignee={onToggleAssignee}
-            darkMode={darkMode}
-            anchorRef={peopleAnchorRef}
-          />
-        )}
-      </div>
+        if (key === 'person') {
+          return (
+            <div
+              key="person"
+              ref={peopleAnchorRef}
+              className={`${borderClass} h-full flex items-center justify-center min-w-0 ${cellBorder}`}
+              style={{ width: col.person }}
+              data-no-dnd
+            >
+              <div
+                onMouseDown={(e) => {
+                  if (peopleMenuOpen === task.id) e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!canEdit) return;
+                  if (peopleMenuOpen === task.id) closePeopleMenu();
+                  else openPeopleMenu(task.id);
+                }}
+                className={`h-full flex items-center justify-center ${
+                  canEdit ? 'cursor-pointer' : 'cursor-default'
+                }`}
+              >
+                <AvatarStack
+                  assignees={task.assignees || []}
+                  darkMode={darkMode}
+                />
+              </div>
 
-      {/* Status column */}
-      <div
-        ref={statusAnchorRef}
-        className={`border-r h-full flex items-center justify-center relative min-w-0 ${cellBorder}`}
-        style={{ width: col.status }}
-        data-no-dnd
-      >
-        <div
-          onMouseDown={(e) => {
-            // Prevent click-outside handler from closing the dropdown before our click toggle fires
-            if (statusMenuOpen === task.id && statusMenuType === 'status') e.stopPropagation();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!canEdit) return;
-            if (statusMenuOpen === task.id && statusMenuType === 'status') closeStatusMenu();
-            else openStatusMenu(task.id, 'status');
-          }}
-          className={`w-full h-full flex items-center justify-center text-xs font-medium text-white overflow-hidden ${
-            canEdit ? 'cursor-pointer transition hover:brightness-110' : 'cursor-default'
-          }`}
-          style={{ backgroundColor: statusColor }}
-        >
-          <span className="truncate w-full text-center px-2">{statusLabel}</span>
-        </div>
+              {canEdit && peopleMenuOpen === task.id && onToggleAssignee && (
+                <PeopleDropdown
+                  assignees={task.assignees || []}
+                  projectId={projectId}
+                  onToggleAssignee={onToggleAssignee}
+                  darkMode={darkMode}
+                  anchorRef={peopleAnchorRef}
+                />
+              )}
+            </div>
+          );
+        }
 
-        {canEdit && statusMenuOpen === task.id && statusMenuType === 'status' && (
-          <LabelDropdown
-            labels={statuses}
-            currentId={effectiveStatus}
-            onSelect={(id) => { setOptimisticStatusWithTimer(id); onStatusSelect(id); }}
-            darkMode={darkMode}
-            onAddLabel={onAddStatusLabel}
-            onRemoveLabel={onRemoveStatusLabel}
-            onRenameLabel={onRenameStatusLabel}
-            onReorderLabels={onReorderStatuses}
-            onUpdateLabelColor={onUpdateStatusColor}
-            title="Status"
-            addPlaceholder="New status…"
-            anchorRef={statusAnchorRef}
-          />
-        )}
-      </div>
+        if (key === 'status') {
+          return (
+            <div
+              key="status"
+              ref={statusAnchorRef}
+              className={`${borderClass} h-full flex items-center justify-center relative min-w-0 ${cellBorder}`}
+              style={{ width: col.status }}
+              data-no-dnd
+            >
+              <div
+                onMouseDown={(e) => {
+                  if (statusMenuOpen === task.id && statusMenuType === 'status') e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!canEdit) return;
+                  if (statusMenuOpen === task.id && statusMenuType === 'status') closeStatusMenu();
+                  else openStatusMenu(task.id, 'status');
+                }}
+                className={`w-full h-full flex items-center justify-center text-xs font-medium text-white overflow-hidden ${
+                  canEdit ? 'cursor-pointer transition hover:brightness-110' : 'cursor-default'
+                }`}
+                style={{ backgroundColor: statusColor }}
+              >
+                <span className="truncate w-full text-center px-2">{statusLabel}</span>
+              </div>
 
-      {/* Type column */}
-      <div
-        ref={typeAnchorRef}
-        className={`border-r h-full flex items-center justify-center relative min-w-0 ${cellBorder}`}
-        style={{ width: col.type }}
-        data-no-dnd
-      >
-        <div
-          onMouseDown={(e) => {
-            if (statusMenuOpen === task.id && statusMenuType === 'type') e.stopPropagation();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!canEdit) return;
-            if (statusMenuOpen === task.id && statusMenuType === 'type') closeStatusMenu();
-            else openStatusMenu(task.id, 'type');
-          }}
-          className={`w-full h-full flex items-center justify-center text-xs font-medium text-white overflow-hidden ${
-            canEdit ? 'cursor-pointer transition hover:brightness-110' : 'cursor-default'
-          }`}
-          style={{ backgroundColor: typeColor }}
-        >
-          <span className="truncate w-full text-center px-2">{typeLabel}</span>
-        </div>
+              {canEdit && statusMenuOpen === task.id && statusMenuType === 'status' && (
+                <LabelDropdown
+                  labels={statuses}
+                  currentId={effectiveStatus}
+                  onSelect={(id) => { setOptimisticStatusWithTimer(id); onStatusSelect(id); }}
+                  darkMode={darkMode}
+                  onAddLabel={onAddStatusLabel}
+                  onRemoveLabel={onRemoveStatusLabel}
+                  onRenameLabel={onRenameStatusLabel}
+                  onReorderLabels={onReorderStatuses}
+                  onUpdateLabelColor={onUpdateStatusColor}
+                  title="Status"
+                  addPlaceholder="New status…"
+                  anchorRef={statusAnchorRef}
+                />
+              )}
+            </div>
+          );
+        }
 
-        {canEdit && statusMenuOpen === task.id && statusMenuType === 'type' && (
-          <LabelDropdown
-            labels={jobTypes}
-            currentId={effectiveType}
-            onSelect={(id) => { setOptimisticTypeWithTimer(id); onTypeSelect(id); }}
-            darkMode={darkMode}
-            onAddLabel={onAddTypeLabel}
-            onRemoveLabel={onRemoveTypeLabel}
-            onRenameLabel={onRenameTypeLabel}
-            onReorderLabels={onReorderTypes}
-            onUpdateLabelColor={onUpdateTypeColor}
-            title="Type"
-            addPlaceholder="New type…"
-            anchorRef={typeAnchorRef}
-          />
-        )}
-      </div>
+        if (key === 'type') {
+          return (
+            <div
+              key="type"
+              ref={typeAnchorRef}
+              className={`${borderClass} h-full flex items-center justify-center relative min-w-0 ${cellBorder}`}
+              style={{ width: col.type }}
+              data-no-dnd
+            >
+              <div
+                onMouseDown={(e) => {
+                  if (statusMenuOpen === task.id && statusMenuType === 'type') e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!canEdit) return;
+                  if (statusMenuOpen === task.id && statusMenuType === 'type') closeStatusMenu();
+                  else openStatusMenu(task.id, 'type');
+                }}
+                className={`w-full h-full flex items-center justify-center text-xs font-medium text-white overflow-hidden ${
+                  canEdit ? 'cursor-pointer transition hover:brightness-110' : 'cursor-default'
+                }`}
+                style={{ backgroundColor: typeColor }}
+              >
+                <span className="truncate w-full text-center px-2">{typeLabel}</span>
+              </div>
 
-      {/* Date column */}
-      <div
-        className={`h-full flex items-center justify-center px-4 relative min-w-0 ${
-          canEdit ? 'cursor-pointer' : 'cursor-default'
-        } ${darkMode ? 'hover:bg-white/5' : ''}`}
-        style={{ width: col.date }}
-        data-no-dnd
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!canEdit) return;
-          onOpenDatePicker?.();
-        }}
-      >
-        {hasDates ? (
-          <span
-            className={`text-xs truncate text-center ${
-              darkMode ? 'text-gray-400' : 'text-gray-500'
-            }`}
-          >
-            {formatDateKey(normalizedStart)}
-            {showRange ? ` – ${formatDateKey(endKey)}` : ''}
-          </span>
-        ) : (
-          <div
-            className={`px-2 py-1 rounded border border-dashed text-[10px] ${
-              darkMode
-                ? 'border-gray-600 text-gray-500'
-                : 'border-gray-300 text-gray-400'
-            }`}
-          >
-            Set Dates
-          </div>
-        )}
-      </div>
+              {canEdit && statusMenuOpen === task.id && statusMenuType === 'type' && (
+                <LabelDropdown
+                  labels={jobTypes}
+                  currentId={effectiveType}
+                  onSelect={(id) => { setOptimisticTypeWithTimer(id); onTypeSelect(id); }}
+                  darkMode={darkMode}
+                  onAddLabel={onAddTypeLabel}
+                  onRemoveLabel={onRemoveTypeLabel}
+                  onRenameLabel={onRenameTypeLabel}
+                  onReorderLabels={onReorderTypes}
+                  onUpdateLabelColor={onUpdateTypeColor}
+                  onToggleLabelContainer={onToggleTypeContainer}
+                  title="Type"
+                  addPlaceholder="New type…"
+                  anchorRef={typeAnchorRef}
+                />
+              )}
+            </div>
+          );
+        }
+
+        if (key === 'date') {
+          return (
+            <div
+              key="date"
+              className={`${borderClass} h-full flex items-center justify-center px-4 relative min-w-0 ${cellBorder} ${
+                canEdit ? 'cursor-pointer' : 'cursor-default'
+              } ${darkMode ? 'hover:bg-white/5' : ''}`}
+              style={{ width: col.date }}
+              data-no-dnd
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!canEdit) return;
+                onOpenDatePicker?.();
+              }}
+            >
+              {hasDates ? (
+                <span
+                  className={`text-xs truncate text-center ${
+                    darkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}
+                >
+                  {formatDateKey(normalizedStart)}
+                  {showRange ? ` – ${formatDateKey(endKey)}` : ''}
+                </span>
+              ) : (
+                <div
+                  className={`px-2 py-1 rounded border border-dashed text-[10px] ${
+                    darkMode
+                      ? 'border-gray-600 text-gray-500'
+                      : 'border-gray-300 text-gray-400'
+                  }`}
+                >
+                  Set Dates
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        return null;
+      })}
     </div>
   );
 }
