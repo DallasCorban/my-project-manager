@@ -23,8 +23,9 @@ import {
   stopOrgDetailListeners,
   startOrgBoardRefsListener,
 } from '../../stores/orgStore';
-import { createOrg, createOrgWorkspace, addBoardToOrgWorkspace, removeBoardFromOrgWorkspace } from '../../services/firebase/orgSync';
+import { createOrg, createOrgWorkspace, addBoardToOrgWorkspace, removeBoardFromOrgWorkspace, updateOrgName, archiveOrg } from '../../services/firebase/orgSync';
 import { deleteProjectFromFirestore } from '../../services/firebase/projectSync';
+import { canUseFirestore } from '../../services/firebase/firestore';
 import { uploadFileWithProgress } from '../../services/firebase/fileSync';
 import { useInviteAccept } from '../../hooks/useInviteAccept';
 import { Sidebar } from './Sidebar';
@@ -37,6 +38,7 @@ import { OrgMembersModal } from '../panels/OrgMembersModal';
 import { SelectionTray } from '../shared/SelectionTray';
 import { EmptyNameToast } from '../shared/EmptyNameToast';
 import { DatePickerPopup } from '../shared/DatePickerPopup';
+import { CreateTeamModal } from '../panels/CreateTeamModal';
 
 export function AppShell() {
   const darkMode = useUIStore((s) => s.darkMode);
@@ -101,8 +103,12 @@ export function AppShell() {
   const activeOrgWorkspaceId = useOrgStore((s) => s.activeOrgWorkspaceId);
   const setActiveOrgWorkspaceId = useOrgStore((s) => s.setActiveOrgWorkspaceId);
 
-  // Derive active workspace (personal context)
-  const activeWorkspace = workspaces.find((w) => w.id === activeEntityId) || workspaces[0];
+  // Filter personal workspaces: active vs archived
+  const activePersonalWorkspaces = workspaces.filter((w) => !w.archivedAt);
+  const archivedPersonalWorkspaces = workspaces.filter((w) => !!w.archivedAt);
+
+  // Derive active workspace (personal context) — only from non-archived
+  const activeWorkspace = activePersonalWorkspaces.find((w) => w.id === activeEntityId) || activePersonalWorkspaces[0];
   const activeWorkspaceId = activeWorkspace?.id || '';
 
   // Filter boards based on context, separating active and archived
@@ -113,7 +119,13 @@ export function AppShell() {
         .filter((p): p is NonNullable<typeof p> => !!p);
 
   const workspaceBoards = allContextBoards.filter((p) => !p.archivedAt);
-  const archivedBoards = allContextBoards.filter((p) => !!p.archivedAt);
+
+  // All archived boards across ALL workspaces (for archive view)
+  const allArchivedBoards = isPersonal
+    ? projects.filter((p) => !!p.archivedAt)
+    : activeOrgBoardRefs
+        .map((ref) => projects.find((p) => p.id === ref.projectId))
+        .filter((p): p is NonNullable<typeof p> => !!p && !!p.archivedAt);
 
   // Determine active board
   const effectiveBoardId = activeBoardId || workspaceBoards[0]?.id || null;
@@ -205,17 +217,41 @@ export function AppShell() {
     setActiveBoardId(null);
   };
 
-  const handleCreateOrg = async () => {
-    if (!user) return;
-    const name = prompt('Team name:');
-    if (!name?.trim()) return;
+  // Create team modal state
+  const [createTeamOpen, setCreateTeamOpen] = useState(false);
+  const [createTeamBusy, setCreateTeamBusy] = useState(false);
 
-    const orgId = await createOrg(name.trim(), user.uid, user.email || '');
-    if (orgId) {
-      // Create a default workspace for the new org
-      await createOrgWorkspace(orgId, 'General');
-      setActiveContext(orgId);
-      setActiveBoardId(null);
+  const handleOpenCreateTeam = () => {
+    if (!user || user.isAnonymous) {
+      alert('Please sign in to create a team.');
+      return;
+    }
+    if (!canUseFirestore()) {
+      alert('Teams require a Firestore connection. Check your Firebase config.');
+      return;
+    }
+    setCreateTeamOpen(true);
+  };
+
+  const handleCreateOrg = async (name: string) => {
+    if (!user || user.isAnonymous) return;
+    setCreateTeamBusy(true);
+
+    try {
+      const orgId = await createOrg(name, user.uid, user.email || '');
+      if (orgId) {
+        await createOrgWorkspace(orgId, 'General');
+        setCreateTeamOpen(false);
+        setActiveContext(orgId);
+        setActiveBoardId(null);
+      } else {
+        alert('Failed to create team — Firestore write was rejected.');
+      }
+    } catch (err) {
+      console.error('createOrg failed:', err);
+      alert(`Failed to create team: ${(err as Error).message || 'Unknown error'}`);
+    } finally {
+      setCreateTeamBusy(false);
     }
   };
 
@@ -287,6 +323,12 @@ export function AppShell() {
     );
   };
 
+  const handleRenameWorkspace = (wsId: string, name: string) => {
+    setWorkspaces((prev) =>
+      prev.map((w) => (w.id === wsId ? { ...w, name } : w)),
+    );
+  };
+
   const handleRenameBoard = (boardId: string, name: string) => {
     updateProjectName(boardId, name);
   };
@@ -312,6 +354,62 @@ export function AppShell() {
     await deleteProjectFromFirestore(boardId);
   };
 
+  const handleArchiveWorkspace = (wsId: string) => {
+    // Archive workspace
+    setWorkspaces((prev) =>
+      prev.map((w) => (w.id === wsId ? { ...w, archivedAt: new Date().toISOString() } : w)),
+    );
+    // Archive all boards in this workspace
+    const boardsInWs = projects.filter((p) => p.workspaceId === wsId && !p.archivedAt);
+    for (const board of boardsInWs) {
+      archiveProject(board.id);
+    }
+    // Switch to first non-archived workspace if current
+    if (activeWorkspaceId === wsId) {
+      const remaining = workspaces.filter((w) => w.id !== wsId && !w.archivedAt);
+      if (remaining.length > 0) {
+        setActiveEntityId(remaining[0].id);
+      }
+    }
+    setActiveBoardId(null);
+  };
+
+  const handleRestoreWorkspace = (wsId: string) => {
+    // Restore workspace
+    setWorkspaces((prev) =>
+      prev.map((w) => (w.id === wsId ? { ...w, archivedAt: null } : w)),
+    );
+    // Restore all boards in this workspace
+    const boardsInWs = projects.filter((p) => p.workspaceId === wsId && !!p.archivedAt);
+    for (const board of boardsInWs) {
+      restoreProject(board.id);
+    }
+  };
+
+  const handleDeleteWorkspace = async (wsId: string) => {
+    // Delete all boards in this workspace from store and Firestore
+    const boardsInWs = projects.filter((p) => p.workspaceId === wsId);
+    for (const board of boardsInWs) {
+      deleteProject(board.id);
+      await deleteProjectFromFirestore(board.id);
+    }
+    // Delete workspace
+    setWorkspaces((prev) => prev.filter((w) => w.id !== wsId));
+  };
+
+  const handleRenameOrg = (orgId: string, name: string) => {
+    void updateOrgName(orgId, name);
+  };
+
+  const handleArchiveOrg = (orgId: string) => {
+    void archiveOrg(orgId);
+    // Switch to personal if the archived org is currently active
+    if (activeContext === orgId) {
+      setActiveContext('personal');
+      setActiveBoardId(null);
+    }
+  };
+
   const handleSelectOrgWorkspace = (id: string) => {
     setActiveOrgWorkspaceId(id);
     setActiveBoardId(null);
@@ -326,10 +424,11 @@ export function AppShell() {
       {/* Sidebar */}
       <Sidebar
         activeContext={activeContext}
-        userOrgs={userOrgs}
+        userOrgs={userOrgs.filter((o) => !o.archivedAt)}
         onSelectContext={handleSelectContext}
-        onCreateOrg={handleCreateOrg}
-        workspaces={workspaces}
+        onCreateOrg={handleOpenCreateTeam}
+        workspaces={activePersonalWorkspaces}
+        archivedWorkspaces={archivedPersonalWorkspaces}
         selectedWorkspaceId={activeWorkspaceId}
         onSelectWorkspace={(id) => {
           setActiveEntityId(id);
@@ -340,7 +439,7 @@ export function AppShell() {
         onSelectOrgWorkspace={handleSelectOrgWorkspace}
         onCreateOrgWorkspace={handleCreateOrgWorkspace}
         boards={workspaceBoards}
-        archivedBoards={archivedBoards}
+        allArchivedBoards={allArchivedBoards}
         activeBoardId={effectiveBoardId}
         onSelectBoard={(id) => setActiveBoardId(id)}
         onCreateWorkspace={handleCreateWorkspace}
@@ -351,6 +450,12 @@ export function AppShell() {
         onArchiveBoard={handleArchiveBoard}
         onRestoreBoard={handleRestoreBoard}
         onDeleteBoard={handleDeleteBoard}
+        onRenameWorkspace={handleRenameWorkspace}
+        onArchiveWorkspace={handleArchiveWorkspace}
+        onRestoreWorkspace={handleRestoreWorkspace}
+        onDeleteWorkspace={handleDeleteWorkspace}
+        onRenameOrg={handleRenameOrg}
+        onArchiveOrg={handleArchiveOrg}
       />
 
       {/* Main content area */}
@@ -531,6 +636,14 @@ export function AppShell() {
 
       {/* Empty-name toast */}
       <EmptyNameToast />
+
+      {/* Create Team Modal */}
+      <CreateTeamModal
+        open={createTeamOpen}
+        onClose={() => setCreateTeamOpen(false)}
+        onCreateTeam={handleCreateOrg}
+        busy={createTeamBusy}
+      />
     </div>
   );
 }

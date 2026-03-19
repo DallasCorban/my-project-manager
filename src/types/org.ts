@@ -10,6 +10,7 @@ export interface Organization {
   plan: 'free' | 'team' | 'business';
   createdBy: string;
   createdAt: unknown;
+  archivedAt?: unknown;
   settings?: OrgSettings;
 }
 

@@ -4,6 +4,7 @@ import {
   collection,
   doc,
   setDoc,
+  updateDoc,
   deleteDoc,
   getDocs,
   onSnapshot,
@@ -58,7 +59,12 @@ export async function createOrg(
       createdBy: userId,
       createdAt: serverTimestamp(),
     });
+  } catch (err) {
+    console.error('createOrg: failed to create org doc', err);
+    throw err;
+  }
 
+  try {
     // Creator becomes org owner
     const memberRef = doc(getDb(), 'orgs', orgId, 'members', userId);
     await setDoc(memberRef, {
@@ -67,12 +73,12 @@ export async function createOrg(
       orgRole: 'owner',
       joinedAt: serverTimestamp(),
     });
-
-    return orgId;
   } catch (err) {
-    handleFirestoreListenerError(err, `createOrg:${orgId}`);
-    return null;
+    console.error('createOrg: failed to create member doc', err);
+    throw err;
   }
+
+  return orgId;
 }
 
 /** Create a shared workspace inside an org. Returns the workspace ID. */
@@ -174,87 +180,151 @@ export async function removeOrgMember(orgId: string, userId: string): Promise<vo
   }
 }
 
+/** Rename an org. */
+export async function updateOrgName(orgId: string, name: string): Promise<void> {
+  if (!canUseFirestore()) return;
+
+  try {
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40);
+    await updateDoc(doc(getDb(), 'orgs', orgId), { name, slug });
+  } catch (err) {
+    handleFirestoreListenerError(err, `updateOrgName:${orgId}`);
+  }
+}
+
+/** Archive an org (soft-delete). */
+export async function archiveOrg(orgId: string): Promise<void> {
+  if (!canUseFirestore()) return;
+
+  try {
+    await updateDoc(doc(getDb(), 'orgs', orgId), { archivedAt: serverTimestamp() });
+  } catch (err) {
+    handleFirestoreListenerError(err, `archiveOrg:${orgId}`);
+  }
+}
+
+/** Restore an archived org. */
+export async function restoreOrg(orgId: string): Promise<void> {
+  if (!canUseFirestore()) return;
+
+  try {
+    await updateDoc(doc(getDb(), 'orgs', orgId), { archivedAt: null });
+  } catch (err) {
+    handleFirestoreListenerError(err, `restoreOrg:${orgId}`);
+  }
+}
+
 // --- Real-time subscriptions ---
 
-/** Subscribe to all orgs the current user belongs to. */
+/** Subscribe to all orgs the current user belongs to.
+ *  Automatically retries if the collection-group index isn't ready yet. */
 export function subscribeToUserOrgs(
   userId: string,
   onUpdate: (orgs: Organization[]) => void,
 ): Unsubscribe {
   if (!canUseFirestore()) return () => {};
 
-  // Collection-group query: find all /orgs/*/members docs where uid == userId
-  const q = query(
-    collectionGroup(getDb(), 'members'),
-    where('uid', '==', userId),
-  );
+  let cancelled = false;
+  let cleanupCurrent: (() => void) | null = null;
 
-  // Track org IDs to subscribe to their metadata
-  const orgUnsubs = new Map<string, Unsubscribe>();
-  const orgCache = new Map<string, Organization>();
+  function startListener() {
+    // Collection-group query: find all /orgs/*/members docs where uid == userId
+    const q = query(
+      collectionGroup(getDb(), 'members'),
+      where('uid', '==', userId),
+    );
 
-  const memberUnsub = onSnapshot(
-    q,
-    (snapshot) => {
-      const orgIds = new Set<string>();
+    // Track org IDs to subscribe to their metadata
+    const orgUnsubs = new Map<string, Unsubscribe>();
+    const orgCache = new Map<string, Organization>();
 
-      for (const docSnap of snapshot.docs) {
-        // Only include docs from /orgs/*/members (not /projects/*/members)
-        const pathParts = docSnap.ref.path.split('/');
-        if (pathParts[0] !== 'orgs') continue;
-        const orgId = pathParts[1];
-        orgIds.add(orgId);
-      }
+    const memberUnsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const orgIds = new Set<string>();
 
-      // Subscribe to any new orgs
-      for (const orgId of orgIds) {
-        if (orgUnsubs.has(orgId)) continue;
-
-        const orgRef = doc(getDb(), 'orgs', orgId);
-        const unsub = onSnapshot(
-          orgRef,
-          (orgSnap) => {
-            if (!orgSnap.exists()) {
-              orgCache.delete(orgId);
-            } else {
-              const data = orgSnap.data();
-              orgCache.set(orgId, {
-                id: orgId,
-                name: data.name || '',
-                slug: data.slug || '',
-                avatarUrl: data.avatarUrl,
-                plan: data.plan || 'free',
-                createdBy: data.createdBy || '',
-                createdAt: data.createdAt,
-                settings: data.settings,
-              });
-            }
-            onUpdate(Array.from(orgCache.values()));
-          },
-          (err) => handleFirestoreListenerError(err, `orgMeta:${orgId}`),
-        );
-        orgUnsubs.set(orgId, unsub);
-      }
-
-      // Unsubscribe from removed orgs
-      for (const [orgId, unsub] of orgUnsubs) {
-        if (!orgIds.has(orgId)) {
-          unsub();
-          orgUnsubs.delete(orgId);
-          orgCache.delete(orgId);
+        for (const docSnap of snapshot.docs) {
+          // Only include docs from /orgs/*/members (not /projects/*/members)
+          const pathParts = docSnap.ref.path.split('/');
+          if (pathParts[0] !== 'orgs') continue;
+          const orgId = pathParts[1];
+          orgIds.add(orgId);
         }
-      }
 
-      onUpdate(Array.from(orgCache.values()));
-    },
-    (err) => handleFirestoreListenerError(err, 'subscribeToUserOrgs'),
-  );
+        // Subscribe to any new orgs
+        for (const orgId of orgIds) {
+          if (orgUnsubs.has(orgId)) continue;
+
+          const orgRef = doc(getDb(), 'orgs', orgId);
+          const unsub = onSnapshot(
+            orgRef,
+            (orgSnap) => {
+              if (!orgSnap.exists()) {
+                orgCache.delete(orgId);
+              } else {
+                const data = orgSnap.data();
+                orgCache.set(orgId, {
+                  id: orgId,
+                  name: data.name || '',
+                  slug: data.slug || '',
+                  avatarUrl: data.avatarUrl,
+                  plan: data.plan || 'free',
+                  createdBy: data.createdBy || '',
+                  createdAt: data.createdAt,
+                  archivedAt: data.archivedAt || null,
+                  settings: data.settings,
+                });
+              }
+              onUpdate(Array.from(orgCache.values()));
+            },
+            (err) => handleFirestoreListenerError(err, `orgMeta:${orgId}`),
+          );
+          orgUnsubs.set(orgId, unsub);
+        }
+
+        // Unsubscribe from removed orgs
+        for (const [orgId, unsub] of orgUnsubs) {
+          if (!orgIds.has(orgId)) {
+            unsub();
+            orgUnsubs.delete(orgId);
+            orgCache.delete(orgId);
+          }
+        }
+
+        onUpdate(Array.from(orgCache.values()));
+      },
+      (err) => {
+        const msg = String((err as Error).message || '');
+        // Retry if the index isn't built yet (transient infra issue)
+        if (msg.includes('index') && !cancelled) {
+          console.warn('subscribeToUserOrgs: index not ready, retrying in 5s...');
+          cleanup();
+          setTimeout(() => { if (!cancelled) startListener(); }, 5000);
+          return;
+        }
+        handleFirestoreListenerError(err, 'subscribeToUserOrgs');
+      },
+    );
+
+    function cleanup() {
+      memberUnsub();
+      for (const unsub of orgUnsubs.values()) unsub();
+      orgUnsubs.clear();
+      orgCache.clear();
+    }
+
+    cleanupCurrent = cleanup;
+  }
+
+  startListener();
 
   return () => {
-    memberUnsub();
-    for (const unsub of orgUnsubs.values()) unsub();
-    orgUnsubs.clear();
-    orgCache.clear();
+    cancelled = true;
+    cleanupCurrent?.();
   };
 }
 

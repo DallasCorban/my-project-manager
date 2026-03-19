@@ -2,6 +2,7 @@ export interface Workspace {
   id: string;
   name: string;
   type: 'workspace';
+  archivedAt?: string | null;
 }
 
 export interface Dashboard {
