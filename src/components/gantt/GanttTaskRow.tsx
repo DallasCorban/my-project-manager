@@ -107,7 +107,9 @@ function GanttTaskRowInner({
   const {
     attributes,
     listeners,
-    setNodeRef,
+    setActivatorNodeRef,
+    setDraggableNodeRef,
+    setDroppableNodeRef,
     isDragging,
   } = useSortable({
     id: task.id,
@@ -226,9 +228,11 @@ function GanttTaskRowInner({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setDroppableNodeRef}
+      data-task-row-id={task.id}
+      data-task-group-id={!isSubitem ? (task as Item).groupId : undefined}
       className={`flex relative group ${
-        isDragging ? 'opacity-50' : ''
+        isDragging ? 'opacity-0' : ''
       } ${
         darkMode
           ? 'border-b border-[#323652] hover:bg-[#202336]'
@@ -239,7 +243,6 @@ function GanttTaskRowInner({
           : rowBg
       }`}
       style={{ height: actualRowHeight }}
-      {...attributes}
     >
       {/* Drop indicator — blue line showing where the item will land.
           Renders at top when dragging UP, bottom when dragging DOWN. This
@@ -252,6 +255,10 @@ function GanttTaskRowInner({
       {/* Left label column — sticky, spread listeners here to make it the drag handle.
           touch-action:none prevents iOS from intercepting touch as scroll during drag. */}
       <div
+        ref={(node) => {
+          setDraggableNodeRef(node);
+          setActivatorNodeRef(node);
+        }}
         className={`sticky left-0 z-[200] flex items-center shrink-0 border-r px-3 overflow-hidden ${
           isDragging ? 'cursor-grabbing' : canEdit ? 'cursor-grab' : ''
         } ${labelBg} ${
@@ -259,6 +266,7 @@ function GanttTaskRowInner({
         }`}
         style={{ width: 320, minWidth: 320, touchAction: 'none' }}
         onClick={handleLabelClick}
+        {...attributes}
         {...listeners}
       >
         {/* Checkbox — data-no-dnd prevents SmartPointerSensor from consuming the click */}

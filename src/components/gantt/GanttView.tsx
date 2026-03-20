@@ -4,8 +4,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, CheckSquare, Square, Plus, ZoomIn, ZoomOut, CalendarDays, Eye, Thermometer } from 'lucide-react';
-import { DndContext, DragOverlay, MeasuringStrategy } from '@dnd-kit/core';
-import type { DragStartEvent, DragEndEvent, DragOverEvent } from '@dnd-kit/core';
+import { DndContext, DragOverlay, MeasuringStrategy, useDroppable } from '@dnd-kit/core';
+import type { DragStartEvent, DragEndEvent, DragOverEvent, ClientRect } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectContext } from '../../stores/projectStore';
@@ -49,6 +49,107 @@ function SortableGroupContainer({
     disabled,
   });
   return <>{children(isDragging, listeners, setNodeRef, attributes)}</>;
+}
+
+function getDraggedMidpoint(rect: ClientRect | null | undefined) {
+  if (!rect) return null;
+  return rect.top + rect.height / 2;
+}
+
+function getGroupTaskRows(groupId: string, activeTaskId: string) {
+  if (typeof document === 'undefined') return [];
+
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(`[data-task-group-id="${groupId}"]`),
+  )
+    .filter((row) => row.dataset.taskRowId !== activeTaskId)
+    .map((row) => {
+      const rect = row.getBoundingClientRect();
+      return {
+        id: row.dataset.taskRowId ?? '',
+        top: rect.top,
+        midpoint: rect.top + rect.height / 2,
+      };
+    })
+    .filter((row) => row.id.length > 0)
+    .sort((a, b) => a.top - b.top);
+}
+
+function getVisualDropIndex(groupId: string, activeTaskId: string, draggedMidpoint: number | null) {
+  if (draggedMidpoint === null) return null;
+
+  const rows = getGroupTaskRows(groupId, activeTaskId);
+
+  if (rows.length === 0) return 0;
+
+  const firstRowBelow = rows.findIndex((row) => draggedMidpoint < row.midpoint);
+  return firstRowBelow >= 0 ? firstRowBelow : rows.length;
+}
+
+function getVisualDropHint(groupId: string, activeTaskId: string, draggedMidpoint: number | null) {
+  if (draggedMidpoint === null) return null;
+
+  const rows = getGroupTaskRows(groupId, activeTaskId);
+  if (rows.length === 0) return null;
+
+  const dropIndex = getVisualDropIndex(groupId, activeTaskId, draggedMidpoint);
+  if (dropIndex === null) return null;
+
+  if (dropIndex <= 0) {
+    return { id: rows[0].id, below: false };
+  }
+
+  if (dropIndex >= rows.length) {
+    return { id: rows[rows.length - 1].id, below: true };
+  }
+
+  return { id: rows[dropIndex].id, below: false };
+}
+
+function EmptyGroupDropRow({
+  groupId,
+  rowHeight,
+  totalTimelineWidth,
+  darkMode,
+}: {
+  groupId: string;
+  rowHeight: number;
+  totalTimelineWidth: number;
+  darkMode: boolean;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `group-drop-zone-${groupId}`,
+    data: { type: 'group-drop-zone', groupId },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex border-b ${
+        darkMode ? 'border-[#323652]' : 'border-[#eceff8]'
+      }`}
+      style={{ height: rowHeight }}
+    >
+      <div
+        className={`sticky left-0 z-[200] flex items-center px-3 shrink-0 border-r text-xs ${
+          darkMode
+            ? isOver ? 'bg-blue-500/10 text-blue-400 border-[#323652]' : 'bg-[#1c213e] text-gray-500 border-[#323652]'
+            : isOver ? 'bg-blue-50 text-blue-600 border-[#eceff8]' : 'bg-white text-gray-400 border-[#eceff8]'
+        }`}
+        style={{ width: 320, minWidth: 320 }}
+      >
+        {isOver ? 'Drop here' : 'No items'}
+      </div>
+      <div
+        className={`flex-1 ${
+          darkMode
+            ? isOver ? 'bg-blue-500/5' : 'bg-[#1c213e]'
+            : isOver ? 'bg-blue-50/60' : 'bg-white'
+        }`}
+        style={{ minWidth: totalTimelineWidth }}
+      />
+    </div>
+  );
 }
 
 /* ─── Heatmap colour helpers ────────────────────────────────────────────────── */
@@ -311,6 +412,7 @@ export function GanttView({
   const [activeId, setActiveId] = useState<string | null>(null);
   /** ID of the droppable currently under the pointer — used to render the drop indicator. */
   const [overId, setOverId] = useState<string | null>(null);
+  const [dropHint, setDropHint] = useState<{ id: string; below: boolean } | null>(null);
 
   // Find the active group or item (task or subitem) for DragOverlay
   const activeGroup: Group | null = activeId
@@ -340,8 +442,48 @@ export function GanttView({
   }, [project, collapsedGroups, setCollapsedGroups]);
 
   /** Tracks which droppable the pointer is currently over for the drop indicator. */
-  const handleDragOver = useCallback(({ over }: DragOverEvent) => {
+  const handleDragOver = useCallback(({ active, over }: DragOverEvent) => {
     setOverId(over ? String(over.id) : null);
+    if (!over) {
+      setDropHint(null);
+      return;
+    }
+
+    const activeData = active.data.current as { type?: string } | undefined;
+    const overData = over.data.current as { type?: string } | undefined;
+
+    if (activeData?.type === 'task') {
+      const translatedMidpoint = getDraggedMidpoint(active.rect.current.translated);
+
+      let targetGroupId: string | undefined;
+      if (overData?.type === 'task') {
+        targetGroupId = (over.data.current as { groupId?: string } | undefined)?.groupId;
+      } else if (overData?.type === 'group-drop-zone') {
+        targetGroupId = (over.data.current as { groupId?: string } | undefined)?.groupId;
+      } else if (overData?.type === 'subitem') {
+        const parentTask = project.tasks.find((t) => t.subitems.some((s) => s.id === over.id));
+        targetGroupId = parentTask?.groupId;
+      }
+
+      if (targetGroupId && overData?.type !== 'group-drop-zone') {
+        setDropHint(getVisualDropHint(targetGroupId, String(active.id), translatedMidpoint));
+      } else {
+        setDropHint(null);
+      }
+      return;
+    }
+
+    if (overData?.type !== 'task' && overData?.type !== 'subitem') {
+      setDropHint(null);
+      return;
+    }
+
+    const translatedMidpoint = getDraggedMidpoint(active.rect.current.translated);
+    const overMidpoint = over.rect.top + over.rect.height / 2;
+    setDropHint({
+      id: String(over.id),
+      below: translatedMidpoint !== null && translatedMidpoint > overMidpoint,
+    });
   }, []);
 
   const handleDragEnd = useCallback(
@@ -359,7 +501,61 @@ export function GanttView({
         preGroupDragOpen.current = [];
       }
 
-      if (over && active.id !== over.id && activeData && overData) {
+      if (activeData?.type === 'task' && over && overData) {
+        const sourceGroupId = activeData.groupId ?? '';
+        let targetGroupId = sourceGroupId;
+
+        if (overData.type === 'task') {
+          targetGroupId = overData.groupId ?? targetGroupId;
+        } else if (overData.type === 'group-drop-zone') {
+          targetGroupId = overData.groupId ?? targetGroupId;
+        } else if (overData.type === 'subitem') {
+          const parentTask = project.tasks.find((t) => t.subitems.some((s) => s.id === over.id));
+          targetGroupId = parentTask?.groupId ?? targetGroupId;
+        }
+
+        const draggedMidpoint = getDraggedMidpoint(active.rect.current.translated);
+        const visualIndex = getVisualDropIndex(targetGroupId, String(active.id), draggedMidpoint);
+
+        if (sourceGroupId === targetGroupId) {
+          const groupTasks = project.tasks.filter((t) => t.groupId === sourceGroupId);
+          const fromIndex = groupTasks.findIndex((t) => t.id === active.id);
+
+          let fallbackIndex = -1;
+          if (overData.type === 'task') {
+            fallbackIndex = groupTasks.findIndex((t) => t.id === over.id);
+          } else if (overData.type === 'subitem') {
+            const parentTask = project.tasks.find((t) => t.subitems.some((s) => s.id === over.id));
+            if (parentTask) fallbackIndex = groupTasks.findIndex((t) => t.id === parentTask.id);
+          }
+
+          const toIndex = visualIndex ?? fallbackIndex;
+          if (fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0) {
+            reorderTasks(project.id, sourceGroupId, fromIndex, toIndex);
+          }
+        } else {
+          const targetGroupTasks = project.tasks.filter(
+            (t) => t.groupId === targetGroupId && t.id !== String(active.id),
+          );
+
+          let fallbackIndex = targetGroupTasks.length;
+          if (overData.type === 'task') {
+            fallbackIndex = targetGroupTasks.findIndex((t) => t.id === over.id);
+          } else if (overData.type === 'subitem') {
+            const parentTask = project.tasks.find((t) => t.subitems.some((s) => s.id === over.id));
+            if (parentTask) {
+              fallbackIndex = targetGroupTasks.findIndex((t) => t.id === parentTask.id);
+            }
+          } else if (overData.type === 'group-drop-zone') {
+            fallbackIndex = 0;
+          }
+
+          const toIndex = visualIndex ?? fallbackIndex;
+          if (toIndex >= 0) {
+            moveTaskToGroup(project.id, String(active.id), sourceGroupId, targetGroupId, toIndex);
+          }
+        }
+      } else if (over && active.id !== over.id && activeData && overData) {
         if (activeData.type === 'group' && overData.type === 'group') {
           const fromIndex = project.groups.findIndex((g) => g.id === active.id);
           const toIndex = project.groups.findIndex((g) => g.id === over.id);
@@ -417,6 +613,7 @@ export function GanttView({
       }
 
       // Clear last — keeps DragOverlay content alive for the drop animation
+      setDropHint(null);
       setOverId(null);
       setActiveId(null);
     },
@@ -430,6 +627,7 @@ export function GanttView({
       setCollapsedGroups(allIds.filter((id) => !preGroupDragOpen.current.includes(id)));
       preGroupDragOpen.current = [];
     }
+    setDropHint(null);
     setOverId(null);
     setActiveId(null);
   }, [project, setCollapsedGroups]);
@@ -573,6 +771,7 @@ export function GanttView({
     <DndContext
       sensors={sensors}
       collisionDetection={sortableCollisionDetection}
+      autoScroll={false}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
@@ -874,6 +1073,14 @@ export function GanttView({
                             items={groupTasks.map((t) => t.id)}
                             strategy={verticalListSortingStrategy}
                           >
+                            {groupTasks.length === 0 && (
+                              <EmptyGroupDropRow
+                                groupId={group.id}
+                                rowHeight={rowHeight}
+                                totalTimelineWidth={totalTimelineWidth}
+                                darkMode={darkMode}
+                              />
+                            )}
                             {groupTasks.map((task) => {
                               const isTaskExpanded = expandedItems.includes(task.id);
 
@@ -885,12 +1092,8 @@ export function GanttView({
                                     projectId={project.id}
                                     isSubitem={false}
                                     isExpanded={isTaskExpanded}
-                                    isDropTarget={activeId !== null && overId === task.id}
-                                    dropBelow={
-                                      activeId !== null &&
-                                      overId === task.id &&
-                                      groupTasks.findIndex((t) => t.id === activeId) < groupTasks.findIndex((t) => t.id === task.id)
-                                    }
+                                    isDropTarget={dropHint?.id === task.id}
+                                    dropBelow={dropHint?.id === task.id ? dropHint.below : false}
                                     visibleDays={visibleDays}
                                     zoomLevel={zoomLevel}
                                     rowHeight={rowHeight}
@@ -934,12 +1137,8 @@ export function GanttView({
                                           projectId={project.id}
                                           parentTaskId={task.id}
                                           isSubitem
-                                          isDropTarget={activeId !== null && overId === sub.id}
-                                          dropBelow={
-                                            activeId !== null &&
-                                            overId === sub.id &&
-                                            task.subitems.findIndex((s) => s.id === activeId) < task.subitems.findIndex((s) => s.id === sub.id)
-                                          }
+                                          isDropTarget={dropHint?.id === sub.id}
+                                          dropBelow={dropHint?.id === sub.id ? dropHint.below : false}
                                           visibleDays={visibleDays}
                                           zoomLevel={zoomLevel}
                                           rowHeight={rowHeight}
