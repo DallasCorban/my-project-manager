@@ -3,8 +3,13 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { DndContext, DragOverlay, MeasuringStrategy } from '@dnd-kit/core';
-import type { DragStartEvent, DragEndEvent, DragOverEvent } from '@dnd-kit/core';
+import {
+  DndContext,
+  DragOverlay,
+  MeasuringStrategy,
+  defaultDropAnimationSideEffects,
+} from '@dnd-kit/core';
+import type { DragStartEvent, DragEndEvent, DragOverEvent, DropAnimation } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 
 import { useUIStore } from '../../stores/uiStore';
@@ -52,6 +57,18 @@ interface BoardViewProps {
   project: Board;
   canEdit?: boolean;
 }
+
+const TASK_DROP_ANIMATION: DropAnimation = {
+  duration: 220,
+  easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: {
+      active: {
+        opacity: '0',
+      },
+    },
+  }),
+};
 
 function getDraggedMidpoint(rect: ClientRect | null | undefined) {
   if (!rect) return null;
@@ -533,7 +550,7 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
       </div>
 
       {/* Floating drag overlay — task row ghost for cross-group drag */}
-      <DragOverlay dropAnimation={null}>
+      <DragOverlay dropAnimation={TASK_DROP_ANIMATION}>
         {activeTask ? (
           <div
             className={`flex items-center gap-3 px-4 h-9 rounded shadow-xl border cursor-grabbing text-xs font-medium ${
