@@ -98,9 +98,22 @@ export function writeProjectState(
   project: Board,
   userId: string,
 ): void {
-  if (!canUseFirestore()) return;
+  if (!canUseFirestore()) {
+    console.warn(`[projectSync] canUseFirestore() returned false, skipping write for ${projectId}`);
+    return;
+  }
 
-  const handle = handles.get(projectId);
+  // Ensure a write-only handle exists even without a subscription
+  let handle = handles.get(projectId);
+  if (!handle) {
+    handle = {
+      unsubscribe: () => {},
+      writeTimer: null,
+      lastWrittenPayload: null,
+      lastSerializedCache: null,
+    };
+    handles.set(projectId, handle);
+  }
 
   // Serialize and check cache
   let payload: string;
@@ -111,10 +124,10 @@ export function writeProjectState(
   }
 
   // Skip if unchanged from last write
-  if (handle?.lastSerializedCache === payload) return;
+  if (handle.lastSerializedCache === payload) return;
 
   // Cancel pending write timer
-  if (handle?.writeTimer) {
+  if (handle.writeTimer) {
     clearTimeout(handle.writeTimer);
   }
 
@@ -133,6 +146,7 @@ export function writeProjectState(
         },
         { merge: true },
       );
+      console.log(`[projectSync] writeProjectState succeeded for ${projectId}`);
 
       // Update caches
       const h = handles.get(projectId);
@@ -141,6 +155,7 @@ export function writeProjectState(
         h.lastSerializedCache = payload;
       }
     } catch (err) {
+      console.error(`[projectSync] writeProjectState FAILED for ${projectId}:`, err);
       const shouldDisable = handleFirestoreListenerError(err, `projectSync-write:${projectId}`);
       if (!shouldDisable) {
         warnFirestoreOnce(
@@ -151,10 +166,8 @@ export function writeProjectState(
     }
   }, PROJECT_SYNC_DEBOUNCE_MS);
 
-  if (handle) {
-    handle.writeTimer = timer;
-    handle.lastSerializedCache = payload;
-  }
+  handle.writeTimer = timer;
+  handle.lastSerializedCache = payload;
 }
 
 /**
@@ -170,8 +183,10 @@ export async function ensureProjectSetup(
   if (!canUseFirestore()) return;
 
   try {
+    const db = getDb();
+
     // Write project metadata
-    const projectRef = doc(getDb(), 'projects', projectId);
+    const projectRef = doc(db, 'projects', projectId);
     await setDoc(
       projectRef,
       {
@@ -188,7 +203,7 @@ export async function ensureProjectSetup(
     );
 
     // Write admin membership for the creator
-    const memberRef = doc(getDb(), 'projects', projectId, 'members', userId);
+    const memberRef = doc(db, 'projects', projectId, 'members', userId);
     await setDoc(
       memberRef,
       {
@@ -200,8 +215,61 @@ export async function ensureProjectSetup(
       },
       { merge: true },
     );
+
+    // Write initial state/main doc so the board is backed up immediately
+    const stateRef = doc(db, 'projects', projectId, 'state', PROJECT_STATE_DOC_ID);
+    const payload = JSON.stringify(project);
+    try {
+      await setDoc(
+        stateRef,
+        {
+          value: payload,
+          updatedAt: serverTimestamp(),
+          updatedBy: userId,
+        },
+        { merge: true },
+      );
+      console.log(`[projectSync] state/main written for ${projectId}`);
+    } catch (stateErr) {
+      console.error(`[projectSync] FAILED to write state/main for ${projectId}:`, stateErr);
+    }
+
+    // Seed the cache so writeProjectState doesn't re-write the same data
+    const handle = handles.get(projectId);
+    if (handle) {
+      handle.lastWrittenPayload = payload;
+      handle.lastSerializedCache = payload;
+    }
   } catch (err) {
+    console.error(`[projectSync] ensureProjectSetup failed for ${projectId}:`, err);
     handleFirestoreListenerError(err, `ensureProject:${projectId}`);
+  }
+}
+
+/**
+ * Update project metadata doc when name or workspace changes.
+ * Called separately from ensureProjectSetup (which is one-time).
+ */
+export async function updateProjectMetadata(
+  projectId: string,
+  fields: { name?: string; workspaceName?: string },
+  userId: string,
+): Promise<void> {
+  if (!canUseFirestore()) return;
+
+  try {
+    const projectRef = doc(getDb(), 'projects', projectId);
+    await setDoc(
+      projectRef,
+      {
+        ...fields,
+        updatedAt: serverTimestamp(),
+        updatedBy: userId,
+      },
+      { merge: true },
+    );
+  } catch (err) {
+    handleFirestoreListenerError(err, `updateProjectMeta:${projectId}`);
   }
 }
 

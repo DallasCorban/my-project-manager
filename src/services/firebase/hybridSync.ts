@@ -69,6 +69,15 @@ export function useHybridState<T>(
   const unmountedRef = useRef(false);
   const writeVersionRef = useRef(0);
 
+  // HYDRATION GATE: Prevent stale localStorage data from overwriting Firestore.
+  // On first load, we MUST receive the Firestore snapshot before flushing any
+  // writes.  Without this, the migration useEffect (or any early saveData call)
+  // could queue a write of stale localStorage data, and then suppress the
+  // incoming Firestore snapshot via the write fence (Layer 2), destroying the
+  // authoritative remote state.
+  const initialSyncCompleteRef = useRef(false);
+  const initialSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Set of all payloads we've sent to Firestore recently.  Used to detect
   // delayed server echoes that arrive after the write fence has dropped.
   // Entries auto-expire after 5 seconds to avoid unbounded memory growth.
@@ -85,6 +94,10 @@ export function useHybridState<T>(
       if (writeTimerRef.current) {
         clearTimeout(writeTimerRef.current);
         writeTimerRef.current = null;
+      }
+      if (initialSyncTimerRef.current) {
+        clearTimeout(initialSyncTimerRef.current);
+        initialSyncTimerRef.current = null;
       }
       // Clean up sent payload timers
       for (const timer of sentPayloadTimersRef.current.values()) {
@@ -136,6 +149,10 @@ export function useHybridState<T>(
     if (writeInFlightRef.current) return;
     if (!user || !canUseRemoteSync()) return;
     if (!hasPendingRemoteWriteRef.current) return;
+    // HYDRATION GATE: Don't flush until we've received the first Firestore
+    // snapshot (or timed out).  This prevents stale localStorage from
+    // overwriting the authoritative remote state on page load.
+    if (!initialSyncCompleteRef.current) return;
     const payload = pendingRemotePayloadRef.current;
     if (typeof payload !== 'string') return;
 
@@ -195,10 +212,51 @@ export function useHybridState<T>(
     unsubscribe = onSnapshot(
       docRef,
       (snapshot) => {
-        if (!snapshot.exists()) return;
+        const isFirstSnapshot = !initialSyncCompleteRef.current;
+
+        // Mark initial sync complete on FIRST snapshot (even if doc is empty).
+        // This unblocks the hydration gate so future saveData() calls can flush.
+        if (isFirstSnapshot) {
+          initialSyncCompleteRef.current = true;
+          if (initialSyncTimerRef.current) {
+            clearTimeout(initialSyncTimerRef.current);
+            initialSyncTimerRef.current = null;
+          }
+        }
+
+        if (!snapshot.exists()) {
+          // Doc doesn't exist yet — flush any pending local data to create it.
+          if (isFirstSnapshot && hasPendingRemoteWriteRef.current) {
+            scheduleRemoteFlush();
+          }
+          return;
+        }
+
         try {
           const payload = snapshot.data()?.value;
           if (typeof payload !== 'string') return;
+
+          // FIRST SNAPSHOT: Always apply — this is the authoritative Firestore
+          // state.  Bypass all suppression layers so stale localStorage can't
+          // win.  Cancel any pending writes that came from stale local data.
+          if (isFirstSnapshot) {
+            const next = JSON.parse(payload) as T;
+            lastKnownPayloadRef.current = payload;
+            dataRef.current = next;
+            setData(next);
+            window.localStorage.setItem(key, payload);
+            // Cancel any pending write that was queued from stale localStorage
+            // (e.g. from the migration useEffect).  The migration will re-run
+            // against the fresh data; if no migration is needed, no write will
+            // be queued.
+            hasPendingRemoteWriteRef.current = false;
+            pendingRemotePayloadRef.current = null;
+            if (writeTimerRef.current) {
+              clearTimeout(writeTimerRef.current);
+              writeTimerRef.current = null;
+            }
+            return;
+          }
 
           // Layer 1: exact match with latest known payload
           if (payload === lastKnownPayloadRef.current) return;
@@ -229,8 +287,29 @@ export function useHybridState<T>(
       },
     );
 
-    return () => unsubscribe();
-  }, [user, key, collectionName, canUseRemoteSync, markRemoteAccessDenied]);
+    // Timeout fallback: if no snapshot arrives within 3s (e.g. the doc
+    // doesn't exist yet, or the network is very slow), unblock the gate
+    // so local writes can proceed.
+    if (!initialSyncCompleteRef.current) {
+      initialSyncTimerRef.current = setTimeout(() => {
+        if (!initialSyncCompleteRef.current) {
+          initialSyncCompleteRef.current = true;
+          // Flush any writes that were blocked by the gate
+          if (hasPendingRemoteWriteRef.current) {
+            scheduleRemoteFlush();
+          }
+        }
+      }, 3000);
+    }
+
+    return () => {
+      unsubscribe();
+      if (initialSyncTimerRef.current) {
+        clearTimeout(initialSyncTimerRef.current);
+        initialSyncTimerRef.current = null;
+      }
+    };
+  }, [user, key, collectionName, canUseRemoteSync, markRemoteAccessDenied, scheduleRemoteFlush]);
 
   // Flush pending writes when user becomes available
   useEffect(() => {

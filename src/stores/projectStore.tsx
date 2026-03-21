@@ -6,11 +6,13 @@
 // Multiple useProjectData() calls create duplicate Firestore listeners
 // and debounce timers that fight each other, causing echo-back jitter.
 
-import { createContext, useContext, useEffect, useMemo } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import type { Board } from '../types/board';
 import type { Item, Subitem, Update, Reply } from '../types/item';
 import type { ProjectFile } from '../types/file';
 import { useHybridState } from '../services/firebase/hybridSync';
+import { writeProjectState, updateProjectMetadata } from '../services/firebase/projectSync';
+import { useAuthStore } from '../stores/authStore';
 import {
   addDaysToKey,
   isDateKey,
@@ -148,6 +150,30 @@ export function useProjectData() {
     }
   }, [projects, setProjects]);
 
+  // --- Dual-write: sync each project to projects/{id}/state/main ---
+  // This creates a shared, per-project copy of the board state in Firestore
+  // alongside the per-user hybridSync blob.  This serves as both a backup and
+  // the foundation for multi-user collaboration (other members can subscribe
+  // to the shared state doc).
+  const user = useAuthStore((s) => s.user);
+  const prevProjectsRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!projects || !Array.isArray(projects) || projects.length === 0) return;
+    if (!user) return;
+
+    // Serialize to detect actual changes (avoid redundant writes)
+    const serialized = JSON.stringify(projects);
+    if (serialized === prevProjectsRef.current) return;
+    prevProjectsRef.current = serialized;
+
+    // Write each non-archived project to its shared state doc
+    for (const project of projects) {
+      if (project.archivedAt) continue;
+      writeProjectState(project.id, project, user.uid);
+    }
+  }, [projects, user]);
+
   // --- CRUD Actions ---
   const actions = {
     addProjectToWorkspace: (workspaceId: string, workspaceName: string, name?: string): string => {
@@ -177,6 +203,10 @@ export function useProjectData() {
 
     updateProjectName: (id: string, v: string): void => {
       setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, name: v } : p)));
+      // Also update the shared project metadata doc so the name stays in sync
+      if (user) {
+        updateProjectMetadata(id, { name: v }, user.uid);
+      }
     },
 
     archiveProject: (id: string): void => {
