@@ -1,7 +1,7 @@
 // App header — entity name, view tabs, settings, auth/members buttons.
 // Shows user role badge and activity sidebar toggle.
 
-import { Briefcase, LayoutDashboard, MessageCircle, Moon, Sun } from 'lucide-react';
+import { Briefcase, LayoutDashboard, MessageCircle, Moon, Sparkles, Sun } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useMemberStore } from '../../stores/memberStore';
@@ -40,6 +40,8 @@ export function AppHeader({
   );
   const selfRole = selfMembership?.role ?? null;
 
+  const aiChatOpen = useUIStore((s) => s.aiChatOpen);
+  const toggleAiChat = useUIStore((s) => s.toggleAiChat);
   const isActivityOpen = Boolean(updatesPanelTarget);
 
   // Role badge
@@ -92,6 +94,21 @@ export function AppHeader({
             title={darkMode ? 'Light mode' : 'Dark mode'}
           >
             {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+
+          {/* AI Chat toggle */}
+          <button
+            onClick={toggleAiChat}
+            className={`p-2 rounded-lg transition-colors ${
+              aiChatOpen
+                ? 'bg-purple-500/15 text-purple-400'
+                : darkMode
+                  ? 'text-gray-400 hover:bg-white/10'
+                  : 'text-gray-500 hover:bg-gray-100'
+            }`}
+            title="AI Assistant"
+          >
+            <Sparkles size={16} />
           </button>
 
           {/* Activity toggle */}

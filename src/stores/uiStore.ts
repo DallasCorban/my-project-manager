@@ -52,6 +52,12 @@ interface UIState {
    *  - closed or different item → open / switch (no close animation between items) */
   toggleUpdatesPanel: (target: UpdatesPanelTarget) => void;
 
+  // AI Chat panel (mutually exclusive with Updates panel)
+  aiChatOpen: boolean;
+  openAiChat: () => void;
+  closeAiChat: () => void;
+  toggleAiChat: () => void;
+
   // Selection
   selectedItems: Set<string>;
   toggleSelection: (id: string) => void;
@@ -125,7 +131,7 @@ export const useUIStore = create<UIState>()(
       setFocusedBar: (bar) => set({ focusedBar: bar }),
 
       updatesPanelTarget: null,
-      openUpdatesPanel: (target) => set({ updatesPanelTarget: target }),
+      openUpdatesPanel: (target) => set({ updatesPanelTarget: target, aiChatOpen: false }),
       closeUpdatesPanel: () => set({ updatesPanelTarget: null }),
       toggleUpdatesPanel: (target) =>
         set((state) => {
@@ -137,8 +143,19 @@ export const useUIStore = create<UIState>()(
           ) {
             return { updatesPanelTarget: null };
           }
-          return { updatesPanelTarget: target };
+          return { updatesPanelTarget: target, aiChatOpen: false };
         }),
+
+      // AI Chat (mutually exclusive with Updates panel)
+      aiChatOpen: false,
+      openAiChat: () => set({ aiChatOpen: true, updatesPanelTarget: null }),
+      closeAiChat: () => set({ aiChatOpen: false }),
+      toggleAiChat: () =>
+        set((state) =>
+          state.aiChatOpen
+            ? { aiChatOpen: false }
+            : { aiChatOpen: true, updatesPanelTarget: null },
+        ),
 
       // Selection
       selectedItems: new Set<string>(),

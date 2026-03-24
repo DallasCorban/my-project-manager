@@ -33,6 +33,7 @@ import { AppHeader } from './AppHeader';
 import { BoardView } from '../board/BoardView';
 import { GanttView } from '../gantt/GanttView';
 import { UpdatesPanel } from '../panels/UpdatesPanel';
+import { AiChatPanel } from '../panels/AiChatPanel';
 import { MembersModal } from '../panels/MembersModal';
 import { OrgMembersModal } from '../panels/OrgMembersModal';
 import { SelectionTray } from '../shared/SelectionTray';
@@ -50,10 +51,12 @@ export function AppShell() {
   const activeContext = useUIStore((s) => s.activeContext);
   const setActiveContext = useUIStore((s) => s.setActiveContext);
   const setOrgMembersModalOpen = useUIStore((s) => s.setOrgMembersModalOpen);
+  const aiChatOpen = useUIStore((s) => s.aiChatOpen);
+  const closeAiChat = useUIStore((s) => s.closeAiChat);
 
   // ── Sidebar slide animation ──────────────────────────────────────────
   const [shownTarget, setShownTarget] = useState(updatesPanelTarget);
-  const isOpen = !!updatesPanelTarget;
+  const isOpen = !!updatesPanelTarget || aiChatOpen;
 
   useEffect(() => {
     if (updatesPanelTarget) {
@@ -583,13 +586,22 @@ export function AppShell() {
         })()}
       </div>
 
-      {/* Updates Panel */}
+      {/* Right Panel — Updates or AI Chat (mutually exclusive) */}
       <div
         className={`fixed top-0 right-0 h-full w-[500px] z-[300] transition-transform duration-300 ease-in-out border-l ${
           isOpen ? 'translate-x-0 shadow-[-20px_0_60px_rgba(0,0,0,0.35)]' : 'translate-x-full'
         } ${darkMode ? 'border-l-white/5' : 'border-l-black/8'}`}
       >
-      {shownTarget && activeProject && (() => {
+      {/* AI Chat Panel — always mounted, visibility toggled via CSS to avoid mount/unmount issues */}
+      <div className={aiChatOpen ? 'contents' : 'hidden'}>
+        <AiChatPanel
+          project={activeProject ?? null}
+          onClose={closeAiChat}
+        />
+      </div>
+
+      {/* Updates Panel */}
+      {!aiChatOpen && shownTarget && activeProject && (() => {
         const { taskId, subitemId, projectId } = shownTarget;
         const task = activeProject.tasks.find((t) => t.id === taskId);
         if (!task) return null;

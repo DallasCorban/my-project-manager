@@ -244,6 +244,10 @@ service cloud.firestore {
         && resource.data.email == request.auth.token.email;
     }
 
+    match /projects/{projectId}/aiChat/{chatId} {
+      allow read, write: if canReadProject(projectId);
+    }
+
     match /projects/{projectId}/files/{fileId} {
       allow read: if canReadProject(projectId)
         && (
