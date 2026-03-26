@@ -22,6 +22,19 @@ export interface Update {
   createdAt: string;
 }
 
+export interface SubSubitem {
+  id: string;
+  name: string;
+  start: string | null;      // YYYY-MM-DD date key
+  duration: number | null;
+  status: string;
+  jobTypeId: string;
+  assignees: string[];        // member UIDs (or legacy display names)
+  itemTypeId?: string;
+  updates?: Update[];
+  files?: ProjectFile[];
+}
+
 export interface Subitem {
   id: string;
   name: string;
@@ -30,6 +43,8 @@ export interface Subitem {
   status: string;
   jobTypeId: string;
   assignees: string[];        // member UIDs (or legacy display names)
+  itemTypeId?: string;
+  subitems?: SubSubitem[];
   updates?: Update[];
   files?: ProjectFile[];
 }
@@ -45,6 +60,7 @@ export interface Item {
   jobTypeId: string;
   assignees: string[];        // member UIDs (or legacy display names)
   priority: string;
+  itemTypeId?: string;
   subitems: Subitem[];
   updates?: Update[];
   files?: ProjectFile[];

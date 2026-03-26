@@ -16,6 +16,7 @@ export interface DragState {
   type: 'move' | 'create' | 'resize-left' | 'resize-right' | null;
   taskId: string | null;
   subitemId: string | null;
+  subSubitemId: string | null;
   projectId: string | null;
   startX: number;
   originalStart: number;
@@ -40,20 +41,23 @@ export interface BoardColumns {
   person: number;
   status: number;
   type: number;
+  itemType: number;
   date: number;
 }
 
 /** Column keys that can be reordered by drag-and-drop */
-export type DraggableColumnKey = 'person' | 'status' | 'type' | 'date';
+export type DraggableColumnKey = 'person' | 'status' | 'type' | 'itemType' | 'date';
 
 export interface DatePickerState {
   taskId: string;
   subitemId: string | null;
+  subSubitemId: string | null;
   projectId: string;
 }
 
 export interface UpdatesPanelTarget {
   taskId: string;
   subitemId: string | null;
+  subSubitemId: string | null;
   projectId: string;
 }

@@ -10,24 +10,28 @@ import { LabelDropdown } from './StatusDropdown';
 import { AvatarStack } from './AvatarStack';
 import { PeopleDropdown } from './PeopleDropdown';
 import { addDaysToKey, formatDateKey, normalizeDateKey } from '../../utils/date';
-import type { Item, Subitem } from '../../types/item';
+import type { Item, Subitem, SubSubitem } from '../../types/item';
 import type { BoardColumns, DraggableColumnKey } from '../../types/timeline';
-import type { StatusLabel, JobTypeLabel } from '../../config/constants';
+import type { StatusLabel, JobTypeLabel, ItemTypeLabel } from '../../config/constants';
 import { DEFAULT_COLUMN_ORDER } from '../../config/constants';
 
 interface TaskRowProps {
-  task: Item | Subitem;
+  task: Item | Subitem | SubSubitem;
   projectId: string;
   parentId?: string;
   isSubitem?: boolean;
+  /** Nesting depth: 0 = item, 1 = subitem, 2 = sub-subitem */
+  nestingLevel?: number;
   isSelected: boolean;
   onToggle: (id: string, projectId: string) => void;
   onAddSubitem?: (projectId: string, taskId: string) => void;
   statuses: StatusLabel[];
   jobTypes: JobTypeLabel[];
+  itemTypes?: ItemTypeLabel[];
   onUpdateName: (value: string) => void;
   onStatusSelect: (statusId: string) => void;
   onTypeSelect: (typeId: string) => void;
+  onItemTypeSelect?: (typeId: string) => void;
   onAddStatusLabel?: (label: string, color: string) => void;
   onAddTypeLabel?: (label: string, color: string) => void;
   onRemoveStatusLabel?: (id: string) => void;
@@ -52,14 +56,17 @@ export function TaskRow({
   projectId,
   parentId,
   isSubitem = false,
+  nestingLevel,
   isSelected,
   onToggle,
   onAddSubitem,
   statuses,
   jobTypes,
+  itemTypes,
   onUpdateName,
   onStatusSelect,
   onTypeSelect,
+  onItemTypeSelect,
   onAddStatusLabel,
   onAddTypeLabel,
   onRemoveStatusLabel,
@@ -89,18 +96,22 @@ export function TaskRow({
 
   const statusAnchorRef = useRef<HTMLDivElement>(null);
   const typeAnchorRef = useRef<HTMLDivElement>(null);
+  const itemTypeAnchorRef = useRef<HTMLDivElement>(null);
   const peopleAnchorRef = useRef<HTMLDivElement>(null);
 
   // Optimistic label overrides — prevent snap-back from stale Firestore echoes.
   const [optimisticStatus, setOptimisticStatus] = useState<string | null>(null);
   const [optimisticType, setOptimisticType] = useState<string | null>(null);
+  const [optimisticItemType, setOptimisticItemType] = useState<string | null>(null);
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const itemTypeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
       if (typeTimerRef.current) clearTimeout(typeTimerRef.current);
+      if (itemTypeTimerRef.current) clearTimeout(itemTypeTimerRef.current);
     };
   }, []);
 
@@ -116,6 +127,15 @@ export function TaskRow({
     typeTimerRef.current = setTimeout(() => setOptimisticType(null), 1000);
   }, []);
 
+  const setOptimisticItemTypeWithTimer = useCallback((id: string) => {
+    setOptimisticItemType(id);
+    if (itemTypeTimerRef.current) clearTimeout(itemTypeTimerRef.current);
+    itemTypeTimerRef.current = setTimeout(() => setOptimisticItemType(null), 1000);
+  }, []);
+
+  // Derive effective depth
+  const depth = nestingLevel ?? (isSubitem ? 1 : 0);
+
   // dnd-kit sortable — used for row reorder in Board view
   const {
     attributes,
@@ -127,10 +147,10 @@ export function TaskRow({
   } = useSortable({
     id: task.id,
     data: {
-      type: isSubitem ? 'subitem' : 'task',
+      type: depth === 0 ? 'task' : depth === 1 ? 'subitem' : 'subsubitem',
       projectId,
-      groupId: !isSubitem ? (task as Item).groupId : undefined,
-      parentTaskId: isSubitem ? parentId : undefined,
+      groupId: depth === 0 ? (task as Item).groupId : undefined,
+      parentTaskId: depth > 0 ? parentId : undefined,
     },
     disabled: !canEdit,
   });
@@ -150,11 +170,14 @@ export function TaskRow({
 
   const effectiveStatus = optimisticStatus ?? task.status;
   const effectiveType = optimisticType ?? task.jobTypeId;
+  const effectiveItemType = optimisticItemType ?? (task as Item | Subitem).itemTypeId;
 
   const statusColor = statuses.find((s) => s.id === effectiveStatus)?.color || '#c4c4c4';
   const statusLabel = statuses.find((s) => s.id === effectiveStatus)?.label || 'Status';
   const typeColor = jobTypes.find((t) => t.id === effectiveType)?.color || '#c4c4c4';
   const typeLabel = jobTypes.find((t) => t.id === effectiveType)?.label || 'Type';
+  const itemTypeColor = itemTypes?.find((t) => t.id === effectiveItemType)?.color || '#c4c4c4';
+  const itemTypeLabel = itemTypes?.find((t) => t.id === effectiveItemType)?.label || 'Item Type';
 
   const normalizedStart = normalizeDateKey(task.start);
   const hasDates = Boolean(normalizedStart);
@@ -162,18 +185,18 @@ export function TaskRow({
   const endKey = hasDates ? addDaysToKey(normalizedStart, safeDuration - 1) : null;
   const showRange = hasDates && safeDuration > 1;
 
-  // Items are lighter, subitems are darker — consistent across both views.
+  // Three-tier row background — items lightest, sub-subitems darkest.
   const rowBg = darkMode
-    ? isSubitem ? 'bg-[#191c36]' : 'bg-[#1c213e]'
-    : isSubitem ? 'bg-[#f4f5fc]' : 'bg-white';
+    ? depth === 0 ? 'bg-[#1c213e]' : depth === 1 ? 'bg-[#191c36]' : 'bg-[#16192e]'
+    : depth === 0 ? 'bg-white' : depth === 1 ? 'bg-[#f4f5fc]' : 'bg-[#ecedf6]';
 
   // When dragging: the original row becomes an invisible placeholder that reserves
   // space in the layout. The DragOverlay renders the floating ghost instead.
   const containerClass = isDragging
-    ? `flex border-b items-center h-9 relative group opacity-0 ${
+    ? `flex w-fit min-w-full border-b items-center h-9 relative group opacity-0 ${
         darkMode ? 'border-[#323652]' : 'border-[#eceff8]'
       } ${rowBg}`
-    : `flex border-b items-center h-9 relative group transition-colors ${
+    : `flex w-fit min-w-full border-b items-center h-9 relative group transition-colors ${
         darkMode
           ? 'border-[#323652] hover:bg-[#202336]'
           : 'border-[#eceff8] hover:bg-[#f0f0f0]'
@@ -225,7 +248,7 @@ export function TaskRow({
     >
       {/* Checkbox column — data-no-dnd prevents drag from here */}
       <div
-        className={`border-r h-full flex items-center justify-center relative min-w-0 ${cellBorder}`}
+        className={`border-r h-full flex shrink-0 items-center justify-center relative min-w-0 ${cellBorder}`}
         style={{ width: col.select }}
         data-no-dnd
       >
@@ -247,12 +270,13 @@ export function TaskRow({
 
       {/* Item name column */}
       <div
-        className={`border-r h-full flex items-center px-4 relative min-w-0 ${cellBorder}`}
+        className={`border-r h-full flex shrink-0 items-center px-4 relative min-w-0 ${cellBorder}`}
         style={{ width: col.item }}
       >
         <ItemLabelCell
           task={task}
           isSubitem={isSubitem}
+          nestingLevel={depth}
           canEdit={canEdit}
           darkMode={darkMode}
           onUpdateName={canEdit ? onUpdateName : undefined}
@@ -270,7 +294,7 @@ export function TaskRow({
             <div
               key="person"
               ref={peopleAnchorRef}
-              className={`${borderClass} h-full flex items-center justify-center min-w-0 ${cellBorder}`}
+              className={`${borderClass} h-full flex shrink-0 items-center justify-center min-w-0 ${cellBorder}`}
               style={{ width: col.person }}
               data-no-dnd
             >
@@ -312,7 +336,7 @@ export function TaskRow({
             <div
               key="status"
               ref={statusAnchorRef}
-              className={`${borderClass} h-full flex items-center justify-center relative min-w-0 ${cellBorder}`}
+              className={`${borderClass} h-full flex shrink-0 items-center justify-center relative min-w-0 ${cellBorder}`}
               style={{ width: col.status }}
               data-no-dnd
             >
@@ -359,7 +383,7 @@ export function TaskRow({
             <div
               key="type"
               ref={typeAnchorRef}
-              className={`${borderClass} h-full flex items-center justify-center relative min-w-0 ${cellBorder}`}
+              className={`${borderClass} h-full flex shrink-0 items-center justify-center relative min-w-0 ${cellBorder}`}
               style={{ width: col.type }}
               data-no-dnd
             >
@@ -402,11 +426,56 @@ export function TaskRow({
           );
         }
 
+        if (key === 'itemType') {
+          return (
+            <div
+              key="itemType"
+              ref={itemTypeAnchorRef}
+              className={`${borderClass} h-full flex shrink-0 items-center justify-center relative min-w-0 ${cellBorder}`}
+              style={{ width: col.itemType }}
+              data-no-dnd
+            >
+              <div
+                onMouseDown={(e) => {
+                  if (statusMenuOpen === `${task.id}-itemType` && statusMenuType === 'type') e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!canEdit) return;
+                  if (statusMenuOpen === `${task.id}-itemType` && statusMenuType === 'type') closeStatusMenu();
+                  else openStatusMenu(`${task.id}-itemType`, 'type');
+                }}
+                className={`w-full h-full flex items-center justify-center text-xs font-medium text-white overflow-hidden ${
+                  canEdit ? 'cursor-pointer transition hover:brightness-110' : 'cursor-default'
+                }`}
+                style={{ backgroundColor: itemTypeColor }}
+              >
+                <span className="truncate w-full text-center px-2">{itemTypeLabel}</span>
+              </div>
+
+              {canEdit && itemTypes && statusMenuOpen === `${task.id}-itemType` && statusMenuType === 'type' && (
+                <LabelDropdown
+                  labels={itemTypes}
+                  currentId={effectiveItemType || ''}
+                  onSelect={(id) => {
+                    setOptimisticItemTypeWithTimer(id);
+                    onItemTypeSelect?.(id);
+                  }}
+                  darkMode={darkMode}
+                  title="Item Type"
+                  addPlaceholder="New item type…"
+                  anchorRef={itemTypeAnchorRef}
+                />
+              )}
+            </div>
+          );
+        }
+
         if (key === 'date') {
           return (
             <div
               key="date"
-              className={`${borderClass} h-full flex items-center justify-center px-4 relative min-w-0 ${cellBorder} ${
+              className={`${borderClass} h-full flex shrink-0 items-center justify-center px-4 relative min-w-0 ${cellBorder} ${
                 canEdit ? 'cursor-pointer' : 'cursor-default'
               } ${darkMode ? 'hover:bg-white/5' : ''}`}
               style={{ width: col.date }}

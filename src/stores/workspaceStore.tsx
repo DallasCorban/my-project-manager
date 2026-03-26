@@ -8,8 +8,8 @@
 import { createContext, useContext } from 'react';
 import { create } from 'zustand';
 import type { Workspace, Dashboard } from '../types/workspace';
-import type { StatusLabel, JobTypeLabel } from '../config/constants';
-import { DEFAULT_STATUSES, DEFAULT_JOB_TYPES } from '../config/constants';
+import type { StatusLabel, JobTypeLabel, ItemTypeLabel } from '../config/constants';
+import { DEFAULT_STATUSES, DEFAULT_JOB_TYPES, DEFAULT_ITEM_TYPES } from '../config/constants';
 import { useHybridState } from '../services/firebase/hybridSync';
 
 // --- Initial data ---
@@ -57,6 +57,10 @@ export function useJobTypes() {
   return useHybridState<JobTypeLabel[]>('pmai_jobTypes', DEFAULT_JOB_TYPES, 'jobTypes');
 }
 
+export function useItemTypes() {
+  return useHybridState<ItemTypeLabel[]>('pmai_itemTypes', DEFAULT_ITEM_TYPES, 'itemTypes');
+}
+
 /**
  * Combined workspace data hook.
  * Returns all synced workspace data and setters.
@@ -66,6 +70,7 @@ export function useWorkspaceData() {
   const [dashboards, setDashboards] = useDashboards();
   const [statuses, setStatuses] = useStatuses();
   const [jobTypes, setJobTypes] = useJobTypes();
+  const [itemTypes, setItemTypes] = useItemTypes();
 
   const { activeEntityId, activeBoardId, setActiveEntityId, setActiveBoardId } =
     useWorkspaceUIStore();
@@ -79,6 +84,8 @@ export function useWorkspaceData() {
     setStatuses,
     jobTypes,
     setJobTypes,
+    itemTypes,
+    setItemTypes,
     activeEntityId,
     activeBoardId,
     setActiveEntityId,

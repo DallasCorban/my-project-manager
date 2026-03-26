@@ -41,8 +41,8 @@ interface UIState {
 
   /** The Gantt bar currently selected as the zoom anchor.
    *  Single-click on a bar sets this; click on empty space clears it. */
-  focusedBar: { taskId: string; subitemId: string | null } | null;
-  setFocusedBar: (bar: { taskId: string; subitemId: string | null } | null) => void;
+  focusedBar: { taskId: string; subitemId: string | null; subSubitemId: string | null } | null;
+  setFocusedBar: (bar: { taskId: string; subitemId: string | null; subSubitemId: string | null } | null) => void;
 
   updatesPanelTarget: UpdatesPanelTarget | null;
   openUpdatesPanel: (target: UpdatesPanelTarget) => void;
@@ -139,7 +139,8 @@ export const useUIStore = create<UIState>()(
           if (
             cur &&
             cur.taskId === target.taskId &&
-            cur.subitemId === target.subitemId
+            cur.subitemId === target.subitemId &&
+            cur.subSubitemId === target.subSubitemId
           ) {
             return { updatesPanelTarget: null };
           }

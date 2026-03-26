@@ -12,7 +12,7 @@ import { EditableText } from '../shared/EditableText';
 import type { Board, Group } from '../../types/board';
 import type { Item } from '../../types/item';
 import type { BoardColumns, DraggableColumnKey } from '../../types/timeline';
-import type { StatusLabel, JobTypeLabel } from '../../config/constants';
+import type { StatusLabel, JobTypeLabel, ItemTypeLabel } from '../../config/constants';
 
 interface GroupSectionProps {
   group: Group;
@@ -23,14 +23,18 @@ interface GroupSectionProps {
   onReorderColumns: (order: DraggableColumnKey[]) => void;
   statuses: StatusLabel[];
   jobTypes: JobTypeLabel[];
+  itemTypes?: ItemTypeLabel[];
   onStartResize: (key: keyof BoardColumns, clientX: number) => void;
   onUpdateGroupName: (name: string) => void;
   onUpdateTaskName: (taskId: string, name: string) => void;
   onUpdateSubitemName: (taskId: string, subitemId: string, name: string) => void;
-  onStatusSelect: (taskId: string, subitemId: string | null, statusId: string) => void;
-  onTypeSelect: (taskId: string, subitemId: string | null, typeId: string) => void;
+  onUpdateSubSubitemName?: (taskId: string, subitemId: string, subSubitemId: string, name: string) => void;
+  onStatusSelect: (taskId: string, subitemId: string | null, statusId: string, subSubitemId?: string | null) => void;
+  onTypeSelect: (taskId: string, subitemId: string | null, typeId: string, subSubitemId?: string | null) => void;
+  onItemTypeSelect?: (taskId: string, subitemId: string | null, typeId: string, subSubitemId?: string | null) => void;
   onAddTaskToGroup: (name?: string) => void;
   onAddSubitem: (projectId: string, taskId: string) => void;
+  onAddSubSubitem?: (projectId: string, taskId: string, subitemId: string) => void;
   onAddStatusLabel: (label: string, color: string) => void;
   onAddTypeLabel: (label: string, color: string) => void;
   onRemoveStatusLabel?: (id: string) => void;
@@ -42,9 +46,9 @@ interface GroupSectionProps {
   onUpdateStatusColor?: (id: string, color: string) => void;
   onUpdateTypeColor?: (id: string, color: string) => void;
   onToggleTypeContainer?: (id: string) => void;
-  onToggleAssignee?: (taskId: string, subitemId: string | null, uid: string) => void;
-  onOpenDatePicker: (taskId: string, subitemId: string | null) => void;
-  onOpenUpdates: (taskId: string, subitemId: string | null) => void;
+  onToggleAssignee?: (taskId: string, subitemId: string | null, uid: string, subSubitemId?: string | null) => void;
+  onOpenDatePicker: (taskId: string, subitemId: string | null, subSubitemId?: string | null) => void;
+  onOpenUpdates: (taskId: string, subitemId: string | null, subSubitemId?: string | null) => void;
   canEdit: boolean;
   /** Listeners from useSortable — spread on the header as the group drag handle. */
   dragHandleListeners?: SyntheticListenerMap;
@@ -83,14 +87,18 @@ export function GroupSection({
   onReorderColumns,
   statuses,
   jobTypes,
+  itemTypes,
   onStartResize,
   onUpdateGroupName,
   onUpdateTaskName,
   onUpdateSubitemName,
+  onUpdateSubSubitemName,
   onStatusSelect,
   onTypeSelect,
+  onItemTypeSelect,
   onAddTaskToGroup,
   onAddSubitem,
+  onAddSubSubitem,
   onAddStatusLabel,
   onAddTypeLabel,
   onRemoveStatusLabel,
@@ -180,7 +188,7 @@ export function GroupSection({
       {/* Table contents */}
       {!isCollapsed && (
         <div
-          className={`rounded-lg border ${
+          className={`rounded-lg border w-fit min-w-full ${
             darkMode ? 'border-[#323652]' : 'border-[#bec3d4]'
           }`}
           style={{ borderLeftColor: group.color, borderLeftWidth: 3 }}
@@ -202,14 +210,17 @@ export function GroupSection({
                 <TaskRow
                   task={task}
                   projectId={project.id}
+                  nestingLevel={0}
                   isSelected={selectedItems.has(task.id)}
                   onToggle={toggleSelection}
                   onAddSubitem={onAddSubitem}
                   statuses={statuses}
                   jobTypes={jobTypes}
+                  itemTypes={itemTypes}
                   onUpdateName={(v) => onUpdateTaskName(task.id, v)}
                   onStatusSelect={(sid) => onStatusSelect(task.id, null, sid)}
                   onTypeSelect={(tid) => onTypeSelect(task.id, null, tid)}
+                  onItemTypeSelect={onItemTypeSelect ? (tid) => onItemTypeSelect(task.id, null, tid) : undefined}
                   onAddStatusLabel={onAddStatusLabel}
                   onAddTypeLabel={onAddTypeLabel}
                   onRemoveStatusLabel={onRemoveStatusLabel}
@@ -236,36 +247,85 @@ export function GroupSection({
                     strategy={verticalListSortingStrategy}
                   >
                     {task.subitems.map((sub) => (
-                      <TaskRow
-                        key={sub.id}
-                        task={sub}
-                        projectId={project.id}
-                        parentId={task.id}
-                        isSubitem
-                        isSelected={selectedItems.has(sub.id)}
-                        onToggle={toggleSelection}
-                        statuses={statuses}
-                        jobTypes={jobTypes}
-                        onUpdateName={(v) => onUpdateSubitemName(task.id, sub.id, v)}
-                        onStatusSelect={(sid) => onStatusSelect(task.id, sub.id, sid)}
-                        onTypeSelect={(tid) => onTypeSelect(task.id, sub.id, tid)}
-                        onAddStatusLabel={onAddStatusLabel}
-                        onAddTypeLabel={onAddTypeLabel}
-                        onRemoveStatusLabel={onRemoveStatusLabel}
-                        onRemoveTypeLabel={onRemoveTypeLabel}
-                        onRenameStatusLabel={onRenameStatusLabel}
-                        onRenameTypeLabel={onRenameTypeLabel}
-                        onReorderStatuses={onReorderStatuses}
-                        onReorderTypes={onReorderTypes}
-                        onUpdateStatusColor={onUpdateStatusColor}
-                        onUpdateTypeColor={onUpdateTypeColor}
-                        onToggleAssignee={onToggleAssignee ? (uid) => onToggleAssignee(task.id, sub.id, uid) : undefined}
-                        onOpenDatePicker={() => onOpenDatePicker(task.id, sub.id)}
-                        onOpenUpdates={() => onOpenUpdates(task.id, sub.id)}
-                        boardColumns={boardColumns}
-                        columnOrder={columnOrder}
-                        canEdit={canEdit}
-                      />
+                      <div key={sub.id}>
+                        <TaskRow
+                          task={sub}
+                          projectId={project.id}
+                          parentId={task.id}
+                          nestingLevel={1}
+                          isSubitem
+                          isSelected={selectedItems.has(sub.id)}
+                          onToggle={toggleSelection}
+                          onAddSubitem={onAddSubSubitem ? (pid, sid) => onAddSubSubitem(pid, task.id, sid) : undefined}
+                          statuses={statuses}
+                          jobTypes={jobTypes}
+                          itemTypes={itemTypes}
+                          onUpdateName={(v) => onUpdateSubitemName(task.id, sub.id, v)}
+                          onStatusSelect={(sid) => onStatusSelect(task.id, sub.id, sid)}
+                          onTypeSelect={(tid) => onTypeSelect(task.id, sub.id, tid)}
+                          onItemTypeSelect={onItemTypeSelect ? (tid) => onItemTypeSelect(task.id, sub.id, tid) : undefined}
+                          onAddStatusLabel={onAddStatusLabel}
+                          onAddTypeLabel={onAddTypeLabel}
+                          onRemoveStatusLabel={onRemoveStatusLabel}
+                          onRemoveTypeLabel={onRemoveTypeLabel}
+                          onRenameStatusLabel={onRenameStatusLabel}
+                          onRenameTypeLabel={onRenameTypeLabel}
+                          onReorderStatuses={onReorderStatuses}
+                          onReorderTypes={onReorderTypes}
+                          onUpdateStatusColor={onUpdateStatusColor}
+                          onUpdateTypeColor={onUpdateTypeColor}
+                          onToggleAssignee={onToggleAssignee ? (uid) => onToggleAssignee(task.id, sub.id, uid) : undefined}
+                          onOpenDatePicker={() => onOpenDatePicker(task.id, sub.id)}
+                          onOpenUpdates={() => onOpenUpdates(task.id, sub.id)}
+                          boardColumns={boardColumns}
+                          columnOrder={columnOrder}
+                          canEdit={canEdit}
+                        />
+
+                        {/* Expanded sub-subitems — third level */}
+                        {expandedItems.includes(sub.id) && (sub.subitems || []).length > 0 && (
+                          <SortableContext
+                            items={(sub.subitems || []).map((ss) => ss.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {(sub.subitems || []).map((subSub) => (
+                              <TaskRow
+                                key={subSub.id}
+                                task={subSub}
+                                projectId={project.id}
+                                parentId={task.id}
+                                nestingLevel={2}
+                                isSubitem
+                                isSelected={selectedItems.has(subSub.id)}
+                                onToggle={toggleSelection}
+                                statuses={statuses}
+                                jobTypes={jobTypes}
+                                itemTypes={itemTypes}
+                                onUpdateName={(v) => onUpdateSubSubitemName?.(task.id, sub.id, subSub.id, v)}
+                                onStatusSelect={(sid) => onStatusSelect(task.id, sub.id, sid, subSub.id)}
+                                onTypeSelect={(tid) => onTypeSelect(task.id, sub.id, tid, subSub.id)}
+                                onItemTypeSelect={onItemTypeSelect ? (tid) => onItemTypeSelect(task.id, sub.id, tid, subSub.id) : undefined}
+                                onAddStatusLabel={onAddStatusLabel}
+                                onAddTypeLabel={onAddTypeLabel}
+                                onRemoveStatusLabel={onRemoveStatusLabel}
+                                onRemoveTypeLabel={onRemoveTypeLabel}
+                                onRenameStatusLabel={onRenameStatusLabel}
+                                onRenameTypeLabel={onRenameTypeLabel}
+                                onReorderStatuses={onReorderStatuses}
+                                onReorderTypes={onReorderTypes}
+                                onUpdateStatusColor={onUpdateStatusColor}
+                                onUpdateTypeColor={onUpdateTypeColor}
+                                onToggleAssignee={onToggleAssignee ? (uid) => onToggleAssignee(task.id, sub.id, uid, subSub.id) : undefined}
+                                onOpenDatePicker={() => onOpenDatePicker(task.id, sub.id, subSub.id)}
+                                onOpenUpdates={() => onOpenUpdates(task.id, sub.id, subSub.id)}
+                                boardColumns={boardColumns}
+                                columnOrder={columnOrder}
+                                canEdit={canEdit}
+                              />
+                            ))}
+                          </SortableContext>
+                        )}
+                      </div>
                     ))}
                   </SortableContext>
                 )}
@@ -276,7 +336,7 @@ export function GroupSection({
           {/* Add item row — inline input */}
           {canEdit && (
             <div
-              className={`flex items-center h-9 px-4 transition-colors ${
+              className={`flex items-center h-9 px-4 min-w-full transition-colors ${
                 darkMode
                   ? 'hover:bg-[#202336] text-gray-500'
                   : 'hover:bg-gray-50 text-gray-400'

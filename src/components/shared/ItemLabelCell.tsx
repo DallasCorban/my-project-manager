@@ -5,11 +5,13 @@
 import { CornerDownRight, ChevronRight, Plus, MessageSquare } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { EditableText } from './EditableText';
-import type { Item, Subitem } from '../../types/item';
+import type { Item, Subitem, SubSubitem } from '../../types/item';
 
 interface ItemLabelCellProps {
-  task: Item | Subitem;
+  task: Item | Subitem | SubSubitem;
   isSubitem?: boolean;
+  /** Nesting depth: 0 = item, 1 = subitem, 2 = sub-subitem */
+  nestingLevel?: number;
   canEdit?: boolean;
   darkMode: boolean;
   onUpdateName?: (value: string) => void;
@@ -20,6 +22,7 @@ interface ItemLabelCellProps {
 export function ItemLabelCell({
   task,
   isSubitem = false,
+  nestingLevel,
   canEdit = true,
   darkMode,
   onUpdateName,
@@ -30,29 +33,46 @@ export function ItemLabelCell({
   const toggleItemExpand = useUIStore((s) => s.toggleItemExpand);
   const showEmptyNameToast = useUIStore((s) => s.showEmptyNameToast);
 
-  const hasSubitems = !isSubitem && 'subitems' in task && (task as Item).subitems.length > 0;
-  const subitemCount = hasSubitems ? (task as Item).subitems.length : 0;
+  // Derive effective nesting level from explicit prop or legacy isSubitem
+  const depth = nestingLevel ?? (isSubitem ? 1 : 0);
+  const isLeaf = depth >= 2;
+
+  // Check for children at levels 0 and 1
+  const hasChildren =
+    depth === 0
+      ? 'subitems' in task && (task as Item).subitems.length > 0
+      : depth === 1
+        ? 'subitems' in task && ((task as Subitem).subitems || []).length > 0
+        : false;
+  const childCount = hasChildren
+    ? depth === 0
+      ? (task as Item).subitems.length
+      : ((task as Subitem).subitems || []).length
+    : 0;
+
+  // Indentation: pl-0 for items, pl-8 for subitems, pl-16 for sub-subitems
+  const indentClass = depth === 0 ? '' : depth === 1 ? 'pl-8' : 'pl-16';
 
   return (
-    <div className={`flex items-center gap-2 w-full ${isSubitem ? 'pl-8' : ''}`}>
-      {/* Subitem indent indicator */}
-      {isSubitem && <CornerDownRight size={12} className="text-gray-400 shrink-0" />}
+    <div className={`flex items-center gap-2 w-full ${indentClass}`}>
+      {/* Indent indicator for nested items */}
+      {depth > 0 && <CornerDownRight size={12} className="text-gray-400 shrink-0" />}
 
-      {/* Expand / collapse chevron — parent tasks only.
+      {/* Expand / collapse chevron — levels 0 and 1 (not leaf).
           data-no-dnd: isolates this click target from SmartPointerSensor so
           that clicking the chevron never accidentally starts a row drag. */}
-      {!isSubitem && (
+      {!isLeaf && (
         <div
           data-no-dnd
           onClick={(e) => {
             e.stopPropagation();
-            if (hasSubitems) toggleItemExpand(task.id);
+            if (hasChildren) toggleItemExpand(task.id);
           }}
           className={`shrink-0 transition-transform duration-150 ${
-            hasSubitems
+            hasChildren
               ? 'cursor-pointer text-gray-400 hover:text-blue-500'
               : 'cursor-default text-gray-300 opacity-30'
-          } ${hasSubitems && expandedItems.includes(task.id) ? 'rotate-90' : ''}`}
+          } ${hasChildren && expandedItems.includes(task.id) ? 'rotate-90' : ''}`}
         >
           <ChevronRight size={14} />
         </div>
@@ -70,15 +90,15 @@ export function ItemLabelCell({
         }`}
       />
 
-      {/* Right-side hover buttons — parent tasks only */}
-      {!isSubitem && (
+      {/* Right-side hover buttons — levels 0 and 1 (not leaf) */}
+      {!isLeaf && (
         <div className="flex items-center gap-1 ml-auto no-drag shrink-0">
-          {/* Subitem count badge */}
-          {hasSubitems && (
+          {/* Child count badge */}
+          {hasChildren && (
             <span className={`text-[10px] px-1.5 rounded-full ${
               darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-600'
             }`}>
-              {subitemCount}
+              {childCount}
             </span>
           )}
 
@@ -98,7 +118,7 @@ export function ItemLabelCell({
             <MessageSquare size={14} />
           </button>
 
-          {/* Add subitem */}
+          {/* Add child */}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -113,7 +133,7 @@ export function ItemLabelCell({
                 : 'text-gray-500/60 cursor-not-allowed'
             }`}
             disabled={!canEdit}
-            title="Add subitem"
+            title={depth === 0 ? 'Add subitem' : 'Add sub-subitem'}
           >
             <Plus size={14} />
           </button>

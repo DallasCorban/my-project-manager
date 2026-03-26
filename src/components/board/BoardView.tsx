@@ -19,6 +19,7 @@ import { useTimelineStore } from '../../stores/timelineStore';
 import { useBoardColumns } from '../../hooks/useBoardColumns';
 import { useSortableSensors, sortableCollisionDetection } from '../../hooks/useSmartSensors';
 import { GroupSection } from './GroupSection';
+import { DEFAULT_BOARD_COLUMNS, DEFAULT_COLUMN_ORDER } from '../../config/constants';
 import type { Board } from '../../types/board';
 import type { Item } from '../../types/item';
 import type { ClientRect } from '@dnd-kit/core';
@@ -115,12 +116,15 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
   const {
     updateTaskName,
     updateSubitemName,
+    updateSubSubitemName,
     updateGroupName,
     addTaskToGroup,
     addSubitem,
+    addSubSubitem,
     addGroup,
     changeStatus,
     changeJobType,
+    changeItemType,
     toggleAssignee,
     reorderTasks,
     moveTaskToGroup,
@@ -128,12 +132,22 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
     reorderGroups,
   } = useProjectContext();
 
-  const { statuses, setStatuses, jobTypes, setJobTypes, activeEntityId } = useWorkspaceContext();
+  const { statuses, setStatuses, jobTypes, setJobTypes, itemTypes, setItemTypes, activeEntityId } = useWorkspaceContext();
 
-  const boardColumns = useTimelineStore((s) => s.getBoardColumns(activeEntityId));
-  const columnOrder = useTimelineStore((s) => s.getColumnOrder(activeEntityId));
+  const rawBoardColumns = useTimelineStore((s) => s.getBoardColumns(activeEntityId));
+  const rawColumnOrder = useTimelineStore((s) => s.getColumnOrder(activeEntityId));
   const setColumnOrder = useTimelineStore((s) => s.setColumnOrder);
   const setBoardColumns = useTimelineStore((s) => s.setBoardColumns);
+
+  // Ensure persisted columns/order include any newly added keys (e.g. itemType)
+  const boardColumns = useMemo(
+    () => ({ ...DEFAULT_BOARD_COLUMNS, ...rawBoardColumns }),
+    [rawBoardColumns],
+  );
+  const columnOrder = useMemo(() => {
+    const missing = DEFAULT_COLUMN_ORDER.filter((k) => !rawColumnOrder.includes(k));
+    return missing.length > 0 ? [...rawColumnOrder, ...missing] : rawColumnOrder;
+  }, [rawColumnOrder]);
 
   const { handleStartResize } = useBoardColumns(boardColumns, (cols) =>
     setBoardColumns(activeEntityId, cols),
@@ -490,20 +504,28 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
                       onReorderColumns={(order) => setColumnOrder(activeEntityId, order)}
                       statuses={statuses}
                       jobTypes={jobTypes}
+                      itemTypes={itemTypes}
                       onStartResize={handleStartResize}
                       onUpdateGroupName={(name) => updateGroupName(project.id, group.id, name)}
                       onUpdateTaskName={(taskId, name) => updateTaskName(project.id, taskId, name)}
                       onUpdateSubitemName={(taskId, subId, name) =>
                         updateSubitemName(project.id, taskId, subId, name)
                       }
-                      onStatusSelect={(taskId, subId, statusId) =>
-                        changeStatus(project.id, taskId, subId, statusId)
+                      onUpdateSubSubitemName={(taskId, subId, ssId, name) =>
+                        updateSubSubitemName(project.id, taskId, subId, ssId, name)
                       }
-                      onTypeSelect={(taskId, subId, typeId) =>
-                        changeJobType(project.id, taskId, subId, typeId)
+                      onStatusSelect={(taskId, subId, statusId, ssId) =>
+                        changeStatus(project.id, taskId, subId, statusId, ssId ?? null)
+                      }
+                      onTypeSelect={(taskId, subId, typeId, ssId) =>
+                        changeJobType(project.id, taskId, subId, typeId, ssId ?? null)
+                      }
+                      onItemTypeSelect={(taskId, subId, typeId, ssId) =>
+                        changeItemType(project.id, taskId, subId, typeId, ssId ?? null)
                       }
                       onAddTaskToGroup={(name) => addTaskToGroup(project.id, group.id, name)}
                       onAddSubitem={addSubitem}
+                      onAddSubSubitem={addSubSubitem}
                       onAddStatusLabel={handleAddStatusLabel}
                       onAddTypeLabel={handleAddTypeLabel}
                       onRemoveStatusLabel={(id) => setStatuses((prev) => prev.filter((s) => s.id !== id))}
@@ -515,14 +537,14 @@ export function BoardView({ project, canEdit = true }: BoardViewProps) {
                       onUpdateStatusColor={handleUpdateStatusColor}
                       onUpdateTypeColor={handleUpdateTypeColor}
                       onToggleTypeContainer={handleToggleTypeContainer}
-                      onToggleAssignee={(taskId, subId, uid) =>
-                        toggleAssignee(project.id, taskId, subId, uid)
+                      onToggleAssignee={(taskId, subId, uid, ssId) =>
+                        toggleAssignee(project.id, taskId, subId, uid, ssId ?? null)
                       }
-                      onOpenDatePicker={(taskId, subId) =>
-                        openDatePicker({ taskId, subitemId: subId, projectId: project.id })
+                      onOpenDatePicker={(taskId, subId, ssId) =>
+                        openDatePicker({ taskId, subitemId: subId, subSubitemId: ssId ?? null, projectId: project.id })
                       }
-                      onOpenUpdates={(taskId, subId) =>
-                        toggleUpdatesPanel({ taskId, subitemId: subId, projectId: project.id })
+                      onOpenUpdates={(taskId, subId, ssId) =>
+                        toggleUpdatesPanel({ taskId, subitemId: subId, subSubitemId: ssId ?? null, projectId: project.id })
                       }
                       canEdit={canEdit}
                       dragHandleListeners={groupListeners}

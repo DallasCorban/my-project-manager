@@ -32,6 +32,19 @@ export const DEFAULT_JOB_TYPES: JobTypeLabel[] = [
   { id: 'research', label: 'Research', color: '#ffcb00' },
 ];
 
+// --- Item type labels (Project / Deliverable / Task classification) ---
+export interface ItemTypeLabel {
+  id: string;
+  label: string;
+  color: string;
+}
+
+export const DEFAULT_ITEM_TYPES: ItemTypeLabel[] = [
+  { id: 'project', label: 'Project', color: '#579bfc' },
+  { id: 'deliverable', label: 'Deliverable', color: '#a25ddc' },
+  { id: 'task', label: 'Task', color: '#fdab3d' },
+];
+
 // --- Board column widths ---
 export const DEFAULT_BOARD_COLUMNS: BoardColumns = {
   select: 40,
@@ -39,11 +52,12 @@ export const DEFAULT_BOARD_COLUMNS: BoardColumns = {
   person: 112,
   status: 144,
   type: 144,
+  itemType: 144,
   date: 192,
 };
 
 // --- Default column order (draggable columns only; select + item are pinned) ---
-export const DEFAULT_COLUMN_ORDER: DraggableColumnKey[] = ['person', 'status', 'type', 'date'];
+export const DEFAULT_COLUMN_ORDER: DraggableColumnKey[] = ['person', 'status', 'type', 'itemType', 'date'];
 
 // --- Color palette (Monday.com-inspired) ---
 export const MONDAY_PALETTE = [

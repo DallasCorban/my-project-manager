@@ -10,16 +10,18 @@ import { ItemLabelCell } from '../shared/ItemLabelCell';
 import { GanttBar } from './GanttBar';
 import { GanttSubitemStack } from './GanttSubitemStack';
 import { normalizeDateKey } from '../../utils/date';
-import type { Item, Subitem } from '../../types/item';
+import type { Item, Subitem, SubSubitem } from '../../types/item';
 import type { TimelineDay, DragState } from '../../types/timeline';
 import type { StatusLabel, JobTypeLabel } from '../../config/constants';
 import type { SettledOverride } from '../../hooks/useGanttDrag';
 
 interface GanttTaskRowProps {
-  task: Item | Subitem;
+  task: Item | Subitem | SubSubitem;
   projectId: string;
   parentTaskId?: string;
   isSubitem?: boolean;
+  /** Nesting depth: 0 = item, 1 = subitem, 2 = sub-subitem */
+  nestingLevel?: number;
   isExpanded?: boolean;
   visibleDays: TimelineDay[];
   zoomLevel: number;
@@ -68,6 +70,7 @@ function GanttTaskRowInner({
   projectId,
   parentTaskId,
   isSubitem = false,
+  nestingLevel,
   isExpanded: _isExpanded = false,
   visibleDays,
   zoomLevel,
@@ -215,14 +218,20 @@ function GanttTaskRowInner({
   }
 
   const actualRowHeight = rowHeight;
-  const hasSubitems = !isSubitem && 'subitems' in task && (task as Item).subitems.length > 0;
+  const depth = nestingLevel ?? (isSubitem ? 1 : 0);
+  const isLeaf = depth >= 2;
+
+  const hasSubitems = depth === 0
+    ? 'subitems' in task && (task as Item).subitems.length > 0
+    : depth === 1
+      ? 'subitems' in task && ((task as Subitem).subitems || []).length > 0
+      : false;
   const isCollapsed = hasSubitems && !expandedItems.includes(task.id);
 
-  // Items are lighter, subitems are darker — consistent across both the label
-  // column and the timeline cells so hierarchy reads the same way in both areas.
+  // Three-tier row background
   const rowBg = darkMode
-    ? isSubitem ? 'bg-[#191c36]' : 'bg-[#1c213e]'
-    : isSubitem ? 'bg-[#f4f5fc]' : 'bg-white';
+    ? depth === 0 ? 'bg-[#1c213e]' : depth === 1 ? 'bg-[#191c36]' : 'bg-[#16192e]'
+    : depth === 0 ? 'bg-white' : depth === 1 ? 'bg-[#f4f5fc]' : 'bg-[#ecedf6]';
   // Label column inherits the same base; alias kept for readability.
   const labelBg = rowBg;
 
@@ -289,10 +298,11 @@ function GanttTaskRowInner({
         <ItemLabelCell
           task={task}
           isSubitem={isSubitem}
+          nestingLevel={depth}
           canEdit={canEdit}
           darkMode={darkMode}
           onUpdateName={canEdit ? onUpdateName : undefined}
-          onAddSubitem={onAddSubitem && !isSubitem ? () => onAddSubitem(projectId, task.id) : undefined}
+          onAddSubitem={onAddSubitem && !isLeaf ? () => onAddSubitem(projectId, task.id) : undefined}
           onOpenUpdates={onOpenUpdates}
         />
       </div>

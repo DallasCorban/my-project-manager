@@ -28,6 +28,7 @@ const COLUMN_LABELS: Record<DraggableColumnKey, string> = {
   person: 'People',
   status: 'Status',
   type: 'Type',
+  itemType: 'Item Type',
   date: 'Date',
 };
 
@@ -58,7 +59,7 @@ function SortableColumnHeader({
     darkMode ? 'hover:bg-blue-500/30' : 'hover:bg-blue-400/30'
   }`;
 
-  const cellBase = `flex items-center py-2 relative min-w-0 ${
+  const cellBase = `flex shrink-0 items-center py-2 relative min-w-0 ${
     darkMode ? 'border-[#323652]' : 'border-[#bec3d4]'
   }`;
 
@@ -129,13 +130,13 @@ export function GroupHeaderRow({
     darkMode ? 'hover:bg-blue-500/30' : 'hover:bg-blue-400/30'
   }`;
 
-  const cellBase = `border-r flex items-center py-2 relative min-w-0 ${
+  const cellBase = `border-r flex shrink-0 items-center py-2 relative min-w-0 ${
     darkMode ? 'border-[#323652]' : 'border-[#bec3d4]'
   }`;
 
   return (
     <div
-      className={`flex border-b text-xs font-bold text-gray-500 uppercase tracking-wide group/header ${
+      className={`flex w-fit min-w-full border-b text-xs font-bold text-gray-500 uppercase tracking-wide group/header ${
         darkMode ? 'bg-[#181b34] border-[#323652]' : 'bg-white border-[#bec3d4]'
       }`}
     >

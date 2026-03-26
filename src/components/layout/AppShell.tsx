@@ -81,6 +81,8 @@ export function AppShell() {
     changeJobType,
     addTaskToGroup,
     addSubitem,
+    addSubSubitem,
+    updateSubSubitemName,
     addUpdate,
     addFile,
     addReply,
@@ -533,6 +535,8 @@ export function AppShell() {
                 onChangeJobType={isPreviewMode ? () => {} : (pid, tid, sid, val) => changeJobType(pid, tid, sid, val)}
                 onAddTaskToGroup={isPreviewMode ? () => {} : (pid, gid) => addTaskToGroup(pid, gid)}
                 onAddSubitem={isPreviewMode ? () => {} : (pid, tid) => addSubitem(pid, tid)}
+                onAddSubSubitem={isPreviewMode ? () => {} : (pid, tid, sid) => addSubSubitem(pid, tid, sid)}
+                onUpdateSubSubitemName={isPreviewMode ? () => {} : (pid, tid, sid, ssid, v) => updateSubSubitemName(pid, tid, sid, ssid, v)}
               />
             )
           );
@@ -602,14 +606,17 @@ export function AppShell() {
 
       {/* Updates Panel */}
       {!aiChatOpen && shownTarget && activeProject && (() => {
-        const { taskId, subitemId, projectId } = shownTarget;
+        const { taskId, subitemId, subSubitemId, projectId } = shownTarget;
         const task = activeProject.tasks.find((t) => t.id === taskId);
         if (!task) return null;
-        const isSubitem = Boolean(subitemId);
         const subitem = subitemId ? task.subitems.find((s) => s.id === subitemId) : null;
-        const targetName = isSubitem ? (subitem?.name || '') : task.name;
-        const updates = isSubitem ? (subitem?.updates || []) : (task.updates || []);
-        const files = isSubitem ? (subitem?.files || []) : (task.files || []);
+        const subSubitem = subSubitemId && subitem ? (subitem.subitems || []).find((ss) => ss.id === subSubitemId) : null;
+        const target = subSubitem || subitem || task;
+        const targetName = target.name;
+        const isNested = Boolean(subitemId);
+        const updates = target.updates || [];
+        const files = target.files || [];
+        const parentName = subSubitem ? subitem!.name : (subitem ? task.name : undefined);
         const permissions = projectPermissions ?? getProjectPermissions(projectId);
         const effectivePerms = !membershipLoaded && user && !user.isAnonymous
           ? { ...permissions, canEdit: true, canUpload: true, canView: true, canDownload: true }
@@ -618,8 +625,8 @@ export function AppShell() {
         return (
           <UpdatesPanel
             taskName={targetName}
-            parentName={isSubitem ? task.name : undefined}
-            isSubitem={isSubitem}
+            parentName={parentName}
+            isSubitem={isNested}
             updates={updates}
             files={files}
             permissions={effectivePerms}
@@ -633,7 +640,7 @@ export function AppShell() {
                 createdAt: new Date().toISOString(),
                 replies: [],
               };
-              addUpdate(projectId, taskId, subitemId, update);
+              addUpdate(projectId, taskId, subitemId, update, subSubitemId);
             }}
             onAddReply={(updateId, text) => {
               const reply = {
@@ -642,10 +649,10 @@ export function AppShell() {
                 author: user?.displayName || user?.email || 'You',
                 createdAt: new Date().toISOString(),
               };
-              addReply(projectId, taskId, subitemId, updateId, reply);
+              addReply(projectId, taskId, subitemId, updateId, reply, subSubitemId);
             }}
             onToggleChecklistItem={(updateId, itemId) => {
-              toggleChecklistItem(projectId, taskId, subitemId, updateId, itemId);
+              toggleChecklistItem(projectId, taskId, subitemId, updateId, itemId, subSubitemId);
             }}
             onUploadFile={async (file, onProgress) => {
               const uploaded = await uploadFileWithProgress(
@@ -657,7 +664,7 @@ export function AppShell() {
                 user?.email ?? '',
                 onProgress,
               );
-              addFile(projectId, taskId, subitemId, uploaded);
+              addFile(projectId, taskId, subitemId, uploaded, subSubitemId);
             }}
           />
         );

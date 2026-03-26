@@ -8,7 +8,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import type { Board } from '../types/board';
-import type { Item, Subitem, Update, Reply } from '../types/item';
+import type { Item, Subitem, SubSubitem, Update, Reply } from '../types/item';
 import type { ProjectFile } from '../types/file';
 import { useHybridState } from '../services/firebase/hybridSync';
 import { writeProjectState, updateProjectMetadata } from '../services/firebase/projectSync';
@@ -54,36 +54,70 @@ export const DEMO_PROJECTS: Board[] = [
   },
 ];
 
-// --- Generic field updater for tasks/subitems ---
-function updateTaskField(
+// --- Generic field updater that handles all 3 nesting levels ---
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyAtDepth(
   projects: Board[],
   pid: string,
   tid: string,
-  _sid: string | null,
-  field: string,
-  value: unknown,
-  isSubitem: boolean,
+  sid: string | null,
+  ssid: string | null,
+  updater: (item: any) => any,
 ): Board[] {
   return projects.map((p) => {
     if (p.id !== pid) return p;
     return {
       ...p,
       tasks: p.tasks.map((t) => {
-        if (isSubitem) {
-          if (t.subitems.some((sub) => sub.id === tid)) {
+        if (ssid && sid) {
+          // Level 3: sub-subitem
+          if (t.id === tid || t.subitems.some((s) => s.id === sid)) {
             return {
               ...t,
               subitems: t.subitems.map((sub) =>
-                sub.id === tid ? { ...sub, [field]: value } : sub,
+                sub.id === sid
+                  ? {
+                      ...sub,
+                      subitems: (sub.subitems || []).map((ss: SubSubitem) =>
+                        ss.id === ssid ? updater(ss) : ss,
+                      ),
+                    }
+                  : sub,
               ),
             };
           }
           return t;
         }
-        return t.id === tid ? { ...t, [field]: value } : t;
+        if (sid) {
+          // Level 2: subitem (find by sid across all tasks)
+          if (t.subitems.some((sub) => sub.id === sid)) {
+            return {
+              ...t,
+              subitems: t.subitems.map((sub) =>
+                sub.id === sid ? updater(sub) : sub,
+              ),
+            };
+          }
+          return t;
+        }
+        // Level 1: item
+        return t.id === tid ? updater(t) : t;
       }),
     };
   });
+}
+
+/** Shorthand for setting a single field at any depth. */
+function updateFieldAtDepth(
+  projects: Board[],
+  pid: string,
+  tid: string,
+  sid: string | null,
+  ssid: string | null,
+  field: string,
+  value: unknown,
+): Board[] {
+  return applyAtDepth(projects, pid, tid, sid, ssid, (item: any) => ({ ...item, [field]: value }));
 }
 
 /**
@@ -119,7 +153,8 @@ export function useProjectData() {
     };
 
     // Migrate assignee (string) → assignees (string[])
-    const migrateAssignee = <T extends Record<string, unknown>>(item: T): T => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const migrateAssignee = <T extends Record<string, any>>(item: T): T => {
       if (item && !('assignees' in item) && 'assignee' in item) {
         needsMigration = true;
         const a = item.assignee as string;
@@ -138,7 +173,11 @@ export function useProjectData() {
       ...p,
       tasks: (p.tasks || []).map((t) => ({
         ...migrateAssignee(migrateItem(t)),
-        subitems: (t.subitems || []).map((s) => migrateAssignee(migrateItem(s))),
+        subitems: (t.subitems || []).map((s) => ({
+          ...migrateAssignee(migrateItem(s)),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          subitems: (s.subitems || []).map((ss: any) => migrateAssignee(migrateItem(ss))),
+        })),
       })),
     }));
 
@@ -300,143 +339,95 @@ export function useProjectData() {
       );
     },
 
+    addSubSubitem: (pid: string, tid: string, sid: string, name?: string): void => {
+      const newSS: SubSubitem = {
+        id: `ss${Date.now()}`,
+        name: name || 'New Sub-subitem',
+        status: 'pending',
+        jobTypeId: 'dev',
+        assignees: [],
+        start: null,
+        duration: null,
+      };
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === pid
+            ? {
+                ...p,
+                tasks: p.tasks.map((t) =>
+                  t.id === tid
+                    ? {
+                        ...t,
+                        subitems: t.subitems.map((s) =>
+                          s.id === sid
+                            ? { ...s, subitems: [...(s.subitems || []), newSS] }
+                            : s,
+                        ),
+                      }
+                    : t,
+                ),
+              }
+            : p,
+        ),
+      );
+    },
+
+    updateSubSubitemName: (pid: string, tid: string, sid: string, ssid: string, v: string): void => {
+      setProjects((prev) => updateFieldAtDepth(prev, pid, tid, sid, ssid, 'name', v));
+    },
+
     updateTaskDate: (
       pid: string,
       tid: string,
       sid: string | null,
       start: string | null,
       duration: number | null,
+      ssid: string | null = null,
     ): void => {
       setProjects((prev) =>
-        prev.map((p) => {
-          if (p.id !== pid) return p;
+        applyAtDepth(prev, pid, tid, sid, ssid, (item) => ({ ...item, start, duration })),
+      );
+    },
+
+    changeStatus: (pid: string, tid: string, sid: string | null, val: string, ssid: string | null = null): void => {
+      setProjects((prev) => updateFieldAtDepth(prev, pid, tid, sid, ssid, 'status', val));
+    },
+
+    changeJobType: (pid: string, tid: string, sid: string | null, val: string, ssid: string | null = null): void => {
+      setProjects((prev) => updateFieldAtDepth(prev, pid, tid, sid, ssid, 'jobTypeId', val));
+    },
+
+    changeItemType: (pid: string, tid: string, sid: string | null, val: string, ssid: string | null = null): void => {
+      setProjects((prev) => updateFieldAtDepth(prev, pid, tid, sid, ssid, 'itemTypeId', val));
+    },
+
+    toggleAssignee: (pid: string, tid: string, sid: string | null, uid: string, ssid: string | null = null): void => {
+      setProjects((prev) =>
+        applyAtDepth(prev, pid, tid, sid, ssid, (item) => {
+          const cur = (item.assignees as string[]) || [];
           return {
-            ...p,
-            tasks: p.tasks.map((t) => {
-              if (sid) {
-                if (t.id === tid) {
-                  return {
-                    ...t,
-                    subitems: t.subitems.map((sub) =>
-                      sub.id === sid ? { ...sub, start, duration } : sub,
-                    ),
-                  };
-                }
-                return t;
-              }
-              if (t.id === tid) return { ...t, start, duration };
-              return t;
-            }),
+            ...item,
+            assignees: cur.includes(uid) ? cur.filter((a: string) => a !== uid) : [...cur, uid],
           };
         }),
       );
     },
 
-    changeStatus: (pid: string, tid: string, sid: string | null, val: string): void => {
-      if (sid) {
-        setProjects((prev) => updateTaskField(prev, pid, sid, null, 'status', val, true));
-      } else {
-        setProjects((prev) => updateTaskField(prev, pid, tid, null, 'status', val, false));
-      }
-    },
-
-    changeJobType: (pid: string, tid: string, sid: string | null, val: string): void => {
-      if (sid) {
-        setProjects((prev) => updateTaskField(prev, pid, sid, null, 'jobTypeId', val, true));
-      } else {
-        setProjects((prev) => updateTaskField(prev, pid, tid, null, 'jobTypeId', val, false));
-      }
-    },
-
-    toggleAssignee: (pid: string, tid: string, sid: string | null, uid: string): void => {
+    addUpdate: (pid: string, tid: string, sid: string | null, update: Update, ssid: string | null = null): void => {
       setProjects((prev) =>
-        prev.map((p) => {
-          if (p.id !== pid) return p;
-          return {
-            ...p,
-            tasks: p.tasks.map((t) => {
-              if (sid) {
-                // Subitem
-                if (t.subitems.some((s) => s.id === (sid || tid))) {
-                  return {
-                    ...t,
-                    subitems: t.subitems.map((s) => {
-                      if (s.id !== (sid || tid)) return s;
-                      const cur = s.assignees || [];
-                      return {
-                        ...s,
-                        assignees: cur.includes(uid) ? cur.filter((a) => a !== uid) : [...cur, uid],
-                      };
-                    }),
-                  };
-                }
-                return t;
-              }
-              if (t.id !== tid) return t;
-              const cur = t.assignees || [];
-              return {
-                ...t,
-                assignees: cur.includes(uid) ? cur.filter((a) => a !== uid) : [...cur, uid],
-              };
-            }),
-          };
-        }),
+        applyAtDepth(prev, pid, tid, sid, ssid, (item) => ({
+          ...item,
+          updates: [update, ...((item.updates as Update[]) || [])],
+        })),
       );
     },
 
-    addUpdate: (pid: string, tid: string, sid: string | null, update: Update): void => {
+    addFile: (pid: string, tid: string, sid: string | null, file: ProjectFile, ssid: string | null = null): void => {
       setProjects((prev) =>
-        prev.map((p) => {
-          if (p.id !== pid) return p;
-          return {
-            ...p,
-            tasks: p.tasks.map((t) => {
-              if (sid) {
-                if (t.id === tid) {
-                  return {
-                    ...t,
-                    subitems: t.subitems.map((sub) =>
-                      sub.id === sid
-                        ? { ...sub, updates: [update, ...(sub.updates || [])] }
-                        : sub,
-                    ),
-                  };
-                }
-                return t;
-              }
-              if (t.id === tid) return { ...t, updates: [update, ...(t.updates || [])] };
-              return t;
-            }),
-          };
-        }),
-      );
-    },
-
-    addFile: (pid: string, tid: string, sid: string | null, file: ProjectFile): void => {
-      setProjects((prev) =>
-        prev.map((p) => {
-          if (p.id !== pid) return p;
-          return {
-            ...p,
-            tasks: p.tasks.map((t) => {
-              if (sid) {
-                if (t.id === tid) {
-                  return {
-                    ...t,
-                    subitems: t.subitems.map((sub) =>
-                      sub.id === sid
-                        ? { ...sub, files: [file, ...(sub.files || [])] }
-                        : sub,
-                    ),
-                  };
-                }
-                return t;
-              }
-              if (t.id === tid) return { ...t, files: [file, ...(t.files || [])] };
-              return t;
-            }),
-          };
-        }),
+        applyAtDepth(prev, pid, tid, sid, ssid, (item) => ({
+          ...item,
+          files: [file, ...((item.files as ProjectFile[]) || [])],
+        })),
       );
     },
 
@@ -446,45 +437,15 @@ export function useProjectData() {
       sid: string | null,
       updateId: string,
       reply: Reply,
+      ssid: string | null = null,
     ): void => {
       setProjects((prev) =>
-        prev.map((p) => {
-          if (p.id !== pid) return p;
-          return {
-            ...p,
-            tasks: p.tasks.map((t) => {
-              if (sid) {
-                if (t.id === tid) {
-                  return {
-                    ...t,
-                    subitems: t.subitems.map((sub) =>
-                      sub.id === sid
-                        ? {
-                            ...sub,
-                            updates: (sub.updates || []).map((u) =>
-                              u.id === updateId
-                                ? { ...u, replies: [reply, ...(u.replies || [])] }
-                                : u,
-                            ),
-                          }
-                        : sub,
-                    ),
-                  };
-                }
-                return t;
-              }
-              if (t.id === tid) {
-                return {
-                  ...t,
-                  updates: (t.updates || []).map((u) =>
-                    u.id === updateId ? { ...u, replies: [reply, ...(u.replies || [])] } : u,
-                  ),
-                };
-              }
-              return t;
-            }),
-          };
-        }),
+        applyAtDepth(prev, pid, tid, sid, ssid, (item) => ({
+          ...item,
+          updates: ((item.updates as Update[]) || []).map((u) =>
+            u.id === updateId ? { ...u, replies: [reply, ...(u.replies || [])] } : u,
+          ),
+        })),
       );
     },
 
@@ -494,42 +455,21 @@ export function useProjectData() {
       sid: string | null,
       updateId: string,
       itemId: string,
+      ssid: string | null = null,
     ): void => {
       setProjects((prev) =>
-        prev.map((p) => {
-          if (p.id !== pid) return p;
-          return {
-            ...p,
-            tasks: p.tasks.map((t) => {
-              const toggleChecklist = (updates: Update[] | undefined) =>
-                (updates || []).map((u) => {
-                  if (u.id !== updateId) return u;
-                  return {
-                    ...u,
-                    checklist: (u.checklist || []).map((item) =>
-                      item.id === itemId ? { ...item, done: !item.done } : item,
-                    ),
-                  };
-                });
-
-              if (sid) {
-                if (t.id === tid) {
-                  return {
-                    ...t,
-                    subitems: t.subitems.map((sub) =>
-                      sub.id === sid
-                        ? { ...sub, updates: toggleChecklist(sub.updates) }
-                        : sub,
-                    ),
-                  };
-                }
-                return t;
-              }
-              if (t.id === tid) return { ...t, updates: toggleChecklist(t.updates) };
-              return t;
-            }),
-          };
-        }),
+        applyAtDepth(prev, pid, tid, sid, ssid, (item) => ({
+          ...item,
+          updates: ((item.updates as Update[]) || []).map((u) => {
+            if (u.id !== updateId) return u;
+            return {
+              ...u,
+              checklist: (u.checklist || []).map((ci) =>
+                ci.id === itemId ? { ...ci, done: !ci.done } : ci,
+              ),
+            };
+          }),
+        })),
       );
     },
 
@@ -541,7 +481,12 @@ export function useProjectData() {
             .filter((t) => !ids.has(t.id))
             .map((t) => ({
               ...t,
-              subitems: t.subitems.filter((s) => !ids.has(s.id)),
+              subitems: t.subitems
+                .filter((s) => !ids.has(s.id))
+                .map((s) => ({
+                  ...s,
+                  subitems: (s.subitems || []).filter((ss) => !ids.has(ss.id)),
+                })),
             })),
         })),
       );
@@ -581,6 +526,32 @@ export function useProjectData() {
           const otherTasks = remaining.filter((t) => t.groupId !== toGroupId);
           targetGroupTasks.splice(toIndex, 0, movedTask);
           return { ...p, tasks: [...otherTasks, ...targetGroupTasks] };
+        }),
+      );
+    },
+
+    /** Reorder sub-subitems within a subitem. */
+    reorderSubSubitems: (pid: string, taskId: string, subitemId: string, fromIndex: number, toIndex: number): void => {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== pid) return p;
+          return {
+            ...p,
+            tasks: p.tasks.map((t) => {
+              if (t.id !== taskId) return t;
+              return {
+                ...t,
+                subitems: t.subitems.map((s) => {
+                  if (s.id !== subitemId) return s;
+                  const subs = [...(s.subitems || [])];
+                  const [moved] = subs.splice(fromIndex, 1);
+                  if (!moved) return s;
+                  subs.splice(toIndex, 0, moved);
+                  return { ...s, subitems: subs };
+                }),
+              };
+            }),
+          };
         }),
       );
     },
@@ -625,14 +596,33 @@ export function useProjectData() {
         prev.map((p) => {
           const newTasks: Item[] = [];
           const updatedTasks = p.tasks.map((t) => {
-            const newSubs = t.subitems.filter((s) => ids.has(s.id)).map((s) => ({
+            // Duplicate sub-subitems within subitems
+            const updatedSubitems = t.subitems.map((s) => {
+              const newSubSubs = (s.subitems || []).filter((ss) => ids.has(ss.id)).map((ss) => ({
+                ...ss,
+                id: `ss${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                name: `${ss.name} (copy)`,
+              }));
+              return newSubSubs.length > 0
+                ? { ...s, subitems: [...(s.subitems || []), ...newSubSubs] }
+                : s;
+            });
+
+            // Duplicate subitems
+            const newSubs = updatedSubitems.filter((s) => ids.has(s.id)).map((s) => ({
               ...s,
               id: `s${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
               name: `${s.name} (copy)`,
+              subitems: (s.subitems || []).map((ss) => ({
+                ...ss,
+                id: `ss${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              })),
             }));
-            const updatedTask = newSubs.length > 0
-              ? { ...t, subitems: [...t.subitems, ...newSubs] }
-              : t;
+            const finalSubitems = newSubs.length > 0
+              ? [...updatedSubitems, ...newSubs]
+              : updatedSubitems;
+
+            const updatedTask = { ...t, subitems: finalSubitems };
 
             if (ids.has(t.id)) {
               newTasks.push({
@@ -642,6 +632,10 @@ export function useProjectData() {
                 subitems: t.subitems.map((s) => ({
                   ...s,
                   id: `s${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                  subitems: (s.subitems || []).map((ss) => ({
+                    ...ss,
+                    id: `ss${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                  })),
                 })),
               });
             }

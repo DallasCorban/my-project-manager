@@ -218,6 +218,8 @@ interface GanttViewProps {
   onChangeJobType: (pid: string, tid: string, sid: string | null, val: string) => void;
   onAddTaskToGroup: (pid: string, gid: string) => void;
   onAddSubitem?: (pid: string, tid: string, name?: string) => void;
+  onAddSubSubitem?: (pid: string, tid: string, sid: string, name?: string) => void;
+  onUpdateSubSubitemName?: (pid: string, tid: string, sid: string, ssid: string, value: string) => void;
 }
 
 export function GanttView({
@@ -232,6 +234,8 @@ export function GanttView({
   onChangeJobType,
   onAddTaskToGroup,
   onAddSubitem,
+  onAddSubSubitem,
+  onUpdateSubSubitemName,
 }: GanttViewProps) {
   const { reorderTasks, moveTaskToGroup, reorderSubitems, reorderGroups } = useProjectContext();
 
@@ -1109,7 +1113,7 @@ export function GanttView({
                                     clearSettledOverride={clearSettledOverride}
                                     canEdit={canEdit}
                                     isBarSelected={focusedBar?.taskId === task.id && focusedBar?.subitemId === null}
-                                    onSelect={() => setFocusedBar({ taskId: task.id, subitemId: null })}
+                                    onSelect={() => setFocusedBar({ taskId: task.id, subitemId: null, subSubitemId: null })}
                                     onMouseDown={handlePointerDown}
                                     onUpdateName={(v) => onUpdateTaskName(project.id, task.id, v)}
                                     onStatusSelect={(val) => onChangeStatus(project.id, task.id, null, val)}
@@ -1118,6 +1122,7 @@ export function GanttView({
                                       useUIStore.getState().toggleUpdatesPanel({
                                         taskId: task.id,
                                         subitemId: null,
+                                        subSubitemId: null,
                                         projectId: project.id,
                                       })
                                     }
@@ -1130,50 +1135,113 @@ export function GanttView({
                                       items={task.subitems.map((s) => s.id)}
                                       strategy={verticalListSortingStrategy}
                                     >
-                                      {task.subitems.map((sub) => (
-                                        <GanttTaskRow
-                                          key={sub.id}
-                                          task={sub}
-                                          projectId={project.id}
-                                          parentTaskId={task.id}
-                                          isSubitem
-                                          isDropTarget={dropHint?.id === sub.id}
-                                          dropBelow={dropHint?.id === sub.id ? dropHint.below : false}
-                                          visibleDays={visibleDays}
-                                          zoomLevel={zoomLevel}
-                                          rowHeight={rowHeight}
-                                          showWeekends={showWeekends}
-                                          showLabels={showLabels}
-                                          colorBy={colorBy}
-                                          statuses={statuses}
-                                          jobTypes={jobTypes}
-                                          getRelativeIndex={getRelativeIndex}
-                                          dayToVisualIndex={dayToVisualIndex}
-                                          dragState={dragState}
-                                          settledOverrides={settledOverrides}
-                                          clearSettledOverride={clearSettledOverride}
-                                          canEdit={canEdit}
-                                          isBarSelected={focusedBar?.taskId === task.id && focusedBar?.subitemId === sub.id}
-                                          onSelect={() => setFocusedBar({ taskId: task.id, subitemId: sub.id })}
-                                          onMouseDown={handlePointerDown}
-                                          onUpdateName={(v) =>
-                                            onUpdateSubitemName(project.id, task.id, sub.id, v)
-                                          }
-                                          onStatusSelect={(val) =>
-                                            onChangeStatus(project.id, task.id, sub.id, val)
-                                          }
-                                          onTypeSelect={(val) =>
-                                            onChangeJobType(project.id, task.id, sub.id, val)
-                                          }
-                                          onOpenUpdates={() =>
-                                            useUIStore.getState().toggleUpdatesPanel({
-                                              taskId: task.id,
-                                              subitemId: sub.id,
-                                              projectId: project.id,
-                                            })
-                                          }
-                                        />
-                                      ))}
+                                      {task.subitems.map((sub) => {
+                                        const isSubExpanded = expandedItems.includes(sub.id);
+                                        const subSubitems = sub.subitems || [];
+                                        return (
+                                          <div key={sub.id}>
+                                            <GanttTaskRow
+                                              task={sub}
+                                              projectId={project.id}
+                                              parentTaskId={task.id}
+                                              isSubitem
+                                              nestingLevel={1}
+                                              isDropTarget={dropHint?.id === sub.id}
+                                              dropBelow={dropHint?.id === sub.id ? dropHint.below : false}
+                                              visibleDays={visibleDays}
+                                              zoomLevel={zoomLevel}
+                                              rowHeight={rowHeight}
+                                              showWeekends={showWeekends}
+                                              showLabels={showLabels}
+                                              colorBy={colorBy}
+                                              statuses={statuses}
+                                              jobTypes={jobTypes}
+                                              getRelativeIndex={getRelativeIndex}
+                                              dayToVisualIndex={dayToVisualIndex}
+                                              dragState={dragState}
+                                              settledOverrides={settledOverrides}
+                                              clearSettledOverride={clearSettledOverride}
+                                              canEdit={canEdit}
+                                              isBarSelected={focusedBar?.taskId === task.id && focusedBar?.subitemId === sub.id}
+                                              onSelect={() => setFocusedBar({ taskId: task.id, subitemId: sub.id, subSubitemId: null })}
+                                              onMouseDown={handlePointerDown}
+                                              onUpdateName={(v) =>
+                                                onUpdateSubitemName(project.id, task.id, sub.id, v)
+                                              }
+                                              onStatusSelect={(val) =>
+                                                onChangeStatus(project.id, task.id, sub.id, val)
+                                              }
+                                              onTypeSelect={(val) =>
+                                                onChangeJobType(project.id, task.id, sub.id, val)
+                                              }
+                                              onOpenUpdates={() =>
+                                                useUIStore.getState().toggleUpdatesPanel({
+                                                  taskId: task.id,
+                                                  subitemId: sub.id,
+                                                  subSubitemId: null,
+                                                  projectId: project.id,
+                                                })
+                                              }
+                                              onAddSubitem={canEdit && onAddSubSubitem ? (pid, sid) => {
+                                                onAddSubSubitem(pid, task.id, sid);
+                                              } : undefined}
+                                            />
+
+                                            {/* Expanded sub-subitems — third level */}
+                                            {isSubExpanded && subSubitems.length > 0 && (
+                                              <SortableContext
+                                                items={subSubitems.map((ss) => ss.id)}
+                                                strategy={verticalListSortingStrategy}
+                                              >
+                                                {subSubitems.map((subSub) => (
+                                                  <GanttTaskRow
+                                                    key={subSub.id}
+                                                    task={subSub}
+                                                    projectId={project.id}
+                                                    parentTaskId={task.id}
+                                                    isSubitem
+                                                    nestingLevel={2}
+                                                    visibleDays={visibleDays}
+                                                    zoomLevel={zoomLevel}
+                                                    rowHeight={rowHeight}
+                                                    showWeekends={showWeekends}
+                                                    showLabels={showLabels}
+                                                    colorBy={colorBy}
+                                                    statuses={statuses}
+                                                    jobTypes={jobTypes}
+                                                    getRelativeIndex={getRelativeIndex}
+                                                    dayToVisualIndex={dayToVisualIndex}
+                                                    dragState={dragState}
+                                                    settledOverrides={settledOverrides}
+                                                    clearSettledOverride={clearSettledOverride}
+                                                    canEdit={canEdit}
+                                                    isBarSelected={focusedBar?.subSubitemId === subSub.id}
+                                                    onSelect={() => setFocusedBar({ taskId: task.id, subitemId: sub.id, subSubitemId: subSub.id })}
+                                                    onMouseDown={handlePointerDown}
+                                                    onUpdateName={(v) => {
+                                                      onUpdateSubSubitemName?.(project.id, task.id, sub.id, subSub.id, v);
+                                                    }}
+                                                    onStatusSelect={(val) =>
+                                                      onChangeStatus(project.id, task.id, sub.id, val)
+                                                    }
+                                                    onTypeSelect={(val) =>
+                                                      onChangeJobType(project.id, task.id, sub.id, val)
+                                                    }
+                                                    onOpenUpdates={() =>
+                                                      useUIStore.getState().toggleUpdatesPanel({
+                                                        taskId: task.id,
+                                                        subitemId: sub.id,
+                                                        subSubitemId: subSub.id,
+                                                        projectId: project.id,
+                                                      })
+                                                    }
+                                                  />
+                                                ))}
+                                              </SortableContext>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
                                     </SortableContext>
                                   )}
                                 </div>

@@ -118,7 +118,7 @@ export function AppHeader({
                 closeUpdatesPanel();
               } else {
                 // Open a global activity view (no specific task)
-                openUpdatesPanel({ taskId: '__global__', subitemId: null, projectId: '' });
+                openUpdatesPanel({ taskId: '__global__', subitemId: null, subSubitemId: null, projectId: '' });
               }
             }}
             className={`p-2 rounded-lg transition-colors ${
