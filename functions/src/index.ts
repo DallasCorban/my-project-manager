@@ -6,7 +6,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { verifyAuth } from "./middleware/auth";
-import { runAgent } from "./agent/agent";
+import { runAgent, runAgentStreaming } from "./agent/agent";
+import { heuristicCheck, classifyQuery } from "./agent/classifier";
 
 admin.initializeApp();
 
@@ -71,6 +72,117 @@ export const chat = onRequest(
       res.status(500).json({
         error: errMsg || "An error occurred while processing your request.",
       });
+    }
+  }
+);
+
+/**
+ * POST /api/chatStream
+ *
+ * Streaming variant of /api/chat. Returns Server-Sent Events (SSE) with
+ * progressive text deltas, tool call notifications, and a final done event.
+ *
+ * Body: { message, conversationHistory?, boardContext?, forceSonnet? }
+ * SSE events: { type: "model"|"token"|"tool"|"done"|"error", ... }
+ */
+export const chatStream = onRequest(
+  {
+    secrets: [anthropicApiKey],
+    cors: true,
+    timeoutSeconds: 120,
+    memory: "512MiB",
+    region: "us-central1",
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    const user = await verifyAuth(req, res);
+    if (!user) return;
+
+    const {
+      message,
+      conversationHistory = [],
+      boardContext,
+      forceSonnet = false,
+    } = req.body;
+
+    if (!message || typeof message !== "string") {
+      res.status(400).json({ error: "Missing or invalid 'message' field." });
+      return;
+    }
+
+    // SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // Disable nginx buffering
+
+    const sendSSE = (data: Record<string, unknown>) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      const sanitizedBoardContext =
+        boardContext && typeof boardContext === "object" ? boardContext : undefined;
+
+      // --- Model routing ---
+      let modelChoice: "haiku" | "sonnet" = "sonnet";
+      const heuristic = heuristicCheck(message, forceSonnet);
+      if (heuristic) {
+        modelChoice = heuristic as "sonnet";
+      } else {
+        const classification = await classifyQuery(
+          message,
+          anthropicApiKey.value()
+        );
+        modelChoice = classification === "simple" ? "haiku" : "sonnet";
+      }
+
+      sendSSE({ type: "model", model: modelChoice });
+
+      // --- Streaming agent loop with retry on overloaded ---
+      const tryStream = (model: string) =>
+        runAgentStreaming(
+          conversationHistory,
+          message,
+          user.uid,
+          user.email || "unknown",
+          anthropicApiKey.value(),
+          sanitizedBoardContext,
+          (token) => sendSSE({ type: "token", text: token }),
+          (toolName) => sendSSE({ type: "tool", name: toolName }),
+          model
+        );
+
+      let result;
+      try {
+        result = await tryStream(modelChoice);
+      } catch (retryErr: unknown) {
+        const errMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        if (errMsg.includes("overloaded") || errMsg.includes("529")) {
+          // Retry with the other model
+          const fallback = modelChoice === "sonnet" ? "haiku" : "sonnet";
+          sendSSE({ type: "model", model: fallback });
+          result = await tryStream(fallback);
+        } else {
+          throw retryErr;
+        }
+      }
+
+      sendSSE({
+        type: "done",
+        response: result.response,
+        toolCalls: result.toolCalls,
+      });
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("Stream agent error:", errMsg);
+      sendSSE({ type: "error", message: errMsg });
+    } finally {
+      res.end();
     }
   }
 );
@@ -268,7 +380,7 @@ export const tts = onRequest(
     const user = await verifyAuth(req, res);
     if (!user) return;
 
-    const { text, voiceId } = req.body;
+    const { text, voiceId, previousText } = req.body;
 
     if (!text || typeof text !== "string") {
       res.status(400).json({ error: "Missing or invalid 'text' field." });
@@ -283,6 +395,18 @@ export const tts = onRequest(
 
     try {
       const voice = voiceId || "56bWURjYFHyYyVf490Dp"; // Default: Emma
+      const body: Record<string, unknown> = {
+        text,
+        model_id: "eleven_flash_v2_5",
+        voice_settings: {
+          stability: 0.6,
+          similarity_boost: 0.75,
+        },
+      };
+      // Pass previous text for prosody continuity across chunks
+      if (previousText && typeof previousText === "string") {
+        body.previous_text = previousText;
+      }
       const elevenLabsRes = await fetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${voice}/stream`,
         {
@@ -291,14 +415,7 @@ export const tts = onRequest(
             "Content-Type": "application/json",
             "xi-api-key": elevenLabsApiKey.value(),
           },
-          body: JSON.stringify({
-            text,
-            model_id: "eleven_flash_v2_5",
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-            },
-          }),
+          body: JSON.stringify(body),
         }
       );
 

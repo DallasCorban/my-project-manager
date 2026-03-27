@@ -83,6 +83,8 @@ interface UIState {
   // Voice AI
   voiceMuted: boolean;
   toggleVoiceMute: () => void;
+  voiceQualityMode: boolean; // true = wait for full response, false = stream chunks
+  toggleVoiceQualityMode: () => void;
 
   // Context — 'personal' or an orgId (wired for Phase 2)
   activeContext: string;
@@ -204,6 +206,8 @@ export const useUIStore = create<UIState>()(
       // Voice AI (persisted)
       voiceMuted: false,
       toggleVoiceMute: () => set((state) => ({ voiceMuted: !state.voiceMuted })),
+      voiceQualityMode: false, // default to fast streaming
+      toggleVoiceQualityMode: () => set((state) => ({ voiceQualityMode: !state.voiceQualityMode })),
 
       // Context (persisted)
       activeContext: 'personal',
@@ -219,6 +223,7 @@ export const useUIStore = create<UIState>()(
         expandedItems: state.expandedItems,
         ganttHeatmap: state.ganttHeatmap,
         voiceMuted: state.voiceMuted,
+        voiceQualityMode: state.voiceQualityMode,
         activeContext: state.activeContext,
       }),
     },

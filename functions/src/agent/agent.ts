@@ -1,6 +1,8 @@
 /**
  * Agent orchestration loop — sends messages to Claude with tool definitions,
  * executes tool calls, and loops until the model produces a final text response.
+ *
+ * Provides both non-streaming (runAgent) and streaming (runAgentStreaming) modes.
  */
 import * as admin from "firebase-admin";
 import Anthropic from "@anthropic-ai/sdk";
@@ -8,6 +10,9 @@ import { buildSystemPrompt, type MemoryContext, type MemoryFact } from "./system
 import { toolDefinitions, executeTool } from "./tools";
 
 const MAX_TOOL_ROUNDS = 10;
+
+const SONNET_MODEL = "claude-sonnet-4-20250514";
+const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -55,7 +60,6 @@ async function loadMemoryContext(
     userPreferences: null,
   };
 
-  // Load all memory in parallel
   const promises: Promise<void>[] = [];
 
   // User preferences
@@ -126,7 +130,6 @@ async function loadMemoryContext(
         .then((snap) => {
           if (snap.exists) {
             const data = snap.data() as MemoryFactsDoc;
-            // Skip archived project memory
             if (!data.archivedAt) {
               context.projectFacts = data.facts || [];
             }
@@ -154,8 +157,8 @@ async function loadMemoryContext(
 }
 
 /**
- * Run the agent loop: send conversation to Claude, execute any tool calls,
- * feed results back, and repeat until we get a text response.
+ * Run the agent loop (non-streaming): send conversation to Claude, execute
+ * any tool calls, feed results back, and repeat until we get a text response.
  */
 export async function runAgent(
   conversationHistory: ChatMessage[],
@@ -175,26 +178,21 @@ export async function runAgent(
     { role: "user", content: userMessage },
   ];
 
-  // Extract IDs from board context to load memory
   const projectId = boardContext?.id as string | undefined;
   const workspaceId = boardContext?.workspaceId as string | undefined;
-
-  // Load persistent memory from all scopes
   const memoryContext = await loadMemoryContext(uid, projectId, workspaceId);
-
   const systemPrompt = buildSystemPrompt(userEmail, boardContext, memoryContext);
   const allToolCalls: AgentResult["toolCalls"] = [];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: SONNET_MODEL,
       max_tokens: 4096,
       system: systemPrompt,
       tools: toolDefinitions,
       messages,
     });
 
-    // Check if the response contains tool use
     const toolUseBlocks = response.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
     );
@@ -203,16 +201,12 @@ export async function runAgent(
     );
 
     if (toolUseBlocks.length === 0) {
-      // No tool calls — return the text response
       const finalText = textBlocks.map((b) => b.text).join("\n");
       return { response: finalText, toolCalls: allToolCalls };
     }
 
-    // There are tool calls — execute them and loop
-    // First, add the assistant's response to messages
     messages.push({ role: "assistant", content: response.content });
 
-    // Execute each tool call and collect results
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const toolUse of toolUseBlocks) {
       allToolCalls.push({
@@ -241,7 +235,131 @@ export async function runAgent(
       });
     }
 
-    // Add tool results as a user message
+    messages.push({ role: "user", content: toolResults });
+  }
+
+  return {
+    response:
+      "I reached the maximum number of tool calls. Please try a simpler request.",
+    toolCalls: allToolCalls,
+  };
+}
+
+/**
+ * Streaming agent loop — same tool-call logic but streams the final
+ * text response via callbacks.
+ *
+ * Tool-calling rounds use non-streaming (need full response to execute tools).
+ * The final round uses streaming and emits text deltas via onToken.
+ */
+export async function runAgentStreaming(
+  conversationHistory: ChatMessage[],
+  userMessage: string,
+  uid: string,
+  userEmail: string,
+  apiKey: string,
+  boardContext: Record<string, unknown> | undefined,
+  onToken: (text: string) => void,
+  onToolCall: (name: string) => void,
+  modelOverride?: string
+): Promise<AgentResult> {
+  const client = new Anthropic({ apiKey });
+  const model = modelOverride === "haiku" ? HAIKU_MODEL : SONNET_MODEL;
+
+  const messages: Anthropic.MessageParam[] = [
+    ...conversationHistory.map((msg) => ({
+      role: msg.role as "user" | "assistant",
+      content: msg.content as string,
+    })),
+    { role: "user", content: userMessage },
+  ];
+
+  const projectId = boardContext?.id as string | undefined;
+  const workspaceId = boardContext?.workspaceId as string | undefined;
+  const memoryContext = await loadMemoryContext(uid, projectId, workspaceId);
+  const systemPrompt = buildSystemPrompt(userEmail, boardContext, memoryContext);
+  const allToolCalls: AgentResult["toolCalls"] = [];
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    // Use streaming on every round. If tool_use blocks appear, we collect
+    // them and continue the loop. If only text, we stream to the client.
+    const stream = client.messages.stream({
+      model,
+      max_tokens: 4096,
+      system: systemPrompt,
+      tools: toolDefinitions,
+      messages,
+    });
+
+    // Collect the full response while also streaming text deltas
+    const contentBlocks: Anthropic.ContentBlock[] = [];
+    let hasToolUse = false;
+
+    // Listen for streaming events
+    stream.on("contentBlock", (block: Anthropic.ContentBlock) => {
+      contentBlocks.push(block);
+      if (block.type === "tool_use") {
+        hasToolUse = true;
+      }
+    });
+
+    stream.on("text", (text: string) => {
+      if (!hasToolUse) {
+        // Only stream to client if this round has no tool calls
+        onToken(text);
+      }
+    });
+
+    // Wait for the full message
+    const finalMessage = await stream.finalMessage();
+
+    // Reconcile content blocks from the final message
+    const toolUseBlocks = finalMessage.content.filter(
+      (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+    );
+    const textBlocks = finalMessage.content.filter(
+      (block): block is Anthropic.TextBlock => block.type === "text"
+    );
+
+    if (toolUseBlocks.length === 0) {
+      // Final round — text was already streamed via onToken
+      const finalText = textBlocks.map((b) => b.text).join("\n");
+      return { response: finalText, toolCalls: allToolCalls };
+    }
+
+    // Tool-calling round — if we accidentally streamed text, that's fine
+    // (it was thinking text before tool calls). Add assistant response to messages.
+    messages.push({ role: "assistant", content: finalMessage.content });
+
+    const toolResults: Anthropic.ToolResultBlockParam[] = [];
+    for (const toolUse of toolUseBlocks) {
+      allToolCalls.push({
+        name: toolUse.name,
+        input: toolUse.input as Record<string, unknown>,
+      });
+      onToolCall(toolUse.name);
+
+      let result: string;
+      try {
+        result = await executeTool(
+          toolUse.name,
+          toolUse.input as Record<string, unknown>,
+          uid,
+          userEmail
+        );
+      } catch (err) {
+        result = JSON.stringify({
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      }
+
+      toolResults.push({
+        type: "tool_result",
+        tool_use_id: toolUse.id,
+        content: result,
+      });
+    }
+
     messages.push({ role: "user", content: toolResults });
   }
 

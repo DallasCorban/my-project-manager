@@ -1,7 +1,12 @@
 /**
  * Build the system prompt for the AI agent, injecting project-aware context
  * and persistent memory from all scopes.
+ *
+ * Returns an array of content blocks so the static portion can be cached
+ * via Anthropic's prompt caching (cache_control: { type: "ephemeral" }).
  */
+
+import type Anthropic from "@anthropic-ai/sdk";
 
 const STATUSES = [
   { id: "done", label: "Done" },
@@ -56,53 +61,11 @@ function formatFactsByCategory(facts: MemoryFact[]): string {
   return out;
 }
 
-export function buildSystemPrompt(
-  userEmail: string,
-  boardContext?: Record<string, unknown>,
-  memoryContext?: MemoryContext
-): string {
-  let boardSection = "";
+/** Static instructions that rarely change — cached via Anthropic prompt caching. */
+const STATIC_INSTRUCTIONS = `You are an AI project management assistant for Flow, a project management application.
 
-  if (boardContext) {
-    boardSection = `
-
-## Current Board
-You are viewing the board "${boardContext.name}" (ID: ${boardContext.id}).
-Use this context to answer questions directly — do NOT call get_project_summary or query_projects unless the user explicitly asks about a different board.
-
-${JSON.stringify(boardContext, null, 2)}
-
-When the user asks to create or update tasks on this board, use the project ID "${boardContext.id}" directly.`;
-  }
-
-  let memorySection = "";
-
-  if (memoryContext) {
-    memorySection = `
-
-## Project Memory
-Persistent memory that survives chat clears. Use fact IDs (e.g. mf_...) when updating or deleting facts.
-
-### Project Brief
-${memoryContext.projectBrief || "(No project brief yet — create one when you have enough context about this project.)"}
-
-### Project Facts
-${formatFactsByCategory(memoryContext.projectFacts)}
-### Team Knowledge (Workspace)
-${formatFactsByCategory(memoryContext.workspaceFacts)}
-### Personal Facts
-${formatFactsByCategory(memoryContext.userFacts)}`;
-
-    if (memoryContext.userPreferences) {
-      const prefs = memoryContext.userPreferences;
-      memorySection += `
-### User Preferences
-- Custom categories: ${prefs.factCategories.length > 0 ? prefs.factCategories.join(", ") : "(not set — ask the user about their work to set up categories)"}
-${prefs.workingStyle ? `- Working style: ${prefs.workingStyle}` : ""}`;
-    }
-  }
-
-  const memoryGuidelines = `
+## Your Capabilities
+You help users manage their projects by querying project data, creating and updating tasks, and providing project insights. You have access to tools that let you read and write project data directly. You also have persistent memory that survives across conversations — use it to build up knowledge about each project over time.
 
 ## Memory Guidelines
 You have persistent memory tools. Use them proactively:
@@ -137,18 +100,7 @@ You have persistent memory tools. Use them proactively:
 - Use your judgment on what's worth saving — not everything, but things useful for future recall
 - Avoid duplicating facts that are already stored (check existing memory first)
 - Update existing facts (by passing fact_id) rather than creating duplicates
-- Delete outdated facts when you notice they're no longer accurate`;
-
-  return `You are an AI project management assistant for Flow, a project management application.
-
-## Your Capabilities
-You help users manage their projects by querying project data, creating and updating tasks, and providing project insights. You have access to tools that let you read and write project data directly. You also have persistent memory that survives across conversations — use it to build up knowledge about each project over time.
-
-## Current User
-- Email: ${userEmail}
-${boardSection}
-${memorySection}
-${memoryGuidelines}
+- Delete outdated facts when you notice they're no longer accurate
 
 ## Data Model
 Projects contain groups (like categories or phases). Each group contains tasks. Tasks can have:
@@ -171,4 +123,71 @@ Projects contain groups (like categories or phases). Each group contains tasks. 
 - Use task IDs internally but show task names to the user.
 - If a tool call fails due to permissions, explain what happened clearly.
 - Proactively save important facts from the conversation to memory — don't wait to be asked.`;
+
+export type SystemPromptBlock = Anthropic.TextBlockParam & {
+  cache_control?: { type: "ephemeral" };
+};
+
+/**
+ * Build the system prompt as an array of content blocks.
+ * Block 0: static instructions (cacheable).
+ * Block 1: dynamic context — board state, memory, user info (not cached).
+ */
+export function buildSystemPrompt(
+  userEmail: string,
+  boardContext?: Record<string, unknown>,
+  memoryContext?: MemoryContext
+): SystemPromptBlock[] {
+  // --- Block 0: static, cacheable ---
+  const staticBlock: SystemPromptBlock = {
+    type: "text",
+    text: STATIC_INSTRUCTIONS,
+    cache_control: { type: "ephemeral" },
+  };
+
+  // --- Block 1: dynamic context ---
+  let dynamicText = `## Current User\n- Email: ${userEmail}\n`;
+
+  if (boardContext) {
+    dynamicText += `
+## Current Board
+You are viewing the board "${boardContext.name}" (ID: ${boardContext.id}).
+Use this context to answer questions directly — do NOT call get_project_summary or query_projects unless the user explicitly asks about a different board.
+
+${JSON.stringify(boardContext, null, 2)}
+
+When the user asks to create or update tasks on this board, use the project ID "${boardContext.id}" directly.
+`;
+  }
+
+  if (memoryContext) {
+    dynamicText += `
+## Project Memory
+Persistent memory that survives chat clears. Use fact IDs (e.g. mf_...) when updating or deleting facts.
+
+### Project Brief
+${memoryContext.projectBrief || "(No project brief yet — create one when you have enough context about this project.)"}
+
+### Project Facts
+${formatFactsByCategory(memoryContext.projectFacts)}
+### Team Knowledge (Workspace)
+${formatFactsByCategory(memoryContext.workspaceFacts)}
+### Personal Facts
+${formatFactsByCategory(memoryContext.userFacts)}`;
+
+    if (memoryContext.userPreferences) {
+      const prefs = memoryContext.userPreferences;
+      dynamicText += `
+### User Preferences
+- Custom categories: ${prefs.factCategories.length > 0 ? prefs.factCategories.join(", ") : "(not set — ask the user about their work to set up categories)"}
+${prefs.workingStyle ? `- Working style: ${prefs.workingStyle}` : ""}`;
+    }
+  }
+
+  const dynamicBlock: SystemPromptBlock = {
+    type: "text",
+    text: dynamicText,
+  };
+
+  return [staticBlock, dynamicBlock];
 }

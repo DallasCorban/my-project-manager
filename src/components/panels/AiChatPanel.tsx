@@ -1,17 +1,18 @@
 // AiChatPanel — right-side collapsible panel for AI assistant chat
-// with voice input (Deepgram STT), voice output (ElevenLabs TTS),
+// with voice input (Deepgram STT), streaming voice output (ElevenLabs TTS),
 // persistent memory viewer, and transcript upload.
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  X, Send, Trash2, Wrench, Sparkles, Brain,
-  Mic, MicOff, Volume2, VolumeX, FileText,
+  X, Send, Trash2, Wrench, Sparkles, Brain, Zap,
+  Mic, Volume2, VolumeX, FileText,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useAiChat, type DisplayMessage } from '../../hooks/useAiChat';
 import { useAiMemory } from '../../hooks/useAiMemory';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceOutput } from '../../hooks/useVoiceOutput';
+import { useSentenceTTS } from '../../hooks/useSentenceTTS';
 import { AiMemorySection } from './AiMemorySection';
 import { ingestTranscript } from '../../services/ai/voiceService';
 import type { Board } from '../../types/board';
@@ -23,10 +24,16 @@ interface AiChatPanelProps {
 
 export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
   const darkMode = useUIStore((s) => s.darkMode);
-  const { messages, isLoading, error, sendMessage, clearChat } = useAiChat(project);
+  const {
+    messages, isLoading, streamDone, error, forceSonnet, setForceSonnet,
+    sendMessage, clearChat,
+  } = useAiChat(project);
   const memory = useAiMemory(project?.id ?? null, project?.workspaceId ?? null);
   const voice = useVoiceInput();
   const tts = useVoiceOutput();
+  const sentenceTTS = useSentenceTTS();
+  const qualityMode = useUIStore((s) => s.voiceQualityMode);
+  const toggleQualityMode = useUIStore((s) => s.toggleVoiceQualityMode);
 
   const [input, setInput] = useState('');
   const [showMemory, setShowMemory] = useState(false);
@@ -35,10 +42,7 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Track previous message count to auto-speak new responses
-  const prevMessageCountRef = useRef(messages.length);
-
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages or streaming content
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
@@ -55,19 +59,14 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
     }
   }, [voice.isRecording, voice.transcript]);
 
-  // Auto-speak new assistant messages
+  // Cancel TTS if muted mid-stream
   useEffect(() => {
-    if (messages.length > prevMessageCountRef.current) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.role === 'assistant' && !tts.isMuted) {
-        void tts.speak(lastMsg.content);
-      }
+    if (tts.isMuted) {
+      sentenceTTS.cancel();
     }
-    prevMessageCountRef.current = messages.length;
-  }, [messages, tts]);
+  }, [tts.isMuted, sentenceTTS]);
 
   const handleSend = useCallback(async () => {
-    // Stop recording if active
     if (voice.isRecording) {
       voice.stopRecording();
     }
@@ -75,8 +74,27 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
     const text = input.trim();
     if (!text || isLoading) return;
     setInput('');
-    await sendMessage(text);
-  }, [input, isLoading, sendMessage, voice]);
+
+    // Cancel any ongoing TTS before new message
+    sentenceTTS.cancel();
+    tts.stop();
+
+    if (tts.isMuted) {
+      await sendMessage(text);
+    } else if (qualityMode) {
+      // HD mode: wait for full response, then speak it all at once
+      await sendMessage(text, undefined, undefined, (fullResponse) => {
+        void tts.speak(fullResponse);
+      });
+    } else {
+      // Fast mode: stream tokens to sentence TTS
+      await sendMessage(
+        text,
+        (token) => sentenceTTS.feedToken(token),
+        () => sentenceTTS.flush(),
+      );
+    }
+  }, [input, isLoading, sendMessage, voice, tts, sentenceTTS, qualityMode]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -88,12 +106,23 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
   const handleMicToggle = () => {
     if (voice.isRecording) {
       voice.stopRecording();
-      // Auto-send the transcribed message after a short delay for final transcript
       setTimeout(() => {
         const text = input.trim();
         if (text && !isLoading) {
           setInput('');
-          void sendMessage(text);
+          sentenceTTS.cancel();
+          tts.stop();
+          if (tts.isMuted) {
+            void sendMessage(text);
+          } else if (qualityMode) {
+            void sendMessage(text, undefined, undefined, (resp) => void tts.speak(resp));
+          } else {
+            void sendMessage(
+              text,
+              (token) => sentenceTTS.feedToken(token),
+              () => sentenceTTS.flush(),
+            );
+          }
         }
       }, 300);
     } else {
@@ -110,25 +139,24 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
       const text = await file.text();
       const result = await ingestTranscript(text, project.id, project.workspaceId);
 
-      // Show the proposed facts as a message in the chat
       const factsSummary = result.proposedFacts
         .map((f) => `- **${f.category}**: ${f.content}`)
         .join('\n');
 
-      // Send a message to the AI to save the extracted facts
       await sendMessage(
-        `I uploaded a transcript. Here are the extracted facts to save:\n\n${factsSummary}\n\nPlease save each of these facts to project memory using the appropriate categories. Also update the project brief with this summary:\n\n${result.briefUpdate}`
+        `I uploaded a transcript. Here are the extracted facts to save:\n\n${factsSummary}\n\nPlease save each of these facts to project memory using the appropriate categories. Also update the project brief with this summary:\n\n${result.briefUpdate}`,
       );
     } catch (err) {
       console.error('Transcript upload error:', err);
     } finally {
       setIsIngesting(false);
-      // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const totalFacts = memory.projectFacts.length + memory.workspaceFacts.length + memory.userFacts.length;
+
+  // Loading dots show until first token arrives (isLoading is set to false on first token)
 
   return (
     <div
@@ -147,6 +175,20 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
           <h2 className="text-sm font-semibold">AI Assistant</h2>
         </div>
         <div className="flex items-center gap-1">
+          {/* Force Sonnet toggle */}
+          <button
+            onClick={() => setForceSonnet(!forceSonnet)}
+            className={`p-1.5 rounded-lg transition-colors ${
+              forceSonnet
+                ? 'bg-orange-500/20 text-orange-400'
+                : darkMode
+                  ? 'hover:bg-white/10 text-gray-400'
+                  : 'hover:bg-gray-100 text-gray-500'
+            }`}
+            title={forceSonnet ? 'Using Sonnet (click for Auto)' : 'Auto model (click to force Sonnet)'}
+          >
+            <Zap size={14} />
+          </button>
           {/* Voice output toggle */}
           <button
             onClick={tts.toggleMute}
@@ -161,6 +203,22 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
           >
             {tts.isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
           </button>
+          {/* Voice quality mode toggle (only show when unmuted) */}
+          {!tts.isMuted && (
+            <button
+              onClick={toggleQualityMode}
+              className={`px-1.5 py-0.5 rounded-lg transition-colors text-[9px] font-semibold uppercase tracking-wider ${
+                qualityMode
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : darkMode
+                    ? 'bg-white/5 text-gray-500 hover:bg-white/10'
+                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+              }`}
+              title={qualityMode ? 'Quality mode: full response before speaking (click for Fast)' : 'Fast mode: speaks as it streams (click for Quality)'}
+            >
+              {qualityMode ? 'HD' : 'Fast'}
+            </button>
+          )}
           {/* Memory toggle */}
           <button
             onClick={() => setShowMemory(!showMemory)}
@@ -230,7 +288,7 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
                 key={msg.id}
                 message={msg}
                 darkMode={darkMode}
-                onReplay={msg.role === 'assistant' ? () => void tts.speak(msg.content) : undefined}
+                onReplay={msg.role === 'assistant' && msg.content ? () => void tts.speak(msg.content) : undefined}
               />
             ))}
 
@@ -384,6 +442,19 @@ function MessageBubble({
       )}
 
       <div className={`max-w-[85%] space-y-1.5 ${isUser ? 'items-end' : ''}`}>
+        {/* Model badge */}
+        {!isUser && message.model && (
+          <span
+            className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider ${
+              message.model === 'haiku'
+                ? 'bg-emerald-500/15 text-emerald-400'
+                : 'bg-orange-500/15 text-orange-400'
+            }`}
+          >
+            {message.model}
+          </span>
+        )}
+
         {/* Bubble */}
         <div
           className={`group relative rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
@@ -394,7 +465,9 @@ function MessageBubble({
                 : 'bg-gray-100 text-gray-800 rounded-tl-md'
           }`}
         >
-          {message.content}
+          {message.content || (
+            <span className={darkMode ? 'text-gray-500' : 'text-gray-400'}>...</span>
+          )}
           {/* Replay button for assistant messages */}
           {onReplay && (
             <button

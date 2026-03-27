@@ -4,6 +4,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { getElevenLabsSpeech } from '../services/ai/voiceService';
+import { stripMarkdown } from '../utils/textUtils';
 
 export interface UseVoiceOutputReturn {
   isSpeaking: boolean;
@@ -11,22 +12,6 @@ export interface UseVoiceOutputReturn {
   toggleMute: () => void;
   speak: (text: string) => Promise<void>;
   stop: () => void;
-}
-
-/** Strip markdown formatting for cleaner TTS output. */
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/#{1,6}\s+/g, '') // headers
-    .replace(/\*\*(.+?)\*\*/g, '$1') // bold
-    .replace(/\*(.+?)\*/g, '$1') // italic
-    .replace(/`{1,3}[^`]*`{1,3}/g, '') // inline code and code blocks
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links
-    .replace(/^[-*+]\s+/gm, '') // list markers
-    .replace(/^\d+\.\s+/gm, '') // numbered lists
-    .replace(/>\s+/g, '') // blockquotes
-    .replace(/\n{2,}/g, '. ') // paragraph breaks to pauses
-    .replace(/\n/g, ' ')
-    .trim();
 }
 
 export function useVoiceOutput(): UseVoiceOutputReturn {

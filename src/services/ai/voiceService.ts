@@ -31,16 +31,20 @@ export async function getDeepgramToken(): Promise<string> {
 /** Send text to the TTS endpoint and return the audio response. */
 export async function getElevenLabsSpeech(
   text: string,
-  voiceId?: string
+  voiceId?: string,
+  previousText?: string,
 ): Promise<Response> {
   const url = import.meta.env.VITE_TTS_URL;
   if (!url) throw new Error('VITE_TTS_URL not configured');
 
   const headers = await getAuthHeaders();
+  const body: Record<string, unknown> = { text };
+  if (voiceId) body.voiceId = voiceId;
+  if (previousText) body.previousText = previousText;
   const res = await fetch(url, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ text, voiceId }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
