@@ -158,6 +158,12 @@ service cloud.firestore {
           allow read: if isOrgMember(orgId);
           allow create, delete: if isOrgAdmin(orgId);
         }
+
+        // AI Memory — workspace-level shared facts
+        match /aiMemory/{memoryId} {
+          allow read: if isOrgMember(orgId);
+          allow write: if isOrgMember(orgId);
+        }
       }
     }
 
@@ -248,6 +254,18 @@ service cloud.firestore {
       allow read, write: if canReadProject(projectId);
     }
 
+    // AI Memory — project-level facts and brief (persists across chat clears)
+    match /projects/{projectId}/aiMemory/{memoryId} {
+      allow read: if canReadProject(projectId);
+      allow write: if hasProjectRole(projectId, "contributor")
+        || canManageMembers(projectId);
+    }
+
+    // AI Memory — user-level preferences and personal facts
+    match /users/{userId}/aiMemory/{memoryId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
     match /projects/{projectId}/files/{fileId} {
       allow read: if canReadProject(projectId)
         && (
@@ -273,6 +291,12 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == requestUid;
       allow read: if canManageMembers(projectId) || (isSignedIn() && request.auth.uid == requestUid);
       allow update, delete: if canManageMembers(projectId);
+    }
+
+    // Workspace-level AI memory (written by Cloud Functions, read by clients)
+    match /workspaceMemory/{workspaceId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
     match /mail/{mailId} {

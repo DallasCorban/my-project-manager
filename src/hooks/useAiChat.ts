@@ -34,6 +34,7 @@ function buildBoardContext(project: Board): BoardContext {
   }
   return {
     id: project.id,
+    workspaceId: project.workspaceId,
     name: project.name,
     groups: project.groups.map((g) => ({ id: g.id, name: g.name })),
     tasks: project.tasks.map((t) => ({
@@ -65,8 +66,6 @@ export function useAiChat(project: Board | null): AiChatState {
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
 
-  // Track whether we're writing to avoid echo from our own Firestore writes
-  const writingRef = useRef(false);
   // Guard against state updates after unmount
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
@@ -79,7 +78,7 @@ export function useAiChat(project: Board | null): AiChatState {
     const unsub = onSnapshot(
       chatRef,
       (snap) => {
-        if (writingRef.current || !mountedRef.current) return;
+        if (!mountedRef.current) return;
         if (!snap.exists()) {
           setMessages([]);
           return;
@@ -102,22 +101,14 @@ export function useAiChat(project: Board | null): AiChatState {
     async (msgs: DisplayMessage[]) => {
       if (!projectId || !db) return;
       const chatRef = doc(db, 'projects', projectId, 'aiChat', 'current');
-      writingRef.current = true;
-      try {
-        // Strip undefined fields — Firestore rejects them
-        const cleaned = msgs.map(({ toolCalls, ...rest }) =>
-          toolCalls ? { ...rest, toolCalls } : rest,
-        );
-        await setDoc(chatRef, {
-          messages: cleaned,
-          updatedAt: new Date().toISOString(),
-        });
-      } finally {
-        // Small delay to let the echo snapshot pass
-        setTimeout(() => {
-          if (mountedRef.current) writingRef.current = false;
-        }, 500);
-      }
+      // Strip undefined fields — Firestore rejects them
+      const cleaned = msgs.map(({ toolCalls, ...rest }) =>
+        toolCalls ? { ...rest, toolCalls } : rest,
+      );
+      await setDoc(chatRef, {
+        messages: cleaned,
+        updatedAt: new Date().toISOString(),
+      });
     },
     [projectId],
   );
@@ -162,31 +153,28 @@ export function useAiChat(project: Board | null): AiChatState {
         };
 
         const finalMessages = [...updatedMessages, assistantMsg];
-        if (mountedRef.current) setMessages(finalMessages);
+        // Always persist — even if component remounted, Firestore snapshot will pick it up
         await persistMessages(finalMessages);
+        // Also set locally in case we're still mounted
+        setMessages(finalMessages);
       } catch (err) {
-        if (mountedRef.current) setError(err instanceof Error ? err.message : 'Something went wrong');
+        setError(err instanceof Error ? err.message : 'Something went wrong');
       } finally {
         isLoadingRef.current = false;
-        if (mountedRef.current) setIsLoading(false);
+        setIsLoading(false);
       }
     },
     [persistMessages],
   );
 
+  // Clear only the conversation history — persistent AI memory
+  // (projects/{id}/aiMemory/*) is intentionally preserved.
   const clearChat = useCallback(async () => {
     setMessages([]);
     setError(null);
     if (projectId && db) {
       const chatRef = doc(db, 'projects', projectId, 'aiChat', 'current');
-      writingRef.current = true;
-      try {
-        await deleteDoc(chatRef);
-      } finally {
-        setTimeout(() => {
-          if (mountedRef.current) writingRef.current = false;
-        }, 500);
-      }
+      await deleteDoc(chatRef);
     }
   }, [projectId]);
 

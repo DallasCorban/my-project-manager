@@ -271,6 +271,147 @@ export const toolDefinitions: ToolDefinition[] = [
       required: ["project_id", "task_id", "text"],
     },
   },
+  // ── Memory tools ──────────────────────────────────────────────────
+  {
+    name: "save_memory",
+    description:
+      "Save an important fact to persistent memory. Use this proactively when you encounter decisions, deadlines, budgets, client preferences, key contacts, stakeholder info, creative direction, deliverable details, or any information that would be useful to recall in future conversations. Facts persist even when chat history is cleared.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        scope: {
+          type: "string",
+          enum: ["project", "workspace", "user"],
+          description:
+            "Where to store the fact. 'project' for project-specific info, 'workspace' for team-wide knowledge, 'user' for personal preferences.",
+        },
+        project_id: {
+          type: "string",
+          description: "Required when scope is 'project'. The project ID.",
+        },
+        workspace_id: {
+          type: "string",
+          description: "Required when scope is 'workspace'. The workspace ID.",
+        },
+        content: {
+          type: "string",
+          description: "The fact to remember.",
+        },
+        category: {
+          type: "string",
+          description:
+            "Category for the fact. Use the user's custom categories when available, or a reasonable default like 'general'.",
+        },
+        fact_id: {
+          type: "string",
+          description:
+            "Optional. If provided, updates an existing fact instead of creating a new one.",
+        },
+      },
+      required: ["scope", "content"],
+    },
+  },
+  {
+    name: "recall_memory",
+    description:
+      "Retrieve facts from persistent memory. Searches across project, workspace, and user scopes by default. Use this when you need to recall previously stored information.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "Project ID to search project-level memory.",
+        },
+        workspace_id: {
+          type: "string",
+          description: "Workspace ID to search workspace-level memory.",
+        },
+        scope: {
+          type: "string",
+          enum: ["project", "workspace", "user", "all"],
+          description: "Which scope to search. Default: 'all'.",
+        },
+        category: {
+          type: "string",
+          description: "Filter by category.",
+        },
+        search: {
+          type: "string",
+          description: "Search term to filter facts by content (case-insensitive).",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "update_project_brief",
+    description:
+      "Update the living project brief — a synthesized summary of everything known about the project. Update this when significant new information changes the project picture.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "The project ID.",
+        },
+        content: {
+          type: "string",
+          description: "The updated brief content in markdown format.",
+        },
+      },
+      required: ["project_id", "content"],
+    },
+  },
+  {
+    name: "delete_memory",
+    description:
+      "Delete a specific fact from memory. Use when a fact is outdated, incorrect, or the user asks to remove it.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        scope: {
+          type: "string",
+          enum: ["project", "workspace", "user"],
+          description: "The scope where the fact is stored.",
+        },
+        project_id: {
+          type: "string",
+          description: "Required when scope is 'project'.",
+        },
+        workspace_id: {
+          type: "string",
+          description: "Required when scope is 'workspace'.",
+        },
+        fact_id: {
+          type: "string",
+          description: "The ID of the fact to delete.",
+        },
+      },
+      required: ["scope", "fact_id"],
+    },
+  },
+  {
+    name: "update_user_preferences",
+    description:
+      "Update the user's AI memory preferences, including custom fact categories and working style notes. Use this when setting up a new user or when they want to change their category preferences.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        fact_categories: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "The user's preferred fact categories (e.g. ['filming-date', 'key-contact', 'budget', 'deadline']).",
+        },
+        working_style: {
+          type: "string",
+          description:
+            "Notes about how the user prefers to work, for tailoring AI responses.",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ─── Tool Execution ─────────────────────────────────────────────────
@@ -298,6 +439,16 @@ export async function executeTool(
       return getOverdueItems(input, uid);
     case "add_update":
       return addUpdate(input, uid, userEmail);
+    case "save_memory":
+      return saveMemory(input, uid);
+    case "recall_memory":
+      return recallMemory(input, uid);
+    case "update_project_brief":
+      return updateProjectBrief(input, uid);
+    case "delete_memory":
+      return deleteMemory(input, uid);
+    case "update_user_preferences":
+      return updateUserPreferences(input, uid);
     default:
       return JSON.stringify({ error: `Unknown tool: ${toolName}` });
   }
@@ -618,5 +769,219 @@ async function addUpdate(
   return JSON.stringify({
     success: true,
     message: `Added update to task.`,
+  });
+}
+
+// ─── Memory Tool Implementations ─────────────────────────────────
+
+interface MemoryFact {
+  id: string;
+  content: string;
+  category: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MemoryFactsDoc {
+  facts: MemoryFact[];
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+/** Resolve the Firestore document reference for a memory facts doc based on scope. */
+function getMemoryFactsRef(
+  scope: string,
+  uid: string,
+  projectId?: string,
+  workspaceId?: string
+): admin.firestore.DocumentReference {
+  switch (scope) {
+    case "project":
+      if (!projectId) throw new Error("project_id is required for project scope.");
+      return db().collection("projects").doc(projectId).collection("aiMemory").doc("facts");
+    case "workspace":
+      if (!workspaceId) throw new Error("workspace_id is required for workspace scope.");
+      // Workspace memory is stored under the org's workspace subcollection
+      // We store it at a top-level path for simplicity since Cloud Functions bypass rules
+      return db().collection("workspaceMemory").doc(workspaceId);
+    case "user":
+      return db().collection("users").doc(uid).collection("aiMemory").doc("facts");
+    default:
+      throw new Error(`Invalid scope: ${scope}`);
+  }
+}
+
+async function saveMemory(input: ToolInput, uid: string): Promise<string> {
+  const scope = input.scope as string;
+  const content = input.content as string;
+  const category = (input.category as string) || "general";
+  const factId = (input.fact_id as string) || `mf_${Date.now()}`;
+  const projectId = input.project_id as string | undefined;
+  const workspaceId = input.workspace_id as string | undefined;
+
+  // Permission check for project scope
+  if (scope === "project" && projectId) {
+    await requireEditPermission(projectId, uid);
+  }
+
+  const ref = getMemoryFactsRef(scope, uid, projectId, workspaceId);
+  const now = new Date().toISOString();
+
+  await db().runTransaction(async (txn) => {
+    const snap = await txn.get(ref);
+    const data = snap.exists ? (snap.data() as MemoryFactsDoc) : { facts: [], updatedAt: now };
+    const facts = data.facts || [];
+
+    const existingIndex = facts.findIndex((f) => f.id === factId);
+    if (existingIndex >= 0) {
+      // Update existing fact
+      facts[existingIndex] = { ...facts[existingIndex], content, category, updatedAt: now };
+    } else {
+      // Add new fact
+      facts.push({ id: factId, content, category, createdAt: now, updatedAt: now });
+    }
+
+    txn.set(ref, { facts, updatedAt: now }, { merge: true });
+  });
+
+  return JSON.stringify({
+    success: true,
+    fact_id: factId,
+    message: `Saved memory fact to ${scope} scope.`,
+  });
+}
+
+async function recallMemory(input: ToolInput, uid: string): Promise<string> {
+  const scope = (input.scope as string) || "all";
+  const category = input.category as string | undefined;
+  const search = (input.search as string)?.toLowerCase();
+  const projectId = input.project_id as string | undefined;
+  const workspaceId = input.workspace_id as string | undefined;
+
+  const results: Record<string, MemoryFact[]> = {};
+
+  const loadFacts = async (
+    scopeName: string,
+    ref: admin.firestore.DocumentReference
+  ) => {
+    const snap = await ref.get();
+    if (!snap.exists) return;
+    const data = snap.data() as MemoryFactsDoc;
+    // Skip archived memory
+    if (data.archivedAt) return;
+    let facts = data.facts || [];
+
+    if (category) {
+      facts = facts.filter((f) => f.category === category);
+    }
+    if (search) {
+      facts = facts.filter((f) => f.content.toLowerCase().includes(search));
+    }
+    if (facts.length > 0) {
+      results[scopeName] = facts;
+    }
+  };
+
+  if (scope === "all" || scope === "user") {
+    await loadFacts(
+      "user",
+      db().collection("users").doc(uid).collection("aiMemory").doc("facts")
+    );
+  }
+
+  if ((scope === "all" || scope === "workspace") && workspaceId) {
+    await loadFacts(
+      "workspace",
+      db().collection("workspaceMemory").doc(workspaceId)
+    );
+  }
+
+  if ((scope === "all" || scope === "project") && projectId) {
+    const perms = await getProjectPermissions(db(), projectId, uid);
+    if (perms?.canView) {
+      await loadFacts(
+        "project",
+        db().collection("projects").doc(projectId).collection("aiMemory").doc("facts")
+      );
+    }
+  }
+
+  const totalFacts = Object.values(results).reduce((sum, arr) => sum + arr.length, 0);
+
+  return JSON.stringify({
+    memory: results,
+    totalFacts,
+    message: totalFacts === 0 ? "No matching facts found." : `Found ${totalFacts} fact(s).`,
+  });
+}
+
+async function updateProjectBrief(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const content = input.content as string;
+  await requireEditPermission(projectId, uid);
+
+  const ref = db()
+    .collection("projects")
+    .doc(projectId)
+    .collection("aiMemory")
+    .doc("brief");
+
+  await ref.set({
+    content,
+    updatedAt: new Date().toISOString(),
+    updatedBy: "ai",
+  });
+
+  return JSON.stringify({
+    success: true,
+    message: "Project brief updated.",
+  });
+}
+
+async function deleteMemory(input: ToolInput, uid: string): Promise<string> {
+  const scope = input.scope as string;
+  const factId = input.fact_id as string;
+  const projectId = input.project_id as string | undefined;
+  const workspaceId = input.workspace_id as string | undefined;
+
+  if (scope === "project" && projectId) {
+    await requireEditPermission(projectId, uid);
+  }
+
+  const ref = getMemoryFactsRef(scope, uid, projectId, workspaceId);
+
+  await db().runTransaction(async (txn) => {
+    const snap = await txn.get(ref);
+    if (!snap.exists) throw new Error("No memory facts found.");
+    const data = snap.data() as MemoryFactsDoc;
+    const facts = (data.facts || []).filter((f) => f.id !== factId);
+    txn.update(ref, { facts, updatedAt: new Date().toISOString() });
+  });
+
+  return JSON.stringify({
+    success: true,
+    message: `Deleted memory fact ${factId}.`,
+  });
+}
+
+async function updateUserPreferences(input: ToolInput, uid: string): Promise<string> {
+  const ref = db().collection("users").doc(uid).collection("aiMemory").doc("preferences");
+
+  const update: Record<string, unknown> = {
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (input.fact_categories !== undefined) {
+    update.factCategories = input.fact_categories as string[];
+  }
+  if (input.working_style !== undefined) {
+    update.workingStyle = input.working_style as string;
+  }
+
+  await ref.set(update, { merge: true });
+
+  return JSON.stringify({
+    success: true,
+    message: "User preferences updated.",
   });
 }

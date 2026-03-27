@@ -17,7 +17,9 @@
       "Bash(git reset:*)",
       "Bash(curl:*)",
       "Bash(xargs sed:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(firebase functions:log --only tts)",
+      "WebSearch"
     ]
   }
 }

@@ -80,6 +80,10 @@ interface UIState {
   ganttHeatmap: boolean;
   toggleGanttHeatmap: () => void;
 
+  // Voice AI
+  voiceMuted: boolean;
+  toggleVoiceMute: () => void;
+
   // Context — 'personal' or an orgId (wired for Phase 2)
   activeContext: string;
   setActiveContext: (ctx: string) => void;
@@ -197,6 +201,10 @@ export const useUIStore = create<UIState>()(
       ganttHeatmap: true,
       toggleGanttHeatmap: () => set((state) => ({ ganttHeatmap: !state.ganttHeatmap })),
 
+      // Voice AI (persisted)
+      voiceMuted: false,
+      toggleVoiceMute: () => set((state) => ({ voiceMuted: !state.voiceMuted })),
+
       // Context (persisted)
       activeContext: 'personal',
       setActiveContext: (ctx) => set({ activeContext: ctx }),
@@ -210,6 +218,7 @@ export const useUIStore = create<UIState>()(
         collapsedGroups: state.collapsedGroups,
         expandedItems: state.expandedItems,
         ganttHeatmap: state.ganttHeatmap,
+        voiceMuted: state.voiceMuted,
         activeContext: state.activeContext,
       }),
     },

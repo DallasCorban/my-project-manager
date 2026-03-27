@@ -18,6 +18,7 @@ export interface ChatResponse {
  */
 export interface BoardContext {
   id: string;
+  workspaceId: string;
   name: string;
   groups: Array<{ id: string; name: string }>;
   tasks: Array<{
