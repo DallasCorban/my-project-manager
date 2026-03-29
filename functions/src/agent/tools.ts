@@ -6,6 +6,7 @@
  *   - execute: The server-side function that runs when the LLM calls the tool
  */
 import * as admin from "firebase-admin";
+import { logger } from "firebase-functions";
 import Anthropic from "@anthropic-ai/sdk";
 import {
   getProjectPermissions,
@@ -391,6 +392,44 @@ export const toolDefinitions: ToolDefinition[] = [
     },
   },
   {
+    name: "compact_memory",
+    description:
+      "Consolidate and compact memory facts within a scope. Use when a scope has 20+ facts to merge related facts into fewer, richer entries. Provide the IDs of facts to merge and the consolidated replacement fact. The old facts will be deleted and replaced with the new one.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        scope: {
+          type: "string",
+          enum: ["project", "workspace", "user"],
+          description: "The scope to compact.",
+        },
+        project_id: {
+          type: "string",
+          description: "Required when scope is 'project'.",
+        },
+        workspace_id: {
+          type: "string",
+          description: "Required when scope is 'workspace'.",
+        },
+        fact_ids_to_merge: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of fact IDs to merge into one consolidated fact.",
+        },
+        consolidated_content: {
+          type: "string",
+          description:
+            "The merged fact content that replaces the individual facts. Should be comprehensive but concise.",
+        },
+        category: {
+          type: "string",
+          description: "Category for the consolidated fact.",
+        },
+      },
+      required: ["scope", "fact_ids_to_merge", "consolidated_content"],
+    },
+  },
+  {
     name: "update_user_preferences",
     description:
       "Update the user's AI memory preferences, including custom fact categories and working style notes. Use this when setting up a new user or when they want to change their category preferences.",
@@ -447,6 +486,8 @@ export async function executeTool(
       return updateProjectBrief(input, uid);
     case "delete_memory":
       return deleteMemory(input, uid);
+    case "compact_memory":
+      return compactMemory(input, uid);
     case "update_user_preferences":
       return updateUserPreferences(input, uid);
     default:
@@ -573,16 +614,23 @@ async function getProjectSummary(
   });
 }
 
+/** Get the hybridSync Firestore ref for a user's projects array */
+function getHybridRef(uid: string): admin.firestore.DocumentReference {
+  return db()
+    .collection("artifacts")
+    .doc("my-manager-app")
+    .collection("users")
+    .doc(uid)
+    .collection("projects")
+    .doc("pmai_projects");
+}
+
 async function createTask(input: ToolInput, uid: string): Promise<string> {
   const projectId = input.project_id as string;
+  logger.info(`[createTask] Starting: project=${projectId}, name=${input.name}, uid=${uid}`);
   await requireEditPermission(projectId, uid);
 
-  const stateRef = db()
-    .collection("projects")
-    .doc(projectId)
-    .collection("state")
-    .doc("main");
-
+  const hybridRef = getHybridRef(uid);
   const taskId = `t${Date.now()}`;
   const newTask = {
     id: taskId,
@@ -601,13 +649,14 @@ async function createTask(input: ToolInput, uid: string): Promise<string> {
   };
 
   await db().runTransaction(async (txn) => {
-    const snap = await txn.get(stateRef);
-    const data = snap.data() as BoardStateDoc;
-    const state = JSON.parse(data.value) as BoardState;
-    const tasks = state.tasks || [];
-    tasks.push(newTask);
-    state.tasks = tasks;
-    txn.update(stateRef, serializeStateUpdate(state, uid));
+    const snap = await txn.get(hybridRef);
+    if (!snap.exists) throw new Error("User project data not found");
+    const projects = JSON.parse((snap.data() as { value: string }).value) as BoardState[];
+    const idx = projects.findIndex((p) => p.id === projectId);
+    if (idx === -1) throw new Error(`Project ${projectId} not found`);
+    projects[idx].tasks = [...(projects[idx].tasks || []), newTask];
+    txn.update(hybridRef, { value: JSON.stringify(projects) });
+    logger.info(`[createTask] Written to hybridSync, taskId=${taskId}`);
   });
 
   return JSON.stringify({
@@ -622,41 +671,32 @@ async function updateTask(input: ToolInput, uid: string): Promise<string> {
   const taskId = input.task_id as string;
   await requireEditPermission(projectId, uid);
 
-  const stateRef = db()
-    .collection("projects")
-    .doc(projectId)
-    .collection("state")
-    .doc("main");
-
+  const hybridRef = getHybridRef(uid);
   let updatedName = "";
 
   await db().runTransaction(async (txn) => {
-    const snap = await txn.get(stateRef);
-    const data = snap.data() as BoardStateDoc;
-    const state = JSON.parse(data.value) as BoardState;
-    const tasks = state.tasks || [];
+    const snap = await txn.get(hybridRef);
+    if (!snap.exists) throw new Error("User project data not found");
+    const projects = JSON.parse((snap.data() as { value: string }).value) as BoardState[];
+    const projectIdx = projects.findIndex((p) => p.id === projectId);
+    if (projectIdx === -1) throw new Error(`Project ${projectId} not found`);
+    const tasks = projects[projectIdx].tasks || [];
     const taskIndex = tasks.findIndex((t) => t.id === taskId);
     if (taskIndex === -1) throw new Error(`Task ${taskId} not found.`);
 
     const task = tasks[taskIndex];
-
     if (input.name !== undefined) task.name = input.name as string;
     if (input.status !== undefined) task.status = input.status as string;
-    if (input.job_type !== undefined)
-      task.jobTypeId = input.job_type as string;
-    if (input.assignees !== undefined)
-      task.assignees = input.assignees as string[];
-    if (input.start_date !== undefined)
-      task.start = input.start_date as string | null;
-    if (input.duration !== undefined)
-      task.duration = input.duration as number | null;
-    if (input.priority !== undefined)
-      task.priority = input.priority as string;
+    if (input.job_type !== undefined) task.jobTypeId = input.job_type as string;
+    if (input.assignees !== undefined) task.assignees = input.assignees as string[];
+    if (input.start_date !== undefined) task.start = input.start_date as string | null;
+    if (input.duration !== undefined) task.duration = input.duration as number | null;
+    if (input.priority !== undefined) task.priority = input.priority as string;
 
     tasks[taskIndex] = task;
-    state.tasks = tasks;
+    projects[projectIdx].tasks = tasks;
     updatedName = task.name;
-    txn.update(stateRef, serializeStateUpdate(state, uid));
+    txn.update(hybridRef, { value: JSON.stringify(projects) });
   });
 
   return JSON.stringify({
@@ -961,6 +1001,48 @@ async function deleteMemory(input: ToolInput, uid: string): Promise<string> {
   return JSON.stringify({
     success: true,
     message: `Deleted memory fact ${factId}.`,
+  });
+}
+
+async function compactMemory(input: ToolInput, uid: string): Promise<string> {
+  const scope = input.scope as string;
+  const factIdsToMerge = input.fact_ids_to_merge as string[];
+  const consolidatedContent = input.consolidated_content as string;
+  const category = (input.category as string) || "general";
+  const projectId = input.project_id as string | undefined;
+  const workspaceId = input.workspace_id as string | undefined;
+
+  if (!factIdsToMerge || factIdsToMerge.length < 2) {
+    return JSON.stringify({ error: "Need at least 2 fact IDs to compact." });
+  }
+
+  if (scope === "project" && projectId) {
+    await requireEditPermission(projectId, uid);
+  }
+
+  const ref = getMemoryFactsRef(scope, uid, projectId, workspaceId);
+  const newFactId = `mf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  await db().runTransaction(async (txn) => {
+    const snap = await txn.get(ref);
+    if (!snap.exists) throw new Error("No memory facts found.");
+    const data = snap.data() as MemoryFactsDoc;
+    const mergeSet = new Set(factIdsToMerge);
+    const remaining = (data.facts || []).filter((f) => !mergeSet.has(f.id));
+    remaining.push({
+      id: newFactId,
+      content: consolidatedContent,
+      category,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    txn.update(ref, { facts: remaining, updatedAt: new Date().toISOString() });
+  });
+
+  return JSON.stringify({
+    success: true,
+    message: `Compacted ${factIdsToMerge.length} facts into 1 consolidated fact (${newFactId}).`,
+    newFactId,
   });
 }
 

@@ -52,7 +52,10 @@ interface GanttTaskRowProps {
     origin: 'parent' | 'expanded',
     existingStartKey: string | null,
     existingDuration: number,
+    subSubitemId?: string | null,
   ) => void;
+  /** Sub-subitem ID — set when this row represents a 3rd-level item */
+  subSubitemId?: string | null;
   // Label column handlers
   onUpdateName: (value: string) => void;
   onStatusSelect: (statusId: string) => void;
@@ -89,6 +92,7 @@ function GanttTaskRowInner({
   isDropTarget = false,
   dropBelow = false,
   onMouseDown,
+  subSubitemId: subSubitemIdProp = null,
   onUpdateName,
   onStatusSelect: _onStatusSelect,
   onTypeSelect: _onTypeSelect,
@@ -160,14 +164,16 @@ function GanttTaskRowInner({
     dragState.isDragging &&
     dragState.type !== 'create' &&
     dragState.hasMoved &&
-    (isSubitem
-      ? dragState.subitemId === task.id
-      : dragState.taskId === task.id && dragState.subitemId === null);
+    (subSubitemIdProp
+      ? dragState.subSubitemId === task.id
+      : isSubitem
+        ? dragState.subitemId === task.id && !dragState.subSubitemId
+        : dragState.taskId === task.id && dragState.subitemId === null);
 
   let barLeft = 0;
   let barWidth = 0;
 
-  const settledKey = isSubitem ? `${parentTaskId}:${task.id}` : task.id;
+  const settledKey = subSubitemIdProp ? `${parentTaskId}:${subSubitemIdProp}:${task.id}` : isSubitem ? `${parentTaskId}:${task.id}` : task.id;
   const settled = settledOverrides[settledKey];
 
   if (isThisBarDragging) {
@@ -204,8 +210,11 @@ function GanttTaskRowInner({
   const isCreating =
     dragState.isDragging &&
     dragState.type === 'create' &&
-    dragState.taskId === (isSubitem ? parentTaskId : task.id) &&
-    dragState.subitemId === (isSubitem ? task.id : null);
+    (subSubitemIdProp
+      ? dragState.subSubitemId === task.id
+      : isSubitem
+        ? dragState.taskId === parentTaskId && dragState.subitemId === task.id && !dragState.subSubitemId
+        : dragState.taskId === task.id && dragState.subitemId === null);
 
   let createPreviewLeft = 0;
   let createPreviewWidth = 0;
@@ -350,18 +359,22 @@ function GanttTaskRowInner({
         {canEdit && !hasDates && (
           <div
             className="absolute inset-0 cursor-crosshair z-10"
-            onPointerDown={(e) =>
+            onPointerDown={(e) => {
+              const effectiveTaskId = parentTaskId || task.id;
+              const effectiveSubitemId = subSubitemIdProp ? subSubitemIdProp : isSubitem ? task.id : null;
+              const effectiveSubSubitemId = subSubitemIdProp ? task.id : null;
               onMouseDown(
                 e,
-                isSubitem ? (parentTaskId || task.id) : task.id,
+                isSubitem ? effectiveTaskId : task.id,
                 projectId,
                 'create',
-                isSubitem ? task.id : null,
+                effectiveSubitemId,
                 isSubitem ? 'expanded' : 'parent',
                 null,
                 1,
-              )
-            }
+                effectiveSubSubitemId,
+              );
+            }}
           />
         )}
 
@@ -395,17 +408,22 @@ function GanttTaskRowInner({
               dragState={dragState}
               taskId={isSubitem ? (parentTaskId || '') : task.id}
               subitemId={isSubitem ? task.id : null}
-              onMouseDown={(e, type) =>
+              onMouseDown={(e, type) => {
+                const effectiveTaskId = parentTaskId || task.id;
+                const effectiveSubitemId = subSubitemIdProp ? subSubitemIdProp : isSubitem ? task.id : null;
+                const effectiveSubSubitemId = subSubitemIdProp ? task.id : null;
                 onMouseDown(
                   e,
-                  isSubitem ? (parentTaskId || task.id) : task.id,
+                  isSubitem ? effectiveTaskId : task.id,
                   projectId,
                   type,
-                  isSubitem ? task.id : null,
+                  effectiveSubitemId,
                   isSubitem ? 'expanded' : 'parent',
                   normalizedStart,
                   taskDuration,
-                )
+                  effectiveSubSubitemId,
+                );
+              }
               }
               isSelected={isBarSelected}
               onSelect={onSelect}

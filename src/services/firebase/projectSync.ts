@@ -62,6 +62,14 @@ export function subscribeToProjectState(
 
         if (handle) {
           handle.lastWrittenPayload = data.value;
+          // Also update serialized cache so pending debounced writes
+          // don't overwrite remote changes (e.g. AI-created tasks)
+          handle.lastSerializedCache = data.value;
+          // Cancel any pending local write to avoid overwriting remote change
+          if (handle.writeTimer) {
+            clearTimeout(handle.writeTimer);
+            handle.writeTimer = null;
+          }
         }
 
         onUpdate(parsed);

@@ -524,15 +524,15 @@ export function AppShell() {
                 statuses={statuses}
                 jobTypes={jobTypes}
                 canEdit={effectiveCanEdit}
-                onUpdateTaskDate={isPreviewMode ? () => {} : (pid, tid, sid, start, dur) =>
-                  updateTaskDate(pid, tid, sid, start, dur)
+                onUpdateTaskDate={isPreviewMode ? () => {} : (pid, tid, sid, start, dur, ssid) =>
+                  updateTaskDate(pid, tid, sid, start, dur, ssid)
                 }
                 onUpdateTaskName={isPreviewMode ? () => {} : (pid, tid, v) => updateTaskName(pid, tid, v)}
                 onUpdateSubitemName={isPreviewMode ? () => {} : (pid, tid, sid, v) =>
                   updateSubitemName(pid, tid, sid, v)
                 }
-                onChangeStatus={isPreviewMode ? () => {} : (pid, tid, sid, val) => changeStatus(pid, tid, sid, val)}
-                onChangeJobType={isPreviewMode ? () => {} : (pid, tid, sid, val) => changeJobType(pid, tid, sid, val)}
+                onChangeStatus={isPreviewMode ? () => {} : (pid, tid, sid, val, ssid) => changeStatus(pid, tid, sid, val, ssid)}
+                onChangeJobType={isPreviewMode ? () => {} : (pid, tid, sid, val, ssid) => changeJobType(pid, tid, sid, val, ssid)}
                 onAddTaskToGroup={isPreviewMode ? () => {} : (pid, gid) => addTaskToGroup(pid, gid)}
                 onAddSubitem={isPreviewMode ? () => {} : (pid, tid) => addSubitem(pid, tid)}
                 onAddSubSubitem={isPreviewMode ? () => {} : (pid, tid, sid) => addSubSubitem(pid, tid, sid)}

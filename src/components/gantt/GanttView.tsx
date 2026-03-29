@@ -211,11 +211,12 @@ interface GanttViewProps {
     sid: string | null,
     start: string | null,
     duration: number | null,
+    ssid?: string | null,
   ) => void;
   onUpdateTaskName: (pid: string, tid: string, value: string) => void;
   onUpdateSubitemName: (pid: string, tid: string, sid: string, value: string) => void;
-  onChangeStatus: (pid: string, tid: string, sid: string | null, val: string) => void;
-  onChangeJobType: (pid: string, tid: string, sid: string | null, val: string) => void;
+  onChangeStatus: (pid: string, tid: string, sid: string | null, val: string, ssid?: string | null) => void;
+  onChangeJobType: (pid: string, tid: string, sid: string | null, val: string, ssid?: string | null) => void;
   onAddTaskToGroup: (pid: string, gid: string) => void;
   onAddSubitem?: (pid: string, tid: string, name?: string) => void;
   onAddSubSubitem?: (pid: string, tid: string, sid: string, name?: string) => void;
@@ -1200,6 +1201,7 @@ export function GanttView({
                                                     projectId={project.id}
                                                     parentTaskId={task.id}
                                                     isSubitem
+                                                    subSubitemId={sub.id}
                                                     nestingLevel={2}
                                                     visibleDays={visibleDays}
                                                     zoomLevel={zoomLevel}
@@ -1222,10 +1224,10 @@ export function GanttView({
                                                       onUpdateSubSubitemName?.(project.id, task.id, sub.id, subSub.id, v);
                                                     }}
                                                     onStatusSelect={(val) =>
-                                                      onChangeStatus(project.id, task.id, sub.id, val)
+                                                      onChangeStatus(project.id, task.id, sub.id, val, subSub.id)
                                                     }
                                                     onTypeSelect={(val) =>
-                                                      onChangeJobType(project.id, task.id, sub.id, val)
+                                                      onChangeJobType(project.id, task.id, sub.id, val, subSub.id)
                                                     }
                                                     onOpenUpdates={() =>
                                                       useUIStore.getState().toggleUpdatesPanel({

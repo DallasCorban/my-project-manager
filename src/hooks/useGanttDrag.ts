@@ -46,6 +46,7 @@ interface UseGanttDragOptions {
     sid: string | null,
     start: string | null,
     duration: number | null,
+    ssid?: string | null,
   ) => void;
 }
 
@@ -162,6 +163,7 @@ export function useGanttDrag({
       origin: 'parent' | 'expanded',
       existingStartKey: string | null,
       existingDuration: number,
+      subSubitemId: string | null = null,
     ) => {
       e.preventDefault();
       e.stopPropagation();
@@ -216,7 +218,7 @@ export function useGanttDrag({
         type,
         taskId,
         subitemId,
-        subSubitemId: null,
+        subSubitemId,
         projectId,
         startX: e.clientX,
         originalStart,
@@ -325,7 +327,7 @@ export function useGanttDrag({
       const newStartKey = addDaysToKey(todayKey.current, newStartRaw);
 
       if (!isDelete && newStartKey) {
-        updateRef.current(ds.projectId, ds.taskId, ds.subitemId, newStartKey, calDuration);
+        updateRef.current(ds.projectId, ds.taskId, ds.subitemId, newStartKey, calDuration, ds.subSubitemId);
       }
 
       setDragState((prev) => ({
@@ -351,13 +353,13 @@ export function useGanttDrag({
       const v2d = snap.frozenV2D;
 
       if (ds.isDeleteMode) {
-        updateRef.current(ds.projectId, ds.taskId, ds.subitemId, null, null);
+        updateRef.current(ds.projectId, ds.taskId, ds.subitemId, null, null, ds.subSubitemId);
       } else if (ds.type === 'create') {
         const origVisStart = d2v[ds.originalStart] ?? 0;
         const startDayIndex = v2d[origVisStart] ?? ds.originalStart;
         const startKey = addDaysToKey(todayKey.current, startDayIndex);
         const duration = visualWidthToCalendarDuration(startDayIndex, ds.currentSpan, v2d, d2v);
-        updateRef.current(ds.projectId, ds.taskId, ds.subitemId, startKey, duration);
+        updateRef.current(ds.projectId, ds.taskId, ds.subitemId, startKey, duration, ds.subSubitemId);
       }
       // For move / resize the store was already updated continuously.
 
@@ -365,7 +367,7 @@ export function useGanttDrag({
       // snap to a stale store value between mouseup and Firestore echo settling.
       // Held for 1s (well beyond 250ms debounce + network RTT), then auto-cleared.
       if (ds.hasMoved && !ds.isDeleteMode) {
-        const key = ds.subitemId ? `${ds.taskId}:${ds.subitemId}` : ds.taskId!;
+        const key = ds.subSubitemId ? `${ds.taskId}:${ds.subitemId}:${ds.subSubitemId}` : ds.subitemId ? `${ds.taskId}:${ds.subitemId}` : ds.taskId!;
         setSettledOverrides((prev) => ({
           ...prev,
           [key]: { visualLeft: ds.visualLeft, visualWidth: ds.visualWidth },
