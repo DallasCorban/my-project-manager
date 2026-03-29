@@ -1,8 +1,18 @@
 // useVoiceInput — Deepgram real-time streaming STT via WebSocket.
 // Captures microphone audio, streams to Deepgram Nova-2, returns live transcription.
+// Conversational mode: AiChatPanel watches finalTranscript and handles auto-submit.
 
 import { useState, useCallback, useRef } from 'react';
 import { getDeepgramToken } from '../services/ai/voiceService';
+
+export interface UseVoiceInputOptions {
+  /** How long (ms) the connection must be open before the silence watcher activates. Default 120_000 (2 min) */
+  silenceWarmupMs?: number;
+  /** How long (ms) of silence (after warmup) triggers auto-disconnect. Default 30_000 (30s) */
+  silenceGraceMs?: number;
+  /** Called when the silence timeout fires and the connection is closed */
+  onSilenceTimeout?: () => void;
+}
 
 export interface UseVoiceInputReturn {
   isRecording: boolean;
@@ -10,10 +20,18 @@ export interface UseVoiceInputReturn {
   finalTranscript: string;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
+  /** Reset accumulated transcript — call after auto-submitting to clear for next utterance */
+  resetTranscript: () => void;
+  /** Temporarily suppress audio being sent to Deepgram (e.g. while TTS is playing) */
+  pauseSending: () => void;
+  resumeSending: () => void;
   error: string | null;
 }
 
-export function useVoiceInput(): UseVoiceInputReturn {
+export function useVoiceInput(options?: UseVoiceInputOptions): UseVoiceInputReturn {
+  const silenceWarmupMs = options?.silenceWarmupMs ?? 120_000;
+  const silenceGraceMs = options?.silenceGraceMs ?? 30_000;
+
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [finalTranscript, setFinalTranscript] = useState('');
@@ -23,8 +41,18 @@ export function useVoiceInput(): UseVoiceInputReturn {
   const streamRef = useRef<MediaStream | null>(null);
   const contextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const pausedRef = useRef(false);
+  const lastSpeechRef = useRef<number>(Date.now());
+  const recordingStartRef = useRef<number>(0);
+  const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Accumulated final transcript as a ref so resetTranscript() can clear it from outside
+  const accumulatedRef = useRef('');
 
   const cleanup = useCallback(() => {
+    if (silenceTimerRef.current !== null) {
+      clearInterval(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
     if (processorRef.current) {
       processorRef.current.disconnect();
       processorRef.current = null;
@@ -46,10 +74,24 @@ export function useVoiceInput(): UseVoiceInputReturn {
     setIsRecording(false);
   }, []);
 
+  /** Clear accumulated text and transcript state — for use after auto-submit */
+  /** Clear accumulated text and transcript state — for use after auto-submit.
+   *  Also resets the silence timer since submitting a message counts as activity. */
+  const resetTranscript = useCallback(() => {
+    accumulatedRef.current = '';
+    setFinalTranscript('');
+    setTranscript('');
+    // Submitting a message means the user is engaged (even if listening to AI response)
+    // — reset silence timer so it doesn't cut off during AI playback
+    lastSpeechRef.current = Date.now();
+  }, []);
+
   const startRecording = useCallback(async () => {
     setError(null);
     setTranscript('');
     setFinalTranscript('');
+    accumulatedRef.current = '';
+    pausedRef.current = false;
 
     try {
       // Get mic permission
@@ -63,10 +105,8 @@ export function useVoiceInput(): UseVoiceInputReturn {
       });
       streamRef.current = stream;
 
-      // Get Deepgram API key
       const apiKey = await getDeepgramToken();
 
-      // Open WebSocket to Deepgram
       const wsUrl = new URL('wss://api.deepgram.com/v1/listen');
       wsUrl.searchParams.set('model', 'nova-2');
       wsUrl.searchParams.set('punctuate', 'true');
@@ -80,25 +120,24 @@ export function useVoiceInput(): UseVoiceInputReturn {
       const ws = new WebSocket(wsUrl.toString(), ['token', apiKey]);
       wsRef.current = ws;
 
-      let accumulated = '';
-
       ws.onopen = () => {
         setIsRecording(true);
+        recordingStartRef.current = Date.now();
+        lastSpeechRef.current = Date.now();
 
         // Create AudioContext and processor to capture PCM audio
         const audioContext = new AudioContext({ sampleRate: 16000 });
         contextRef.current = audioContext;
 
         const source = audioContext.createMediaStreamSource(stream);
-        // Use ScriptProcessorNode (deprecated but widely supported)
         // Buffer size 4096 gives ~256ms chunks at 16kHz
         const processor = audioContext.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
 
         processor.onaudioprocess = (e: AudioProcessingEvent) => {
           if (ws.readyState !== WebSocket.OPEN) return;
+          if (pausedRef.current) return;
           const float32 = e.inputBuffer.getChannelData(0);
-          // Convert float32 to int16
           const int16 = new Int16Array(float32.length);
           for (let i = 0; i < float32.length; i++) {
             const s = Math.max(-1, Math.min(1, float32[i]));
@@ -109,15 +148,24 @@ export function useVoiceInput(): UseVoiceInputReturn {
 
         source.connect(processor);
         processor.connect(audioContext.destination);
+
+        // Safety watcher: activates after warmup, then disconnects on sustained silence
+        silenceTimerRef.current = setInterval(() => {
+          const now = Date.now();
+          const connectedFor = now - recordingStartRef.current;
+          const silentFor = now - lastSpeechRef.current;
+          if (connectedFor > silenceWarmupMs && silentFor > silenceGraceMs) {
+            cleanup();
+            options?.onSilenceTimeout?.();
+          }
+        }, 5_000);
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data as string) as {
             type?: string;
-            channel?: {
-              alternatives?: Array<{ transcript?: string }>;
-            };
+            channel?: { alternatives?: Array<{ transcript?: string }> };
             is_final?: boolean;
           };
 
@@ -126,12 +174,14 @@ export function useVoiceInput(): UseVoiceInputReturn {
             const text = alt.transcript || '';
 
             if (data.is_final && text.trim()) {
-              accumulated += (accumulated ? ' ' : '') + text.trim();
-              setFinalTranscript(accumulated);
-              setTranscript(accumulated);
+              accumulatedRef.current += (accumulatedRef.current ? ' ' : '') + text.trim();
+              lastSpeechRef.current = Date.now();
+              // Updating state triggers AiChatPanel's debounce effect
+              setFinalTranscript(accumulatedRef.current);
+              setTranscript(accumulatedRef.current);
             } else if (text.trim()) {
               // Interim result — show accumulated + current interim
-              setTranscript(accumulated + (accumulated ? ' ' : '') + text.trim());
+              setTranscript(accumulatedRef.current + (accumulatedRef.current ? ' ' : '') + text.trim());
             }
           }
         } catch {
@@ -155,15 +205,17 @@ export function useVoiceInput(): UseVoiceInputReturn {
       }
       cleanup();
     }
-  }, [cleanup]);
+  }, [cleanup, silenceWarmupMs, silenceGraceMs, options]);
 
   const stopRecording = useCallback(() => {
-    // Send close frame to Deepgram before cleanup
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'CloseStream' }));
     }
     cleanup();
   }, [cleanup]);
+
+  const pauseSending = useCallback(() => { pausedRef.current = true; }, []);
+  const resumeSending = useCallback(() => { pausedRef.current = false; }, []);
 
   return {
     isRecording,
@@ -171,6 +223,9 @@ export function useVoiceInput(): UseVoiceInputReturn {
     finalTranscript,
     startRecording,
     stopRecording,
+    resetTranscript,
+    pauseSending,
+    resumeSending,
     error,
   };
 }

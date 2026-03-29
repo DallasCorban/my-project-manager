@@ -124,6 +124,8 @@ export function useSentenceTTS(): UseSentenceTTSReturn {
 
   const feedToken = useCallback(
     (token: string) => {
+      // Reset cancelled flag when a new stream starts feeding tokens
+      cancelledRef.current = false;
       bufferRef.current += token;
 
       // Check for sentence boundaries
@@ -166,13 +168,13 @@ export function useSentenceTTS(): UseSentenceTTSReturn {
     }
     abortControllersRef.current = [];
 
-    // Clear state
+    // Clear state — but keep cancelledRef TRUE so the async playLoop
+    // sees it and exits. It gets reset in feedToken when a new stream starts.
     bufferRef.current = '';
     queueRef.current = [];
     inflightRef.current = 0;
     finishedRef.current = false;
     playingRef.current = false;
-    cancelledRef.current = false;
     previousTextRef.current = '';
     setIsSpeaking(false);
   }, []);

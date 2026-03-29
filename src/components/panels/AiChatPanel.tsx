@@ -29,18 +29,33 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
     sendMessage, clearChat,
   } = useAiChat(project);
   const memory = useAiMemory(project?.id ?? null, project?.workspaceId ?? null);
-  const voice = useVoiceInput();
-  const tts = useVoiceOutput();
-  const sentenceTTS = useSentenceTTS();
-  const qualityMode = useUIStore((s) => s.voiceQualityMode);
-  const toggleQualityMode = useUIStore((s) => s.toggleVoiceQualityMode);
 
   const [input, setInput] = useState('');
   const [showMemory, setShowMemory] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
+  const [silenceMsg, setSilenceMsg] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Refs for conversational auto-submit (avoids stale closures entirely)
+  const isLoadingRef = useRef(isLoading);
+  const pendingTextRef = useRef('');
+  const lastTranscriptChangeRef = useRef(0);
+  const hasFinalSinceSubmitRef = useRef(false);
+  const endsWithSentenceRef = useRef(false);
+  const sendFnRef = useRef<(text: string) => void>(() => {});
+  // Generation counter: increments on every submit/cancel so stale stream
+  // callbacks (feedToken, flush) from a previous response become no-ops
+  const submitGenRef = useRef(0);
+
+  const voiceOptions = useRef({
+    onSilenceTimeout: () => setSilenceMsg('Mic closed due to inactivity.'),
+  }).current;
+  const voice = useVoiceInput(voiceOptions);
+  const tts = useVoiceOutput();
+  const sentenceTTS = useSentenceTTS();
+  const qualityMode = useUIStore((s) => s.voiceQualityMode);
+  const toggleQualityMode = useUIStore((s) => s.toggleVoiceQualityMode);
 
   // Auto-scroll to bottom on new messages or streaming content
   useEffect(() => {
@@ -52,12 +67,59 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
     inputRef.current?.focus();
   }, []);
 
-  // Update input field with live transcription
+  // Update input field with live transcription + track for auto-submit
   useEffect(() => {
     if (voice.isRecording && voice.transcript) {
       setInput(voice.transcript);
+      pendingTextRef.current = voice.transcript;
+      lastTranscriptChangeRef.current = Date.now();
+      // If user starts speaking while TTS is playing, cancel TTS immediately
+      // and invalidate stale stream callbacks to prevent double playback
+      if (sentenceTTS.isSpeaking || tts.isSpeaking) {
+        submitGenRef.current++;
+        sentenceTTS.cancel();
+        tts.stop();
+      }
     }
-  }, [voice.isRecording, voice.transcript]);
+  }, [voice.isRecording, voice.transcript, sentenceTTS, tts]);
+
+  // Track when Deepgram confirms a sentence is complete (is_final: true)
+  // and whether it ends with sentence punctuation for adaptive timeout
+  useEffect(() => {
+    if (voice.isRecording && voice.finalTranscript) {
+      hasFinalSinceSubmitRef.current = true;
+      const trimmed = voice.finalTranscript.trim();
+      endsWithSentenceRef.current = /[.!?]$/.test(trimmed);
+    }
+  }, [voice.isRecording, voice.finalTranscript]);
+
+  // Keep refs in sync so the polling interval always reads fresh values
+  useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
+  useEffect(() => {
+    sendFnRef.current = (text: string) => {
+      if (!text || isLoading) return;
+      // Increment generation so any in-flight stream callbacks from
+      // a previous response become no-ops (prevents double TTS)
+      const gen = ++submitGenRef.current;
+      voice.resetTranscript();
+      setInput('');
+      sentenceTTS.cancel();
+      tts.stop();
+      if (tts.isMuted) {
+        void sendMessage(text);
+      } else if (qualityMode) {
+        void sendMessage(text, undefined, undefined, (resp) => {
+          if (submitGenRef.current === gen) void tts.speak(resp);
+        });
+      } else {
+        void sendMessage(
+          text,
+          (token) => { if (submitGenRef.current === gen) sentenceTTS.feedToken(token); },
+          () => { if (submitGenRef.current === gen) sentenceTTS.flush(); },
+        );
+      }
+    };
+  }, [isLoading, sendMessage, tts, sentenceTTS, qualityMode, voice]);
 
   // Cancel TTS if muted mid-stream
   useEffect(() => {
@@ -66,7 +128,39 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
     }
   }, [tts.isMuted, sentenceTTS]);
 
+  // Conversational auto-submit: poll while recording.
+  // Only submits when Deepgram has confirmed a sentence (is_final) AND
+  // enough silence has passed. Adaptive timeout:
+  //   - 1.5s if transcript ends with . ! ? (confident sentence boundary)
+  //   - 3.5s otherwise (safe for thinking pauses mid-thought)
+  useEffect(() => {
+    if (!voice.isRecording) return;
+
+    const interval = setInterval(() => {
+      const text = pendingTextRef.current.trim();
+      if (!text || !hasFinalSinceSubmitRef.current) return;
+      const elapsed = Date.now() - lastTranscriptChangeRef.current;
+      const timeout = endsWithSentenceRef.current ? 1500 : 3500;
+      if (elapsed >= timeout && !isLoadingRef.current) {
+        pendingTextRef.current = '';
+        lastTranscriptChangeRef.current = 0;
+        hasFinalSinceSubmitRef.current = false;
+        endsWithSentenceRef.current = false;
+        sendFnRef.current(text);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [voice.isRecording]);
+
+  // Note: echo suppression removed — browser's echoCancellation: true handles it.
+  // Pausing audio sends caused Deepgram to close the WebSocket due to inactivity.
+
   const handleSend = useCallback(async () => {
+    // Clear pending auto-submit so it doesn't double-fire
+    pendingTextRef.current = '';
+    lastTranscriptChangeRef.current = 0;
+    hasFinalSinceSubmitRef.current = false;
     if (voice.isRecording) {
       voice.stopRecording();
     }
@@ -75,7 +169,8 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
     if (!text || isLoading) return;
     setInput('');
 
-    // Cancel any ongoing TTS before new message
+    // Cancel any ongoing TTS and invalidate stale stream callbacks
+    submitGenRef.current++;
     sentenceTTS.cancel();
     tts.stop();
 
@@ -105,6 +200,10 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
 
   const handleMicToggle = () => {
     if (voice.isRecording) {
+      // Clear pending auto-submit so the interval doesn't also fire
+      pendingTextRef.current = '';
+      lastTranscriptChangeRef.current = 0;
+      hasFinalSinceSubmitRef.current = false;
       voice.stopRecording();
       setTimeout(() => {
         const text = input.trim();
@@ -328,6 +427,18 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Silence timeout banner */}
+          {silenceMsg && (
+            <div className={`mx-4 mb-2 px-3 py-2 rounded-lg text-xs flex items-center justify-between ${
+              darkMode ? 'bg-yellow-500/10 text-yellow-400' : 'bg-yellow-50 text-yellow-600'
+            }`}>
+              <span>{silenceMsg}</span>
+              <button onClick={() => setSilenceMsg(null)} className="ml-2 opacity-60 hover:opacity-100">
+                <X size={12} />
+              </button>
+            </div>
+          )}
+
           {/* Input area */}
           <div
             className={`px-4 py-3 border-t shrink-0 ${
@@ -381,10 +492,9 @@ export function AiChatPanel({ project, onClose }: AiChatPanelProps) {
                 }}
               />
 
-              {/* Mic button */}
+              {/* Mic button — not disabled during loading so conversational mode keeps working */}
               <button
                 onClick={handleMicToggle}
-                disabled={isLoading}
                 className={`p-1.5 rounded-lg transition-all shrink-0 ${
                   voice.isRecording
                     ? 'bg-red-500 text-white animate-pulse'
