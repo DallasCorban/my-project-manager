@@ -29,7 +29,15 @@ VITE_TTS_URL
 VITE_INGEST_TRANSCRIPT_URL
 ```
 
-These are set in Vercel for production. For local dev, copy them from the main project's `.env` or ask the user.
+These are set in Vercel for production. For local dev, pull them from Vercel:
+
+**At the start of any session in a worktree**, check if `.env.local` exists. If not, run:
+```bash
+npx vercel env pull .env.local
+```
+This pulls the latest env vars from Vercel. The Vercel CLI is already installed and the project is linked.
+
+If the user mentions they've updated env vars, re-run the pull command to get the latest.
 
 ## Key Architecture Notes
 
