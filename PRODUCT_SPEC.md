@@ -3,7 +3,7 @@
 > Living document. Describes how every feature is meant to behave.
 > If you have this document and no code, you should be able to infer how everything works and plan implementation for any new feature.
 
-**Last updated:** 2026-03-19
+**Last updated:** 2026-03-29
 
 ---
 
@@ -370,8 +370,77 @@ All three-dot menus follow the same pattern:
 
 ---
 
+## AI Assistant
+
+A collapsible right-side panel (`AiChatPanel`) that provides a voice-first AI assistant with full project context.
+
+### Text Chat
+
+- Opens from the header bar (sparkle icon)
+- Standard chat interface: user messages (purple bubbles), assistant messages (gray bubbles)
+- Streaming responses via SSE — tokens appear one-by-one as they arrive
+- Model badge on each response shows whether Haiku or Sonnet was used
+- Board context is sent with each message (project name, task counts, status breakdown)
+- Chat history persisted to Firestore per board
+
+### Model Routing
+
+- **Auto mode (default):** Simple queries route to Haiku (faster, cheaper), complex queries to Sonnet
+- **Force Sonnet toggle:** Lightning bolt icon in header forces all queries to Sonnet
+- Heuristic pre-check: keywords like create/add/update/delete skip the classifier and go straight to Sonnet
+
+### Voice Input (Deepgram STT)
+
+- Mic button in the input area activates voice input
+- Real-time streaming transcription via WebSocket to Deepgram Nova-2
+- Audio: mono, 16kHz, echo cancellation + noise suppression enabled
+- Live transcription appears in the input field as the user speaks
+
+### Conversational Mode (Always-On Mic)
+
+Press mic once to start — the mic stays open for a natural back-and-forth conversation. No need to press buttons between exchanges.
+
+**Auto-submit with adaptive timing:**
+- Deepgram's `is_final` results are tracked to detect when a sentence/phrase is confirmed
+- When the user pauses after a confirmed sentence:
+  - If transcript ends with `.` `!` `?` (high confidence sentence boundary) — 1.5 second timeout before auto-submitting
+  - Otherwise (user may be thinking mid-thought) — 3.5 second timeout
+- New speech (interim results from Deepgram) cancels any pending submit timer
+- After auto-submitting, the transcript resets and the mic stays open for the next utterance
+
+**Manual stop:** Pressing the mic button while recording stops recording and sends whatever is in the input field (push-to-talk fallback).
+
+**Safety timeout:** After 2 minutes of being connected, if 30 seconds of silence is detected, the mic auto-disconnects and a yellow dismissible banner appears: "Mic closed due to inactivity." Submitting a message resets the silence timer (listening to the AI counts as activity).
+
+### Voice Output (ElevenLabs TTS)
+
+Two playback modes, toggled via Fast/HD button in the panel header:
+
+- **Fast mode (default):** Sentence-level TTS. Streaming tokens are buffered into sentences, each sentence is sent to ElevenLabs concurrently (max 3 in-flight), and audio plays sequentially. First audio arrives in ~1-2 seconds. Uses `previous_text` parameter for prosody continuity.
+- **HD mode:** Waits for the full response, then sends the entire text to ElevenLabs in one call. Better voice quality but ~5-8 second wait.
+- **Mute toggle:** Speaker icon mutes/unmutes voice output. Persisted to localStorage.
+
+**Interruption handling:** When the user starts speaking while TTS is playing, TTS is immediately cancelled. A generation counter ensures stale streaming callbacks (from the interrupted response) cannot restart audio playback.
+
+### AI Memory
+
+- Brain icon in the header toggles the memory viewer
+- Badge shows total fact count
+- Memory stored per-board in Firestore: project facts, workspace facts, user facts
+- AI can save/recall facts via tool calls during conversation
+
+### Transcript Upload
+
+- File icon in the input area opens a file picker (.txt, .srt, .vtt)
+- Uploaded transcript is processed to extract structured facts
+- Facts are presented to the AI for saving to project memory
+
+---
+
 ## Deployment
 
 - Hosted via existing hosting setup (auto-deploys from `main` branch)
 - Firestore rules deployed separately
 - Firebase project: `project-managment-app-53a4a`
+- Cloud Functions (Firebase, Node.js 20): `chat`, `chatStream`, `deepgramToken`, `tts`, `ingestTranscript`
+- Environment variables for AI endpoints set in Vercel (VITE_AI_CHAT_URL, VITE_AI_CHAT_STREAM_URL, VITE_DEEPGRAM_TOKEN_URL, VITE_TTS_URL, VITE_INGEST_TRANSCRIPT_URL)
