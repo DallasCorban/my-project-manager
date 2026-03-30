@@ -6,7 +6,11 @@
  */
 import * as admin from "firebase-admin";
 import Anthropic from "@anthropic-ai/sdk";
-import { buildSystemPrompt, type MemoryContext, type MemoryFact } from "./systemPrompt";
+import {
+  buildSystemPrompt,
+  type MemoryContext, type MemoryFact,
+  type BriefsContext, type ItemContextPayload,
+} from "./systemPrompt";
 import { toolDefinitions, executeTool } from "./tools";
 
 const MAX_TOOL_ROUNDS = 10;
@@ -157,6 +161,78 @@ async function loadMemoryContext(
 }
 
 /**
+ * Load briefs-based context (new system) from Firestore.
+ */
+async function loadBriefsContext(
+  uid: string,
+  projectId?: string,
+  workspaceId?: string,
+): Promise<BriefsContext> {
+  const context: BriefsContext = {
+    projectBrief: null,
+    teamBrief: null,
+    userBrief: null,
+    itemBrief: null,
+  };
+
+  const promises: Promise<void>[] = [];
+
+  // Project brief
+  if (projectId) {
+    promises.push(
+      db()
+        .collection("projects")
+        .doc(projectId)
+        .collection("aiMemory")
+        .doc("brief")
+        .get()
+        .then((snap) => {
+          if (snap.exists) {
+            context.projectBrief = (snap.data() as ProjectBriefDoc)?.content || null;
+          }
+        })
+        .catch(() => {}),
+    );
+  }
+
+  // Team brief
+  if (workspaceId) {
+    promises.push(
+      db()
+        .collection("workspaceMemory")
+        .doc(workspaceId)
+        .get()
+        .then((snap) => {
+          if (snap.exists) {
+            const data = snap.data();
+            context.teamBrief = (data?.content as string) || null;
+          }
+        })
+        .catch(() => {}),
+    );
+  }
+
+  // User brief
+  promises.push(
+    db()
+      .collection("users")
+      .doc(uid)
+      .collection("aiMemory")
+      .doc("brief")
+      .get()
+      .then((snap) => {
+        if (snap.exists) {
+          context.userBrief = (snap.data() as ProjectBriefDoc)?.content || null;
+        }
+      })
+      .catch(() => {}),
+  );
+
+  await Promise.all(promises);
+  return context;
+}
+
+/**
  * Run the agent loop (non-streaming): send conversation to Claude, execute
  * any tool calls, feed results back, and repeat until we get a text response.
  */
@@ -166,7 +242,8 @@ export async function runAgent(
   uid: string,
   userEmail: string,
   apiKey: string,
-  boardContext?: Record<string, unknown>
+  boardContext?: Record<string, unknown>,
+  itemContext?: ItemContextPayload,
 ): Promise<AgentResult> {
   const client = new Anthropic({ apiKey });
 
@@ -181,7 +258,8 @@ export async function runAgent(
   const projectId = boardContext?.id as string | undefined;
   const workspaceId = boardContext?.workspaceId as string | undefined;
   const memoryContext = await loadMemoryContext(uid, projectId, workspaceId);
-  const systemPrompt = buildSystemPrompt(userEmail, boardContext, memoryContext);
+  const briefsContext = await loadBriefsContext(uid, projectId, workspaceId);
+  const systemPrompt = buildSystemPrompt(userEmail, boardContext, memoryContext, briefsContext, itemContext);
   const allToolCalls: AgentResult["toolCalls"] = [];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -261,7 +339,8 @@ export async function runAgentStreaming(
   boardContext: Record<string, unknown> | undefined,
   onToken: (text: string) => void,
   onToolCall: (name: string) => void,
-  modelOverride?: string
+  modelOverride?: string,
+  itemContext?: ItemContextPayload,
 ): Promise<AgentResult> {
   const client = new Anthropic({ apiKey });
   const model = modelOverride === "haiku" ? HAIKU_MODEL : SONNET_MODEL;
@@ -277,7 +356,8 @@ export async function runAgentStreaming(
   const projectId = boardContext?.id as string | undefined;
   const workspaceId = boardContext?.workspaceId as string | undefined;
   const memoryContext = await loadMemoryContext(uid, projectId, workspaceId);
-  const systemPrompt = buildSystemPrompt(userEmail, boardContext, memoryContext);
+  const briefsContext = await loadBriefsContext(uid, projectId, workspaceId);
+  const systemPrompt = buildSystemPrompt(userEmail, boardContext, memoryContext, briefsContext, itemContext);
   const allToolCalls: AgentResult["toolCalls"] = [];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {

@@ -40,6 +40,7 @@ export async function sendChatMessage(
   message: string,
   conversationHistory: ChatMessage[],
   boardContext?: BoardContext,
+  itemContext?: Record<string, unknown>,
 ): Promise<ChatResponse> {
   const user = auth?.currentUser;
   if (!user) throw new Error('Not authenticated');
@@ -48,17 +49,20 @@ export async function sendChatMessage(
   const chatUrl = import.meta.env.VITE_AI_CHAT_URL;
   if (!chatUrl) throw new Error('VITE_AI_CHAT_URL not configured');
 
+  const body: Record<string, unknown> = {
+    message,
+    conversationHistory,
+    boardContext,
+  };
+  if (itemContext) body.itemContext = itemContext;
+
   const res = await fetch(chatUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${idToken}`,
     },
-    body: JSON.stringify({
-      message,
-      conversationHistory,
-      boardContext,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -86,6 +90,7 @@ export async function streamChatMessage(
   boardContext: BoardContext | undefined,
   forceSonnet: boolean,
   callbacks: StreamCallbacks,
+  itemContext?: Record<string, unknown>,
 ): Promise<ChatResponse> {
   const user = auth?.currentUser;
   if (!user) throw new Error('Not authenticated');
@@ -95,8 +100,16 @@ export async function streamChatMessage(
 
   // Fall back to non-streaming if stream URL not configured
   if (!streamUrl) {
-    return sendChatMessage(message, conversationHistory, boardContext);
+    return sendChatMessage(message, conversationHistory, boardContext, itemContext);
   }
+
+  const body: Record<string, unknown> = {
+    message,
+    conversationHistory,
+    boardContext,
+    forceSonnet,
+  };
+  if (itemContext) body.itemContext = itemContext;
 
   const res = await fetch(streamUrl, {
     method: 'POST',
@@ -104,12 +117,7 @@ export async function streamChatMessage(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${idToken}`,
     },
-    body: JSON.stringify({
-      message,
-      conversationHistory,
-      boardContext,
-      forceSonnet,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {

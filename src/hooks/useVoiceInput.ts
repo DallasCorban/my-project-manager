@@ -1,6 +1,6 @@
 // useVoiceInput — Deepgram real-time streaming STT via WebSocket.
 // Captures microphone audio, streams to Deepgram Nova-2, returns live transcription.
-// Conversational mode: AiChatPanel watches finalTranscript and handles auto-submit.
+// Conversational mode: AiChatCore watches finalTranscript and handles auto-submit.
 
 import { useState, useCallback, useRef } from 'react';
 import { getDeepgramToken } from '../services/ai/voiceService';
@@ -74,7 +74,6 @@ export function useVoiceInput(options?: UseVoiceInputOptions): UseVoiceInputRetu
     setIsRecording(false);
   }, []);
 
-  /** Clear accumulated text and transcript state — for use after auto-submit */
   /** Clear accumulated text and transcript state — for use after auto-submit.
    *  Also resets the silence timer since submitting a message counts as activity. */
   const resetTranscript = useCallback(() => {
@@ -176,7 +175,7 @@ export function useVoiceInput(options?: UseVoiceInputOptions): UseVoiceInputRetu
             if (data.is_final && text.trim()) {
               accumulatedRef.current += (accumulatedRef.current ? ' ' : '') + text.trim();
               lastSpeechRef.current = Date.now();
-              // Updating state triggers AiChatPanel's debounce effect
+              // Updating state triggers AiChatCore's auto-submit polling
               setFinalTranscript(accumulatedRef.current);
               setTranscript(accumulatedRef.current);
             } else if (text.trim()) {

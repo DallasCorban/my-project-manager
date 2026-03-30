@@ -451,6 +451,74 @@ export const toolDefinitions: ToolDefinition[] = [
       required: [],
     },
   },
+  // ── Brief tools (new system) ──────────────────────────────────────
+  {
+    name: "update_item_brief",
+    description:
+      "Update the brief for a specific item (task, deliverable, or project item). Briefs are living summaries shown to users and used as AI context. Write for human readability. When updating a child item, also propagate significant changes to parent briefs.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "The project ID.",
+        },
+        task_id: {
+          type: "string",
+          description: "The top-level task ID.",
+        },
+        subitem_id: {
+          type: "string",
+          description: "Optional subitem ID (for deliverable-level items).",
+        },
+        sub_subitem_id: {
+          type: "string",
+          description: "Optional sub-subitem ID (for task-level items).",
+        },
+        content: {
+          type: "string",
+          description:
+            "The brief content in markdown. Should be a concise, human-readable summary of the item.",
+        },
+      },
+      required: ["project_id", "task_id", "content"],
+    },
+  },
+  {
+    name: "update_team_brief",
+    description:
+      "Update the team/workspace brief. This captures team-wide knowledge: processes, standards, roles, tools, fiscal year, delivery formats, etc. Shared across all projects in the workspace.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        workspace_id: {
+          type: "string",
+          description: "The workspace ID.",
+        },
+        content: {
+          type: "string",
+          description: "The team brief content in markdown.",
+        },
+      },
+      required: ["workspace_id", "content"],
+    },
+  },
+  {
+    name: "update_user_brief",
+    description:
+      "Update the user's personal brief. Captures communication preferences, working style, role, and domain expertise. Used to tailor AI responses to this specific user.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        content: {
+          type: "string",
+          description:
+            "The user brief content in markdown. Include role, preferences, communication style, domain knowledge.",
+        },
+      },
+      required: ["content"],
+    },
+  },
 ];
 
 // ─── Tool Execution ─────────────────────────────────────────────────
@@ -490,6 +558,12 @@ export async function executeTool(
       return compactMemory(input, uid);
     case "update_user_preferences":
       return updateUserPreferences(input, uid);
+    case "update_item_brief":
+      return updateItemBrief(input, uid);
+    case "update_team_brief":
+      return updateTeamBrief(input, uid);
+    case "update_user_brief":
+      return updateUserBrief(input, uid);
     default:
       return JSON.stringify({ error: `Unknown tool: ${toolName}` });
   }
@@ -1065,5 +1139,85 @@ async function updateUserPreferences(input: ToolInput, uid: string): Promise<str
   return JSON.stringify({
     success: true,
     message: "User preferences updated.",
+  });
+}
+
+// ─── Brief Tool Implementations ─────────────────────────────────
+
+async function updateItemBrief(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const taskId = input.task_id as string;
+  const subitemId = input.subitem_id as string | undefined;
+  const subSubitemId = input.sub_subitem_id as string | undefined;
+  const content = input.content as string;
+
+  await requireEditPermission(projectId, uid);
+
+  // Build composite ID: taskId or taskId__subitemId or taskId__subitemId__subSubitemId
+  let compositeId = taskId;
+  if (subitemId) compositeId += `__${subitemId}`;
+  if (subSubitemId) compositeId += `__${subSubitemId}`;
+
+  const ref = db()
+    .collection("projects")
+    .doc(projectId)
+    .collection("itemBriefs")
+    .doc(compositeId);
+
+  await ref.set({
+    content,
+    updatedAt: new Date().toISOString(),
+    updatedBy: "ai",
+  });
+
+  return JSON.stringify({
+    success: true,
+    message: `Item brief updated for ${compositeId}.`,
+  });
+}
+
+async function updateTeamBrief(input: ToolInput, _uid: string): Promise<string> {
+  const workspaceId = input.workspace_id as string;
+  const content = input.content as string;
+
+  if (!workspaceId) {
+    return JSON.stringify({ error: "workspace_id is required." });
+  }
+
+  const ref = db().collection("workspaceMemory").doc(workspaceId);
+
+  await ref.set(
+    {
+      content,
+      updatedAt: new Date().toISOString(),
+      updatedBy: "ai",
+    },
+    { merge: true },
+  );
+
+  return JSON.stringify({
+    success: true,
+    message: "Team brief updated.",
+  });
+}
+
+async function updateUserBrief(input: ToolInput, uid: string): Promise<string> {
+  const content = input.content as string;
+
+  const ref = db()
+    .collection("users")
+    .doc(uid)
+    .collection("aiMemory")
+    .doc("brief");
+
+  await ref.set({
+    content,
+    updatedAt: new Date().toISOString(),
+    updatedBy: "ai",
+  });
+
+  return JSON.stringify({
+    success: true,
+    message: "User brief updated.",
   });
 }

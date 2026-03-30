@@ -40,7 +40,7 @@ export const chat = onRequest(
     const user = await verifyAuth(req, res);
     if (!user) return; // 401 already sent
 
-    const { message, conversationHistory = [], boardContext } = req.body;
+    const { message, conversationHistory = [], boardContext, itemContext } = req.body;
 
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "Missing or invalid 'message' field." });
@@ -51,6 +51,8 @@ export const chat = onRequest(
       // Sanitize boardContext — only pass if it's a valid object
       const sanitizedBoardContext =
         boardContext && typeof boardContext === "object" ? boardContext : undefined;
+      const sanitizedItemContext =
+        itemContext && typeof itemContext === "object" ? itemContext : undefined;
 
       const result = await runAgent(
         conversationHistory,
@@ -58,7 +60,8 @@ export const chat = onRequest(
         user.uid,
         user.email || "unknown",
         anthropicApiKey.value(),
-        sanitizedBoardContext
+        sanitizedBoardContext,
+        sanitizedItemContext,
       );
 
       res.status(200).json({
@@ -107,6 +110,7 @@ export const chatStream = onRequest(
       conversationHistory = [],
       boardContext,
       forceSonnet = false,
+      itemContext,
     } = req.body;
 
     if (!message || typeof message !== "string") {
@@ -127,6 +131,8 @@ export const chatStream = onRequest(
     try {
       const sanitizedBoardContext =
         boardContext && typeof boardContext === "object" ? boardContext : undefined;
+      const sanitizedItemContext =
+        itemContext && typeof itemContext === "object" ? itemContext : undefined;
 
       // --- Model routing ---
       let modelChoice: "haiku" | "sonnet" = "sonnet";
@@ -154,7 +160,8 @@ export const chatStream = onRequest(
           sanitizedBoardContext,
           (token) => sendSSE({ type: "token", text: token }),
           (toolName) => sendSSE({ type: "tool", name: toolName }),
-          model
+          model,
+          sanitizedItemContext,
         );
 
       let result;
@@ -328,6 +335,181 @@ Only extract genuinely important information. Skip small talk, greetings, and tr
       res.status(500).json({ error: errMsg || "Failed to process transcript." });
     }
   }
+);
+
+/**
+ * POST /api/digestFile
+ *
+ * Extracts content from an uploaded file for AI context.
+ * - Audio (mp3, wav, m4a, etc.): Deepgram pre-recorded API with speaker diarization
+ * - PDF: text extraction via pdf-parse
+ * - TXT/MD/CSV: read as UTF-8
+ *
+ * Results are written to projects/{projectId}/fileDigests/{fileId} in Firestore.
+ *
+ * Body: { fileId, projectId, storagePath, fileType }
+ */
+export const digestFile = onRequest(
+  {
+    secrets: [deepgramApiKey],
+    cors: true,
+    timeoutSeconds: 300, // 5 min for large audio files
+    memory: "1GiB",
+    region: "us-central1",
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    const user = await verifyAuth(req, res);
+    if (!user) return;
+
+    const { fileId, projectId, storagePath, fileType } = req.body;
+
+    if (!fileId || !projectId || !storagePath) {
+      res.status(400).json({ error: "Missing required fields: fileId, projectId, storagePath" });
+      return;
+    }
+
+    const firestore = admin.firestore();
+    const digestRef = firestore
+      .collection("projects")
+      .doc(projectId)
+      .collection("fileDigests")
+      .doc(fileId);
+
+    try {
+      // Update status to processing
+      await digestRef.set(
+        { fileId, enabled: true, status: "processing" },
+        { merge: true },
+      );
+
+      const mimeType = (fileType || "").toLowerCase();
+      let extractedText = "";
+      let speakerLabels: Record<string, string> | undefined;
+
+      if (mimeType.startsWith("audio/")) {
+        // ── Audio: Deepgram pre-recorded API ──
+        const bucket = admin.storage().bucket();
+        const file = bucket.file(storagePath);
+        const [buffer] = await file.download();
+
+        const dgResponse = await fetch(
+          "https://api.deepgram.com/v1/listen?model=nova-2&diarize=true&smart_format=true&punctuate=true",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Token ${deepgramApiKey.value()}`,
+              "Content-Type": mimeType,
+            },
+            body: new Uint8Array(buffer),
+          },
+        );
+
+        if (!dgResponse.ok) {
+          const errText = await dgResponse.text();
+          throw new Error(`Deepgram error (${dgResponse.status}): ${errText}`);
+        }
+
+        const dgResult = (await dgResponse.json()) as {
+          results?: {
+            channels?: Array<{
+              alternatives?: Array<{
+                paragraphs?: {
+                  paragraphs?: Array<{
+                    speaker?: number;
+                    sentences?: Array<{ text?: string }>;
+                  }>;
+                };
+              }>;
+            }>;
+          };
+        };
+
+        // Build transcript with speaker labels
+        const paragraphs =
+          dgResult.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs || [];
+        const lines: string[] = [];
+        const speakerSet = new Set<number>();
+
+        for (const para of paragraphs) {
+          const speaker = para.speaker ?? 0;
+          speakerSet.add(speaker);
+          const sentences = (para.sentences || []).map((s) => s.text || "").join(" ");
+          if (sentences.trim()) {
+            lines.push(`[Speaker ${speaker}]: ${sentences.trim()}`);
+          }
+        }
+
+        extractedText = lines.join("\n\n");
+
+        // Initialize speaker labels
+        speakerLabels = {};
+        for (const s of speakerSet) {
+          speakerLabels[`Speaker ${s}`] = `Speaker ${s}`;
+        }
+      } else if (mimeType === "application/pdf") {
+        // ── PDF: text extraction ──
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const pdfParse = require("pdf-parse") as (buffer: Buffer) => Promise<{ text: string }>;
+        const bucket = admin.storage().bucket();
+        const file = bucket.file(storagePath);
+        const [buffer] = await file.download();
+        const data = await pdfParse(buffer);
+        extractedText = data.text;
+      } else if (
+        mimeType.startsWith("text/") ||
+        mimeType === "application/json" ||
+        mimeType === "text/csv" ||
+        mimeType === "text/markdown"
+      ) {
+        // ── Text files: read as UTF-8 ──
+        const bucket = admin.storage().bucket();
+        const file = bucket.file(storagePath);
+        const [buffer] = await file.download();
+        extractedText = buffer.toString("utf-8");
+      } else {
+        // Unsupported
+        await digestRef.set(
+          {
+            fileId,
+            enabled: true,
+            status: "error",
+            error: `Unsupported file type: ${mimeType}. Supported: audio/*, application/pdf, text/*`,
+          },
+          { merge: true },
+        );
+        res.status(200).json({ success: false, error: "Unsupported file type" });
+        return;
+      }
+
+      // Write result
+      await digestRef.set({
+        fileId,
+        enabled: true,
+        status: "done",
+        extractedText,
+        speakerLabels: speakerLabels || null,
+        extractedAt: new Date().toISOString(),
+      });
+
+      res.status(200).json({ success: true, textLength: extractedText.length });
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("File digest error:", errMsg);
+
+      // Update Firestore with error
+      await digestRef.set(
+        { fileId, enabled: true, status: "error", error: errMsg },
+        { merge: true },
+      ).catch(() => {});
+
+      res.status(500).json({ error: errMsg });
+    }
+  },
 );
 
 /**

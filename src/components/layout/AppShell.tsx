@@ -631,6 +631,10 @@ export function AppShell() {
             files={files}
             permissions={effectivePerms}
             onClose={closeUpdatesPanel}
+            project={activeProject}
+            taskId={taskId}
+            subitemId={subitemId}
+            subSubitemId={subSubitemId}
             onAddUpdate={(payload) => {
               const update = {
                 id: `u${Date.now()}`,

@@ -1,7 +1,7 @@
 // UpdatesPanel — professional slide-over panel for task updates and files.
 // Rich-text composer (contenteditable) with formatting toolbar, inspired by Monday.com.
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   X,
   MessageSquare,
@@ -24,12 +24,22 @@ import {
   Download,
   LayoutGrid,
   LayoutList,
+  Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { generateAvatarColor, getInitials } from '../../utils/avatar';
+import { useAiBriefs } from '../../hooks/useAiBriefs';
+import { useFileDigests, type FileDigest } from '../../hooks/useFileDigests';
+import { useItemAiChat } from '../../hooks/useItemAiChat';
+import { BriefViewer } from './BriefViewer';
+import { ItemAiChat } from './ItemAiChat';
+import { SpeakerLabelEditor } from './SpeakerLabelEditor';
 import type { Update, Reply, ChecklistItem } from '../../types/item';
 import type { ProjectFile } from '../../types/file';
 import type { MemberPermissions } from '../../types/member';
+import type { Board } from '../../types/board';
+import type { DigestedFile, HierarchyBrief } from '../../types/itemContext';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -45,6 +55,11 @@ interface UpdatesPanelProps {
   onAddReply: (updateId: string, text: string) => void;
   onToggleChecklistItem: (updateId: string, itemId: string) => void;
   onUploadFile?: (file: File, onProgress: (pct: number) => void) => Promise<void>;
+  // New props for Brief + AI tabs
+  project?: Board | null;
+  taskId?: string;
+  subitemId?: string | null;
+  subSubitemId?: string | null;
 }
 
 interface UploadTask {
@@ -101,9 +116,80 @@ export function UpdatesPanel({
   onAddReply,
   onToggleChecklistItem,
   onUploadFile,
+  project,
+  taskId: taskIdProp,
+  subitemId: subitemIdProp,
+  subSubitemId: subSubitemIdProp,
 }: UpdatesPanelProps) {
   const darkMode = useUIStore((s) => s.darkMode);
-  const [activeTab, setActiveTab] = useState<'updates' | 'files'>('updates');
+  const [activeTab, setActiveTab] = useState<'brief' | 'updates' | 'files' | 'ai'>('updates');
+
+  // Brief and digest hooks (only when project context is available)
+  const projectId = project?.id ?? null;
+  const fileDigests = useFileDigests(projectId);
+  const briefs = useAiBriefs(
+    projectId,
+    project?.workspaceId ?? null,
+    taskIdProp ?? null,
+    subitemIdProp ?? null,
+    subSubitemIdProp ?? null,
+  );
+
+  // Build digested files from file digests that are enabled and done
+  const digestedFiles: DigestedFile[] = useMemo(() => {
+    return files
+      .filter((f) => {
+        const digest = fileDigests.digests[f.id];
+        return digest?.enabled && digest?.status === 'done' && digest?.extractedText;
+      })
+      .map((f) => {
+        const digest = fileDigests.digests[f.id];
+        return {
+          fileId: f.id,
+          fileName: f.name,
+          fileType: f.type || 'unknown',
+          extractedText: digest.extractedText!,
+          speakerLabels: digest.speakerLabels,
+        };
+      });
+  }, [files, fileDigests.digests]);
+
+  // Build hierarchy briefs for item AI context
+  const parentBriefsList = useMemo((): HierarchyBrief[] => {
+    const parents: HierarchyBrief[] = [];
+    if (briefs.projectBrief && project) {
+      parents.push({ name: project.name, type: 'project', brief: briefs.projectBrief });
+    }
+    return parents;
+  }, [briefs.projectBrief, project]);
+
+  const childrenBriefs = useMemo((): Record<string, string> => ({}), []);
+
+  const briefsCtx = useMemo(() => ({
+    currentItem: briefs.itemBrief,
+    project: briefs.projectBrief,
+    parents: parentBriefsList,
+    children: childrenBriefs,
+  }), [briefs.itemBrief, briefs.projectBrief, parentBriefsList, childrenBriefs]);
+
+  // Item-level AI chat — lifted here so Firestore listeners stay stable across tab switches
+  const itemChat = useItemAiChat({
+    project: project ?? null,
+    taskId: taskIdProp ?? null,
+    subitemId: subitemIdProp ?? null,
+    subSubitemId: subSubitemIdProp ?? null,
+    digestedFiles,
+    briefs: briefsCtx,
+  });
+
+  // Build context badge for AI tab
+  const contextParts: string[] = [];
+  if (updates.length > 0) contextParts.push(`${updates.length} update${updates.length !== 1 ? 's' : ''}`);
+  if (digestedFiles.length > 0) contextParts.push(`${digestedFiles.length} file${digestedFiles.length !== 1 ? 's' : ''} digested`);
+  if (briefs.itemBrief) contextParts.push('brief');
+  const aiContextBadge = contextParts.length > 0
+    ? `Context: ${contextParts.join(', ')}`
+    : undefined;
 
   // ── Editor state ──────────────────────────────────────────────────
   const editorRef = useRef<HTMLDivElement>(null);
@@ -315,26 +401,36 @@ export function UpdatesPanel({
 
       {/* ── Tabs ── */}
       <div className={`flex border-b shrink-0 ${darkMode ? 'border-[#323652]' : 'border-[#bec3d4]'}`}>
-        {(['updates', 'files'] as const).map((tab) => {
-          const count = tab === 'updates' ? updates.length : files.length;
+        {([
+          { key: 'brief' as const, icon: BookOpen, label: 'Brief', count: briefs.itemBrief ? 1 : 0, color: 'purple' },
+          { key: 'updates' as const, icon: MessageSquare, label: 'Updates', count: updates.length, color: 'blue' },
+          { key: 'files' as const, icon: FileText, label: 'Files', count: files.length, color: 'blue' },
+          { key: 'ai' as const, icon: Sparkles, label: 'AI', count: 0, color: 'purple' },
+        ]).map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.key;
+          const accentColor = tab.color === 'purple' ? 'purple' : 'blue';
           return (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-1.5 px-5 py-2.5 text-xs font-medium transition-colors border-b-2 ${
-                activeTab === tab
-                  ? 'border-blue-500 text-blue-400'
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium transition-colors border-b-2 ${
+                isActive
+                  ? `border-${accentColor}-500 text-${accentColor}-400`
                   : `border-transparent ${darkMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'}`
               }`}
             >
-              {tab === 'updates' ? <MessageSquare size={13} /> : <FileText size={13} />}
-              <span className="capitalize">{tab}</span>
-              {count > 0 && (
+              <Icon size={13} />
+              <span>{tab.label}</span>
+              {tab.count > 0 && tab.key !== 'brief' && (
                 <span className={`px-1.5 py-px rounded-full text-[10px] ${
-                  activeTab === tab
-                    ? 'bg-blue-500/20 text-blue-400'
+                  isActive
+                    ? `bg-${accentColor}-500/20 text-${accentColor}-400`
                     : darkMode ? 'bg-white/8 text-gray-500' : 'bg-gray-100 text-gray-500'
-                }`}>{count}</span>
+                }`}>{tab.count}</span>
+              )}
+              {tab.key === 'brief' && briefs.itemBrief && (
+                <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-purple-400' : 'bg-purple-400/50'}`} />
               )}
             </button>
           );
@@ -580,8 +676,55 @@ export function UpdatesPanel({
             onAddFiles={handleFileSelect}
             uploadTasks={uploadTasks}
             onDismissError={(id) => setUploadTasks((prev) => prev.filter((t) => t.id !== id))}
+            fileDigests={fileDigests.digests}
+            onToggleDigest={fileDigests.toggleDigest}
+            onUpdateSpeakerLabel={fileDigests.updateSpeakerLabel}
           />
         </div>
+      )}
+
+      {/* ── Brief tab ── */}
+      {activeTab === 'brief' && (
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          <BriefViewer
+            brief={briefs.itemBrief}
+            onUpdate={briefs.updateItemBrief}
+            darkMode={darkMode}
+            label="Item Brief"
+            emptyMessage="No brief yet. Chat with the AI about this item to auto-generate a summary."
+          />
+          {briefs.projectBrief && (
+            <BriefViewer
+              brief={briefs.projectBrief}
+              onUpdate={briefs.updateProjectBrief}
+              darkMode={darkMode}
+              label="Project Brief"
+            />
+          )}
+          {briefs.teamBrief && (
+            <BriefViewer
+              brief={briefs.teamBrief}
+              onUpdate={briefs.updateTeamBrief}
+              darkMode={darkMode}
+              label="Team Knowledge"
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── AI tab ── */}
+      {activeTab === 'ai' && project && taskIdProp && (
+        <ItemAiChat
+          messages={itemChat.messages}
+          isLoading={itemChat.isLoading}
+          error={itemChat.error}
+          forceSonnet={itemChat.forceSonnet}
+          onSetForceSonnet={itemChat.setForceSonnet}
+          onSendMessage={itemChat.sendMessage}
+          onClearChat={itemChat.clearChat}
+          itemName={taskName}
+          contextBadge={aiContextBadge}
+        />
       )}
 
       {/* Hidden file input */}
@@ -745,6 +888,9 @@ function FilesList({
   onAddFiles,
   uploadTasks = [],
   onDismissError,
+  fileDigests = {},
+  onToggleDigest,
+  onUpdateSpeakerLabel,
 }: {
   files: ProjectFile[];
   canUpload: boolean;
@@ -752,6 +898,9 @@ function FilesList({
   onAddFiles?: () => void;
   uploadTasks?: UploadTask[];
   onDismissError?: (id: string) => void;
+  fileDigests?: Record<string, FileDigest>;
+  onToggleDigest?: (file: ProjectFile) => Promise<void>;
+  onUpdateSpeakerLabel?: (fileId: string, speakerKey: string, newName: string) => Promise<void>;
 }) {
   const [viewMode, setViewMode] = useState<'list' | 'gallery'>('list');
 
@@ -899,26 +1048,83 @@ function FilesList({
                   ].filter(Boolean).join(' · ')}
                 </p>
               </div>
-              {/* Action buttons — visible on hover */}
-              {file.url && (
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                  <button
-                    onClick={() => handleDownload(file.url!, file.name)}
-                    title="Download"
-                    className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'text-gray-500 hover:text-gray-200 hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
-                  >
-                    <Download size={14} />
-                  </button>
-                  <a
-                    href={file.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Open"
-                    className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'text-gray-500 hover:text-blue-400 hover:bg-blue-500/10' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}
-                  >
-                    <ImageIcon size={14} />
-                  </a>
-                </div>
+              {/* Digest toggle + action buttons */}
+              <div className="flex items-center gap-1 shrink-0">
+                {/* AI Digest toggle */}
+                {onToggleDigest && (() => {
+                  const digest = fileDigests?.[file.id];
+                  const isEnabled = digest?.enabled;
+                  const isProcessing = digest?.status === 'processing' || digest?.status === 'pending';
+                  const isDone = digest?.status === 'done';
+                  const isError = digest?.status === 'error';
+                  return (
+                    <button
+                      onClick={() => void onToggleDigest(file)}
+                      title={
+                        isProcessing ? 'Processing...' :
+                        isDone ? 'AI can see this file (click to disable)' :
+                        isError ? `Error: ${digest?.error || 'extraction failed'} (click to retry)` :
+                        'Allow AI to digest this file'
+                      }
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        isProcessing
+                          ? 'text-amber-400 animate-pulse'
+                          : isDone
+                            ? 'bg-purple-500/20 text-purple-400'
+                            : isError
+                              ? 'text-red-400 hover:bg-red-500/10'
+                              : isEnabled
+                                ? 'bg-purple-500/10 text-purple-400'
+                                : darkMode
+                                  ? 'text-gray-600 hover:text-purple-400 hover:bg-purple-500/10 opacity-0 group-hover:opacity-100'
+                                  : 'text-gray-300 hover:text-purple-500 hover:bg-purple-50 opacity-0 group-hover:opacity-100'
+                      }`}
+                    >
+                      {isProcessing ? (
+                        <Sparkles size={13} className="animate-spin" />
+                      ) : isDone ? (
+                        <Sparkles size={13} />
+                      ) : isError ? (
+                        <AlertCircle size={13} />
+                      ) : (
+                        <Sparkles size={13} />
+                      )}
+                    </button>
+                  );
+                })()}
+                {/* Download/Open buttons — visible on hover */}
+                {file.url && (
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleDownload(file.url!, file.name)}
+                      title="Download"
+                      className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'text-gray-500 hover:text-gray-200 hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      <Download size={14} />
+                    </button>
+                    <a
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open"
+                      className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'text-gray-500 hover:text-blue-400 hover:bg-blue-500/10' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                    >
+                      <ImageIcon size={14} />
+                    </a>
+                  </div>
+                )}
+              </div>
+              {/* Speaker label editor for completed audio transcripts */}
+              {fileDigests?.[file.id]?.status === 'done' &&
+               fileDigests[file.id].extractedText &&
+               typeof file.type === 'string' && file.type.startsWith('audio/') &&
+               onUpdateSpeakerLabel && (
+                <SpeakerLabelEditor
+                  speakerLabels={fileDigests[file.id].speakerLabels || {}}
+                  extractedText={fileDigests[file.id].extractedText!}
+                  onUpdateLabel={(key, name) => void onUpdateSpeakerLabel(file.id, key, name)}
+                  darkMode={darkMode}
+                />
               )}
             </div>
           ))}
