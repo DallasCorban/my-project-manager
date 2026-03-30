@@ -254,6 +254,25 @@ service cloud.firestore {
       allow read, write: if canReadProject(projectId);
     }
 
+    // Item-level AI chat (per-item conversation history)
+    match /projects/{projectId}/itemChats/{chatId} {
+      allow read, write: if canReadProject(projectId);
+    }
+
+    // Item-level briefs (AI-generated summaries per task/deliverable/project item)
+    match /projects/{projectId}/itemBriefs/{briefId} {
+      allow read: if canReadProject(projectId);
+      allow write: if hasProjectRole(projectId, "contributor")
+        || canManageMembers(projectId);
+    }
+
+    // File digests (opt-in content extraction for AI context)
+    match /projects/{projectId}/fileDigests/{digestId} {
+      allow read: if canReadProject(projectId);
+      allow write: if hasProjectRole(projectId, "contributor")
+        || canManageMembers(projectId);
+    }
+
     // AI Memory — project-level facts and brief (persists across chat clears)
     match /projects/{projectId}/aiMemory/{memoryId} {
       allow read: if canReadProject(projectId);

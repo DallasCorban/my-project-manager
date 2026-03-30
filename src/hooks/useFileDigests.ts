@@ -1,9 +1,12 @@
 // useFileDigests — manages opt-in file content extraction for AI context.
 // Each file can be toggled to "digest" — extracting text content (PDF, audio, etc.)
 // and making it available to the AI in the item context.
+//
+// Uses a one-time fetch + local state updates instead of a collection listener
+// to avoid Firestore INTERNAL ASSERTION errors from rapid snapshot changes.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuthStore } from '../stores/authStore';
 import { requestFileDigest } from '../services/ai/fileDigestService';
@@ -23,6 +26,8 @@ export interface UseFileDigestsReturn {
   digests: Record<string, FileDigest>;
   toggleDigest: (file: ProjectFile) => Promise<void>;
   updateSpeakerLabel: (fileId: string, speakerKey: string, newName: string) => Promise<void>;
+  /** Re-fetch digests from Firestore (e.g., after returning to the tab) */
+  refresh: () => Promise<void>;
 }
 
 export function useFileDigests(projectId: string | null): UseFileDigestsReturn {
@@ -32,15 +37,15 @@ export function useFileDigests(projectId: string | null): UseFileDigestsReturn {
 
   useEffect(() => () => { mountedRef.current = false; }, []);
 
-  // Subscribe to fileDigests collection
-  useEffect(() => {
+  // One-time fetch on mount / projectId change
+  const fetchDigests = useCallback(async () => {
     if (!projectId || !db) {
       setDigests({});
       return;
     }
-
-    const colRef = collection(db, 'projects', projectId, 'fileDigests');
-    return onSnapshot(colRef, (snapshot) => {
+    try {
+      const colRef = collection(db, 'projects', projectId, 'fileDigests');
+      const snapshot = await getDocs(colRef);
       if (!mountedRef.current) return;
       const updated: Record<string, FileDigest> = {};
       snapshot.forEach((docSnap) => {
@@ -48,8 +53,28 @@ export function useFileDigests(projectId: string | null): UseFileDigestsReturn {
         updated[data.fileId] = data;
       });
       setDigests(updated);
-    }, () => setDigests({}));
+    } catch (err) {
+      console.warn('Failed to fetch file digests:', err);
+    }
   }, [projectId]);
+
+  useEffect(() => {
+    void fetchDigests();
+  }, [fetchDigests]);
+
+  // Poll for processing digests to check if they've completed
+  useEffect(() => {
+    const hasProcessing = Object.values(digests).some(
+      (d) => d.status === 'pending' || d.status === 'processing',
+    );
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => {
+      void fetchDigests();
+    }, 5_000);
+
+    return () => clearInterval(interval);
+  }, [digests, fetchDigests]);
 
   const toggleDigest = useCallback(async (file: ProjectFile) => {
     if (!projectId || !db || !user) return;
@@ -60,7 +85,13 @@ export function useFileDigests(projectId: string | null): UseFileDigestsReturn {
     const ref = doc(db, 'projects', projectId, 'fileDigests', file.id);
 
     if (newEnabled) {
-      // Enable and trigger extraction
+      // Optimistically update local state
+      setDigests((prev) => ({
+        ...prev,
+        [file.id]: { fileId: file.id, enabled: true, status: 'pending' },
+      }));
+
+      // Write to Firestore
       await setDoc(ref, {
         fileId: file.id,
         enabled: true,
@@ -77,14 +108,20 @@ export function useFileDigests(projectId: string | null): UseFileDigestsReturn {
         );
       } catch (err) {
         console.error('File digest request failed:', err);
-        // Update status to error
-        await updateDoc(ref, {
-          status: 'error',
-          error: err instanceof Error ? err.message : 'Unknown error',
-        });
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        // Update local state and Firestore with error
+        setDigests((prev) => ({
+          ...prev,
+          [file.id]: { fileId: file.id, enabled: true, status: 'error', error: errorMsg },
+        }));
+        await updateDoc(ref, { status: 'error', error: errorMsg }).catch(() => {});
       }
     } else {
-      // Disable
+      // Disable — update local state and Firestore
+      setDigests((prev) => ({
+        ...prev,
+        [file.id]: { fileId: file.id, enabled: false, status: 'pending' },
+      }));
       await setDoc(ref, {
         fileId: file.id,
         enabled: false,
@@ -104,9 +141,17 @@ export function useFileDigests(projectId: string | null): UseFileDigestsReturn {
     if (!existing) return;
 
     const labels = { ...(existing.speakerLabels || {}), [speakerKey]: newName };
+
+    // Update local state
+    setDigests((prev) => ({
+      ...prev,
+      [fileId]: { ...prev[fileId], speakerLabels: labels },
+    }));
+
+    // Update Firestore
     const ref = doc(db, 'projects', projectId, 'fileDigests', fileId);
     await updateDoc(ref, { speakerLabels: labels });
   }, [projectId, digests]);
 
-  return { digests, toggleDigest, updateSpeakerLabel };
+  return { digests, toggleDigest, updateSpeakerLabel, refresh: fetchDigests };
 }
