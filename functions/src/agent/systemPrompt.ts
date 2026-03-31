@@ -221,8 +221,9 @@ export function buildSystemPrompt(
   };
 
   // --- Block 1: dynamic context ---
-  const today = new Date().toLocaleDateString("en-US", {
+  const today = new Date().toLocaleDateString("en-AU", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
+    timeZone: "Australia/Sydney",
   });
   let dynamicText = `## Current Date\nToday is ${today}.\n\n## Current User\n- Email: ${userEmail}\n`;
 
