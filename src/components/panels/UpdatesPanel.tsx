@@ -126,7 +126,8 @@ export function UpdatesPanel({
 
   // Brief and digest hooks (only when project context is available)
   const projectId = project?.id ?? null;
-  const fileDigests = useFileDigests(projectId);
+  const fileIds = useMemo(() => files.map((f) => f.id), [files]);
+  const fileDigests = useFileDigests(projectId, fileIds);
   const briefs = useAiBriefs(
     projectId,
     project?.workspaceId ?? null,
@@ -720,7 +721,11 @@ export function UpdatesPanel({
           error={itemChat.error}
           forceSonnet={itemChat.forceSonnet}
           onSetForceSonnet={itemChat.setForceSonnet}
-          onSendMessage={itemChat.sendMessage}
+          onSendMessage={async (text, onStreamToken, onStreamDone, onComplete) => {
+            await itemChat.sendMessage(text, onStreamToken, onStreamDone, onComplete);
+            // Re-fetch briefs after AI responds (it may have updated them)
+            void briefs.refresh();
+          }}
           onClearChat={itemChat.clearChat}
           itemName={taskName}
           contextBadge={aiContextBadge}
@@ -1052,7 +1057,7 @@ function FilesList({
               <div className="flex items-center gap-1 shrink-0">
                 {/* AI Digest toggle */}
                 {onToggleDigest && (() => {
-                  const digest = fileDigests?.[file.id];
+                  const digest = fileDigests[file.id];
                   const isEnabled = digest?.enabled;
                   const isProcessing = digest?.status === 'processing' || digest?.status === 'pending';
                   const isDone = digest?.status === 'done';

@@ -37,7 +37,7 @@ export function ItemAiChat({
   const darkMode = useUIStore((s) => s.darkMode);
 
   return (
-    <div className={`flex flex-col h-full ${
+    <div className={`flex flex-col flex-1 min-h-0 overflow-hidden ${
       darkMode ? 'bg-[#1c213e] text-gray-200' : 'bg-white text-gray-800'
     }`}>
       <AiChatCore

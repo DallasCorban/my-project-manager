@@ -139,6 +139,7 @@ export function useAiBriefs(
 
   // Fetch on mount and when deps change
   useEffect(() => {
+    mountedRef.current = true; // Reset on re-mount (React strict mode)
     void fetchBriefs();
   }, [fetchBriefs]);
 
