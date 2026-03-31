@@ -233,6 +233,58 @@ async function loadBriefsContext(
 }
 
 /**
+ * Load item briefs for all non-done tasks in the project.
+ * Used by board-level AI to have visibility into item-level context.
+ */
+async function loadActiveItemBriefs(
+  boardContext?: Record<string, unknown>,
+  projectId?: string,
+): Promise<BriefsContext["activeItemBriefs"]> {
+  if (!projectId || !boardContext) return undefined;
+
+  const tasks = boardContext.tasks as Array<{
+    id: string; name: string; status: string;
+  }> | undefined;
+  if (!tasks || tasks.length === 0) return undefined;
+
+  // Filter to non-done tasks
+  const activeTasks = tasks.filter((t) => t.status !== "done");
+  if (activeTasks.length === 0) return undefined;
+
+  // Fetch item briefs for active tasks (use task ID as composite ID for top-level items)
+  const briefResults = await Promise.all(
+    activeTasks.map(async (task) => {
+      try {
+        const snap = await db()
+          .collection("projects")
+          .doc(projectId)
+          .collection("itemBriefs")
+          .doc(task.id)
+          .get();
+        if (snap.exists) {
+          const content = (snap.data() as { content?: string })?.content;
+          if (content) {
+            return { taskId: task.id, name: task.name, status: task.status, brief: content };
+          }
+        }
+      } catch {
+        // Skip items we can't read
+      }
+      return null;
+    }),
+  );
+
+  // Also fetch briefs for subitems (deliverables/tasks under top-level items)
+  // by querying all itemBriefs docs that start with the task ID
+  // For now, only fetch top-level item briefs to keep it fast
+
+  const briefs = briefResults.filter(
+    (b): b is NonNullable<typeof b> => b !== null,
+  );
+  return briefs.length > 0 ? briefs : undefined;
+}
+
+/**
  * Run the agent loop (non-streaming): send conversation to Claude, execute
  * any tool calls, feed results back, and repeat until we get a text response.
  */
@@ -259,6 +311,12 @@ export async function runAgent(
   const workspaceId = boardContext?.workspaceId as string | undefined;
   const memoryContext = await loadMemoryContext(uid, projectId, workspaceId);
   const briefsContext = await loadBriefsContext(uid, projectId, workspaceId);
+
+  // For board-level chat (no itemContext), load active item briefs
+  if (!itemContext) {
+    briefsContext.activeItemBriefs = await loadActiveItemBriefs(boardContext, projectId);
+  }
+
   const systemPrompt = buildSystemPrompt(userEmail, boardContext, memoryContext, briefsContext, itemContext);
   const allToolCalls: AgentResult["toolCalls"] = [];
 
@@ -357,6 +415,12 @@ export async function runAgentStreaming(
   const workspaceId = boardContext?.workspaceId as string | undefined;
   const memoryContext = await loadMemoryContext(uid, projectId, workspaceId);
   const briefsContext = await loadBriefsContext(uid, projectId, workspaceId);
+
+  // For board-level chat (no itemContext), load active item briefs
+  if (!itemContext) {
+    briefsContext.activeItemBriefs = await loadActiveItemBriefs(boardContext, projectId);
+  }
+
   const systemPrompt = buildSystemPrompt(userEmail, boardContext, memoryContext, briefsContext, itemContext);
   const allToolCalls: AgentResult["toolCalls"] = [];
 

@@ -53,6 +53,8 @@ export interface BriefsContext {
   userBrief: string | null;
   /** Item-level brief (only present in item-scoped conversations). */
   itemBrief: string | null;
+  /** Briefs for all active (non-done) items — used in board-level AI. */
+  activeItemBriefs?: Array<{ taskId: string; name: string; status: string; brief: string }>;
 }
 
 export interface ItemContextPayload {
@@ -247,6 +249,19 @@ ${briefsContext.teamBrief || "(No team brief yet — save team processes, standa
 
 ### How to Work With This User
 ${briefsContext.userBrief || "(No user brief yet — save communication preferences and working style here.)"}`;
+
+    // Active item briefs (board-level AI only — gives visibility into non-done items)
+    if (briefsContext.activeItemBriefs && briefsContext.activeItemBriefs.length > 0) {
+      dynamicText += `
+
+### Item Briefs (Active Items)
+These are summaries of active items in this project. Use them to answer questions about specific tasks or deliverables without needing to drill into item details.
+
+`;
+      for (const ib of briefsContext.activeItemBriefs) {
+        dynamicText += `**${ib.name}** (${ib.status}):\n${ib.brief}\n\n`;
+      }
+    }
   }
 
   // Legacy facts-based context (backward compat — will be removed after migration)
