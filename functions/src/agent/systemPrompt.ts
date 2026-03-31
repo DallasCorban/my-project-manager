@@ -221,7 +221,10 @@ export function buildSystemPrompt(
   };
 
   // --- Block 1: dynamic context ---
-  let dynamicText = `## Current User\n- Email: ${userEmail}\n`;
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+  let dynamicText = `## Current Date\nToday is ${today}.\n\n## Current User\n- Email: ${userEmail}\n`;
 
   if (boardContext) {
     dynamicText += `
