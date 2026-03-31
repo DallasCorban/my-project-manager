@@ -54,9 +54,21 @@ interface BoardState {
       id: string;
       name: string;
       status: string;
+      jobTypeId?: string;
+      itemTypeId?: string;
       assignees: string[];
       start: string | null;
       duration: number | null;
+      subitems?: Array<{
+        id: string;
+        name: string;
+        status: string;
+        jobTypeId?: string;
+        itemTypeId?: string;
+        assignees: string[];
+        start: string | null;
+        duration: number | null;
+      }>;
     }>;
     updates?: Array<{
       id: string;
@@ -202,6 +214,79 @@ export const toolDefinitions: ToolDefinition[] = [
         },
       },
       required: ["project_id", "group_id", "name"],
+    },
+  },
+  {
+    name: "create_subitem",
+    description:
+      "Create a subitem (deliverable or task) under an existing top-level task. Use this to add deliverables or tasks nested under a project item.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "The project ID." },
+        task_id: { type: "string", description: "The parent task ID to add the subitem under." },
+        name: { type: "string", description: "The subitem name." },
+        status: {
+          type: "string",
+          description: "Status. Default: 'pending'.",
+          enum: ["done", "working", "stuck", "pending", "review"],
+        },
+        job_type: {
+          type: "string",
+          description: "Job type ID. Optional.",
+          enum: ["design", "dev", "marketing", "planning", "research"],
+        },
+        item_type: {
+          type: "string",
+          description: "Item type. Optional.",
+          enum: ["project", "deliverable", "task"],
+        },
+        assignees: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of user UIDs to assign.",
+        },
+        start_date: { type: "string", description: "Start date in YYYY-MM-DD format." },
+        duration: { type: "number", description: "Duration in days." },
+      },
+      required: ["project_id", "task_id", "name"],
+    },
+  },
+  {
+    name: "create_sub_subitem",
+    description:
+      "Create a sub-subitem (task) under an existing subitem. Use this for the deepest nesting level — tasks within deliverables.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "The project ID." },
+        task_id: { type: "string", description: "The top-level task ID." },
+        subitem_id: { type: "string", description: "The parent subitem ID to add the sub-subitem under." },
+        name: { type: "string", description: "The sub-subitem name." },
+        status: {
+          type: "string",
+          description: "Status. Default: 'pending'.",
+          enum: ["done", "working", "stuck", "pending", "review"],
+        },
+        job_type: {
+          type: "string",
+          description: "Job type ID. Optional.",
+          enum: ["design", "dev", "marketing", "planning", "research"],
+        },
+        item_type: {
+          type: "string",
+          description: "Item type. Optional.",
+          enum: ["project", "deliverable", "task"],
+        },
+        assignees: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of user UIDs to assign.",
+        },
+        start_date: { type: "string", description: "Start date in YYYY-MM-DD format." },
+        duration: { type: "number", description: "Duration in days." },
+      },
+      required: ["project_id", "task_id", "subitem_id", "name"],
     },
   },
   {
@@ -540,6 +625,10 @@ export async function executeTool(
       return getProjectSummary(input, uid);
     case "create_task":
       return createTask(input, uid);
+    case "create_subitem":
+      return createSubitem(input, uid);
+    case "create_sub_subitem":
+      return createSubSubitem(input, uid);
     case "update_task":
       return updateTask(input, uid);
     case "get_overdue_items":
@@ -737,6 +826,88 @@ async function createTask(input: ToolInput, uid: string): Promise<string> {
     success: true,
     task: { id: taskId, name: newTask.name },
     message: `Created task "${newTask.name}" in the project.`,
+  });
+}
+
+async function createSubitem(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const taskId = input.task_id as string;
+  await requireEditPermission(projectId, uid);
+
+  const hybridRef = getHybridRef(uid);
+  const subitemId = `s${Date.now()}`;
+  const newSubitem = {
+    id: subitemId,
+    name: input.name as string,
+    status: (input.status as string) || "pending",
+    jobTypeId: (input.job_type as string) || "",
+    itemTypeId: (input.item_type as string) || "",
+    assignees: (input.assignees as string[]) || [],
+    start: (input.start_date as string) || null,
+    duration: (input.duration as number) || null,
+    subitems: [],
+    updates: [],
+    files: [],
+  };
+
+  await db().runTransaction(async (txn) => {
+    const snap = await txn.get(hybridRef);
+    if (!snap.exists) throw new Error("User project data not found");
+    const projects = JSON.parse((snap.data() as { value: string }).value) as BoardState[];
+    const pIdx = projects.findIndex((p) => p.id === projectId);
+    if (pIdx === -1) throw new Error(`Project ${projectId} not found`);
+    const task = (projects[pIdx].tasks || []).find((t) => t.id === taskId);
+    if (!task) throw new Error(`Task ${taskId} not found`);
+    task.subitems = [...(task.subitems || []), newSubitem];
+    txn.update(hybridRef, { value: JSON.stringify(projects) });
+  });
+
+  return JSON.stringify({
+    success: true,
+    subitem: { id: subitemId, name: newSubitem.name, parentTaskId: taskId },
+    message: `Created subitem "${newSubitem.name}" under task "${taskId}".`,
+  });
+}
+
+async function createSubSubitem(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const taskId = input.task_id as string;
+  const subitemId = input.subitem_id as string;
+  await requireEditPermission(projectId, uid);
+
+  const hybridRef = getHybridRef(uid);
+  const subSubitemId = `ss${Date.now()}`;
+  const newSubSubitem = {
+    id: subSubitemId,
+    name: input.name as string,
+    status: (input.status as string) || "pending",
+    jobTypeId: (input.job_type as string) || "",
+    itemTypeId: (input.item_type as string) || "",
+    assignees: (input.assignees as string[]) || [],
+    start: (input.start_date as string) || null,
+    duration: (input.duration as number) || null,
+    updates: [],
+    files: [],
+  };
+
+  await db().runTransaction(async (txn) => {
+    const snap = await txn.get(hybridRef);
+    if (!snap.exists) throw new Error("User project data not found");
+    const projects = JSON.parse((snap.data() as { value: string }).value) as BoardState[];
+    const pIdx = projects.findIndex((p) => p.id === projectId);
+    if (pIdx === -1) throw new Error(`Project ${projectId} not found`);
+    const task = (projects[pIdx].tasks || []).find((t) => t.id === taskId);
+    if (!task) throw new Error(`Task ${taskId} not found`);
+    const subitem = (task.subitems || []).find((s: { id: string }) => s.id === subitemId);
+    if (!subitem) throw new Error(`Subitem ${subitemId} not found`);
+    subitem.subitems = [...(subitem.subitems || []), newSubSubitem];
+    txn.update(hybridRef, { value: JSON.stringify(projects) });
+  });
+
+  return JSON.stringify({
+    success: true,
+    subSubitem: { id: subSubitemId, name: newSubSubitem.name, parentSubitemId: subitemId },
+    message: `Created sub-subitem "${newSubSubitem.name}" under subitem "${subitemId}".`,
   });
 }
 
