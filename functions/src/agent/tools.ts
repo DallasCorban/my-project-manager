@@ -536,6 +536,26 @@ export const toolDefinitions: ToolDefinition[] = [
       required: [],
     },
   },
+  // ── Drill-down tools ───────────────────────────────────────────────
+  {
+    name: "get_digested_file",
+    description:
+      "Retrieve the full extracted text content of a digested file (transcript, PDF text, etc.). Use this when you need to access detailed content from an uploaded file — for example, to answer questions about what was discussed in a meeting recording or find specific information in a document. The item context shows available digested files with their names and sizes.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "The project ID.",
+        },
+        file_id: {
+          type: "string",
+          description: "The file ID to retrieve content for.",
+        },
+      },
+      required: ["project_id", "file_id"],
+    },
+  },
   // ── Brief tools (new system) ──────────────────────────────────────
   {
     name: "update_item_brief",
@@ -647,6 +667,8 @@ export async function executeTool(
       return compactMemory(input, uid);
     case "update_user_preferences":
       return updateUserPreferences(input, uid);
+    case "get_digested_file":
+      return getDigestedFile(input, uid);
     case "update_item_brief":
       return updateItemBrief(input, uid);
     case "update_team_brief":
@@ -1310,6 +1332,56 @@ async function updateUserPreferences(input: ToolInput, uid: string): Promise<str
   return JSON.stringify({
     success: true,
     message: "User preferences updated.",
+  });
+}
+
+// ─── Drill-Down Tool Implementations ────────────────────────────
+
+async function getDigestedFile(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const fileId = input.file_id as string;
+
+  const perms = await getProjectPermissions(db(), projectId, uid);
+  if (!perms || !perms.canView) {
+    return JSON.stringify({ error: "You don't have access to this project." });
+  }
+
+  const snap = await db()
+    .collection("projects")
+    .doc(projectId)
+    .collection("fileDigests")
+    .doc(fileId)
+    .get();
+
+  if (!snap.exists) {
+    return JSON.stringify({ error: `No digest found for file ${fileId}.` });
+  }
+
+  const data = snap.data() as {
+    fileId: string;
+    status: string;
+    extractedText?: string;
+    speakerLabels?: Record<string, string>;
+  };
+
+  if (data.status !== "done" || !data.extractedText) {
+    return JSON.stringify({
+      error: `File digest is not ready (status: ${data.status}).`,
+    });
+  }
+
+  // Apply speaker labels to the transcript
+  let text = data.extractedText;
+  if (data.speakerLabels) {
+    for (const [key, name] of Object.entries(data.speakerLabels)) {
+      text = text.replace(new RegExp(`\\[${key}\\]`, "g"), `[${name}]`);
+    }
+  }
+
+  return JSON.stringify({
+    fileId: data.fileId,
+    textLength: text.length,
+    content: text,
   });
 }
 

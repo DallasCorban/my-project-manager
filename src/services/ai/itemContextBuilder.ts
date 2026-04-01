@@ -89,9 +89,19 @@ export function buildItemContext(params: BuildParams): ItemContext {
   const currentUpdates = mapUpdates(targetItem.updates);
   const currentSubitems: ItemSummary[] = getSubitems(targetItem);
 
-  // Calculate current item size
-  const currentSize = updatesSize(currentUpdates) +
-    digestedFiles.reduce((s, f) => s + f.extractedText.length, 0);
+  // Digested files: only include metadata (name, type) — NOT the full extracted text.
+  // The AI can use the get_digested_file tool to drill into specific files on demand.
+  // This prevents 40K+ character transcripts from bloating every request.
+  const digestedFileSummaries: DigestedFile[] = digestedFiles.map((f) => ({
+    fileId: f.fileId,
+    fileName: f.fileName,
+    fileType: f.fileType,
+    extractedText: `[${f.extractedText.length.toLocaleString()} characters — use get_digested_file tool to access full content]`,
+    speakerLabels: f.speakerLabels,
+  }));
+
+  // Calculate current item size (without full transcript text)
+  const currentSize = updatesSize(currentUpdates);
 
   // Remaining budget for hierarchy context
   let remainingBudget = CONTEXT_BUDGET - currentSize;
@@ -99,9 +109,7 @@ export function buildItemContext(params: BuildParams): ItemContext {
   // If current item alone exceeds budget, truncate to most recent updates
   let finalUpdates = currentUpdates;
   if (currentSize > CONTEXT_BUDGET) {
-    // Keep most recent updates that fit, plus leave room for digested files
-    const fileSize = digestedFiles.reduce((s, f) => s + f.extractedText.length, 0);
-    const updateBudget = CONTEXT_BUDGET - fileSize - 2000; // 2K margin for metadata
+    const updateBudget = CONTEXT_BUDGET - 2000; // 2K margin for metadata
     let accumulated = 0;
     const truncated: ItemUpdate[] = [];
     // Most recent first
@@ -172,7 +180,7 @@ export function buildItemContext(params: BuildParams): ItemContext {
     start: targetItem.start,
     duration: targetItem.duration,
     updates: finalUpdates,
-    digestedFiles,
+    digestedFiles: digestedFileSummaries,
     subitems: currentSubitems,
     parentBriefs: briefs.parents,
     childrenContext,
