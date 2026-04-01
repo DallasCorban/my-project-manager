@@ -189,7 +189,12 @@ export function useVoiceInput(options?: UseVoiceInputOptions): UseVoiceInputRetu
       };
 
       ws.onerror = () => {
-        setError('Voice connection error. Please try again.');
+        if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.CLOSED) {
+          // WebSocket never reached OPEN — likely blocked by a corporate firewall/proxy (e.g. Zscaler)
+          setError('Could not connect to voice service. If you\'re on a corporate network (VPN/firewall), the connection may be blocked — try on a personal network.');
+        } else {
+          setError('Voice connection error. Please try again.');
+        }
         cleanup();
       };
 
