@@ -72,3 +72,24 @@
 - Worktree `.env` files don't copy automatically. Cloud Function URLs (VITE_DEEPGRAM_TOKEN_URL, etc.) were only in Vercel, not in local `.env`. Always verify ALL required env vars are present.
 - The dev server must run FROM the worktree directory. Running from the main project directory means worktree code changes aren't reflected.
 - This caused 20+ minutes of "nothing works" debugging when the code was actually correct.
+
+## 2026-04-01 — Text Selection Bug in Updates Panel
+
+### Root Cause: Document-level `selectionchange` listener causing re-renders
+- The Updates Panel had a `document.addEventListener('selectionchange', updateFmtState)` to sync the rich-text toolbar's bold/italic/underline state.
+- This fired on **every** selection change anywhere in the document — including when the user tried to highlight text in posted update cards below the editor.
+- `updateFmtState` called `setFmtState()` (React setState), triggering a re-render that destroyed the browser's native text selection. This made it look like the selection "disappeared on mouseup."
+
+### Debugging approach
+- CSS was a red herring at first — `user-select: text` was correctly applied and `getComputedStyle` confirmed it. Programmatic selection via `document.createRange()` also worked fine.
+- `preventDefault` interception showed nothing was blocking mousedown.
+- The key insight came from attaching a `selectionchange` listener and seeing the selection was empty even mid-drag — meaning something was clearing it in real-time, not just on mouseup.
+- Tracing React props via `__reactProps` on ancestor elements didn't reveal the culprit because it was a `document.addEventListener` call, not a React prop.
+
+### Fix
+- Scoped the `selectionchange` handler: only call `setFmtState()` when `editorRef.current?.contains(sel.anchorNode)` — i.e., only when the selection is inside the contentEditable composer, not in the update feed.
+- Also optimized the picker-close mousedown handler to use `setShowColorPicker((v) => v ? false : v)` to avoid no-op state updates that cause unnecessary re-renders.
+
+### General lesson
+- **Document-level event listeners that call setState are dangerous.** They fire on interactions anywhere in the page and cause re-renders that can break unrelated UI (like native text selection). Always scope them to the relevant DOM subtree.
+- When debugging "selection disappears," check for `selectionchange` listeners first — they're the most common culprit in React apps because setState → re-render → selection cleared.

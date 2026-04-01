@@ -1384,7 +1384,7 @@ const UpdatesPanel = ({
                                                 <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{formatTime(u.createdAt)}</span>
                                             </div>
                                             {u.text && (
-                                                <div className={`mt-2 text-sm whitespace-pre-wrap ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{u.text}</div>
+                                                <div className={`mt-2 text-sm whitespace-pre-wrap select-text ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{u.text}</div>
                                             )}
                                             {u.checklist && u.checklist.length > 0 && (
                                                 <div className="mt-3 space-y-2">
@@ -1462,7 +1462,7 @@ const UpdatesPanel = ({
                                                             <span className={`text-[11px] font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{r.author || "User"}</span>
                                                             <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{formatTime(r.createdAt)}</span>
                                                         </div>
-                                                        <div className={`text-xs mt-1 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{r.text}</div>
+                                                        <div className={`text-xs mt-1 select-text ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{r.text}</div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -4515,7 +4515,7 @@ export default function ProjectManagerAI() {
 
 
   return (
-    <div className={`flex h-screen font-sans overflow-hidden select-none transition-colors duration-300 ${darkMode ? 'bg-[#181b34] text-gray-100' : 'bg-[#eceff8] text-[#323338]'}`} onClick={() => { setStatusMenuOpen(null); setSettingsMenuOpen(false); setDatePickerOpen(null); }}>
+    <div className={`flex h-screen font-sans overflow-hidden select-none transition-colors duration-300 ${darkMode ? 'bg-[#181b34] text-gray-100' : 'bg-[#eceff8] text-[#323338]'}`} onClick={() => { if (window.getSelection()?.toString()) return; setStatusMenuOpen(null); setSettingsMenuOpen(false); setDatePickerOpen(null); }}>
         <Sidebar
           darkMode={darkMode}
           workspaces={workspaces}

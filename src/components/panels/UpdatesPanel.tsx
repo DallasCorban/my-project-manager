@@ -219,14 +219,19 @@ export function UpdatesPanel({
 
   const canEdit = permissions.canEdit;
 
-  // Sync toolbar active-state on every selection change
+  // Sync toolbar active-state on every selection change inside the editor
   const updateFmtState = useCallback(() => {
-    setFmtState({
-      bold:          document.queryCommandState('bold'),
-      italic:        document.queryCommandState('italic'),
-      underline:     document.queryCommandState('underline'),
-      strikeThrough: document.queryCommandState('strikeThrough'),
-    });
+    // Only update formatting state when the selection is inside the editor,
+    // otherwise the setState re-render clears text selection in update cards.
+    const sel = document.getSelection();
+    if (sel && sel.anchorNode && editorRef.current?.contains(sel.anchorNode)) {
+      setFmtState({
+        bold:          document.queryCommandState('bold'),
+        italic:        document.queryCommandState('italic'),
+        underline:     document.queryCommandState('underline'),
+        strikeThrough: document.queryCommandState('strikeThrough'),
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -238,8 +243,10 @@ export function UpdatesPanel({
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('[data-picker]')) {
-        setShowColorPicker(false);
-        setShowSizePicker(false);
+        // Only update state if pickers are actually open, to avoid
+        // unnecessary re-renders that clear text selection in update cards.
+        setShowColorPicker((v) => v ? false : v);
+        setShowSizePicker((v) => v ? false : v);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -784,7 +791,7 @@ function UpdateCard({
         {update.text && (
           isHTML(update.text) ? (
             <div
-              className={`text-sm leading-relaxed mb-2
+              className={`text-sm leading-relaxed mb-2 select-text
                 [&_a]:text-blue-400 [&_a]:underline
                 [&_ul]:list-disc [&_ul]:ml-5 [&_ul]:mb-1
                 [&_li]:mb-0.5
@@ -795,7 +802,7 @@ function UpdateCard({
               dangerouslySetInnerHTML={{ __html: update.text }}
             />
           ) : (
-            <p className={`text-sm leading-relaxed mb-2 whitespace-pre-wrap ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            <p className={`text-sm leading-relaxed mb-2 whitespace-pre-wrap select-text ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
               {update.text}
             </p>
           )
@@ -838,7 +845,7 @@ function UpdateCard({
                       <span className={`text-[11px] font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{reply.author}</span>
                       <span className={`text-[10px] ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>{rd}</span>
                     </div>
-                    <p className={`text-xs leading-relaxed ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{reply.text}</p>
+                    <p className={`text-xs leading-relaxed select-text ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{reply.text}</p>
                   </div>
                 </div>
               );
