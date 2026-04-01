@@ -22,7 +22,7 @@ import { Trash2 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { GanttBar } from './GanttBar';
 import { normalizeDateKey } from '../../utils/date';
-import type { Item, Subitem } from '../../types/item';
+import type { Item, Subitem, SubSubitem } from '../../types/item';
 import type { DragState } from '../../types/timeline';
 import type { SettledOverride } from '../../hooks/useGanttDrag';
 
@@ -48,6 +48,7 @@ interface LaneBar {
   duration: number;
   isParent: boolean;
   subitemId: string | null;
+  subSubitemId: string | null;
   isContainer: boolean;
   /** Vertical offset in px from row center. Only nudge, never height. */
   offsetY: number;
@@ -62,8 +63,8 @@ interface GanttSubitemStackProps {
   showLabels: boolean;
   getRelativeIndex: (dateKey: string | null | undefined) => number | null;
   dayToVisualIndex: Record<number, number>;
-  getColor: (item: Item | Subitem) => string;
-  getIsContainer: (item: Item | Subitem) => boolean;
+  getColor: (item: Item | Subitem | SubSubitem) => string;
+  getIsContainer: (item: Item | Subitem | SubSubitem) => boolean;
   dragState: DragState;
   settledOverrides: Record<string, SettledOverride>;
   clearSettledOverride: (key: string) => void;
@@ -77,6 +78,7 @@ interface GanttSubitemStackProps {
     origin: 'parent' | 'expanded',
     existingStartKey: string | null,
     existingDuration: number,
+    subSubitemId?: string | null,
   ) => void;
 }
 
@@ -229,7 +231,7 @@ export function GanttSubitemStack({
   const [hoveredBarId, setHoveredBarId] = useState<string | null>(null);
 
   const lanes = useMemo(() => {
-    // Build a combined list of all renderable bars (parent + subitems)
+    // Build a combined list of all renderable bars (parent + subitems + sub-subitems)
     type RawBar = {
       id: string;
       name: string;
@@ -238,6 +240,7 @@ export function GanttSubitemStack({
       duration: number;
       isParent: boolean;
       subitemId: string | null;
+      subSubitemId: string | null;
       start: number;
       end: number;
       isContainer: boolean;
@@ -258,32 +261,59 @@ export function GanttSubitemStack({
         duration: parentDur,
         isParent: true,
         subitemId: null,
+        subSubitemId: null,
         start: parentRange.start,
         end: parentRange.end,
         isContainer: getIsContainer(parentTask),
       });
     }
 
-    // Include subitem bars with valid dates
+    // Include subitem bars and their sub-subitems with valid dates
     for (const sub of parentTask.subitems) {
-      if (!sub.start) continue;
-      const subNorm = normalizeDateKey(sub.start);
-      const subDur = Math.max(1, Number(sub.duration || 1));
-      const subRange = resolveVisualRange(subNorm, subDur, getRelativeIndex, dayToVisualIndex);
-      if (!subRange) continue;
+      // Add subitem bar if it has dates
+      if (sub.start) {
+        const subNorm = normalizeDateKey(sub.start);
+        const subDur = Math.max(1, Number(sub.duration || 1));
+        const subRange = resolveVisualRange(subNorm, subDur, getRelativeIndex, dayToVisualIndex);
+        if (subRange) {
+          rawBars.push({
+            id: sub.id,
+            name: sub.name,
+            color: getColor(sub),
+            normalizedStart: subNorm,
+            duration: subDur,
+            isParent: false,
+            subitemId: sub.id,
+            subSubitemId: null,
+            start: subRange.start,
+            end: subRange.end,
+            isContainer: getIsContainer(sub),
+          });
+        }
+      }
 
-      rawBars.push({
-        id: sub.id,
-        name: sub.name,
-        color: getColor(sub),
-        normalizedStart: subNorm,
-        duration: subDur,
-        isParent: false,
-        subitemId: sub.id,
-        start: subRange.start,
-        end: subRange.end,
-        isContainer: getIsContainer(sub),
-      });
+      // Always include sub-subitem bars (even if parent subitem has no dates)
+      for (const subSub of sub.subitems || []) {
+        if (!subSub.start) continue;
+        const ssNorm = normalizeDateKey(subSub.start);
+        const ssDur = Math.max(1, Number(subSub.duration || 1));
+        const ssRange = resolveVisualRange(ssNorm, ssDur, getRelativeIndex, dayToVisualIndex);
+        if (!ssRange) continue;
+
+        rawBars.push({
+          id: subSub.id,
+          name: subSub.name,
+          color: getColor(subSub),
+          normalizedStart: ssNorm,
+          duration: ssDur,
+          isParent: false,
+          subitemId: sub.id,
+          subSubitemId: subSub.id,
+          start: ssRange.start,
+          end: ssRange.end,
+          isContainer: false,
+        });
+      }
     }
 
     if (rawBars.length === 0) return [];
@@ -339,6 +369,7 @@ export function GanttSubitemStack({
           duration: bar.duration,
           isParent: bar.isParent,
           subitemId: bar.subitemId,
+          subSubitemId: bar.subSubitemId,
           isContainer: true,
           offsetY: 0,
         };
@@ -369,6 +400,7 @@ export function GanttSubitemStack({
         duration: bar.duration,
         isParent: bar.isParent,
         subitemId: bar.subitemId,
+        subSubitemId: bar.subSubitemId,
         isContainer: false,
         offsetY,
       };
@@ -381,6 +413,7 @@ export function GanttSubitemStack({
   const activeBarId = useMemo(() => {
     if (!dragState.isDragging || dragState.type === 'create' || !dragState.hasMoved) return null;
     // Check if the drag is for a bar in this stack
+    if (dragState.subSubitemId) return dragState.subSubitemId;
     if (dragState.subitemId) return dragState.subitemId;
     if (dragState.taskId === parentTaskId && dragState.subitemId === null) return parentTaskId;
     return null;
@@ -421,12 +454,16 @@ export function GanttSubitemStack({
             dragState.hasMoved &&
             (bar.isParent
               ? dragState.taskId === parentTaskId && dragState.subitemId === null
-              : dragState.subitemId === bar.id);
+              : bar.subSubitemId
+                ? dragState.subSubitemId === bar.subSubitemId
+                : dragState.subitemId === bar.id && !dragState.subSubitemId);
 
           // Settled override key — matches useGanttDrag format
           const settledKey = bar.isParent
             ? parentTaskId
-            : `${parentTaskId}:${bar.id}`;
+            : bar.subSubitemId
+              ? `${parentTaskId}:${bar.subitemId}:${bar.subSubitemId}`
+              : `${parentTaskId}:${bar.id}`;
           const settled = settledOverrides[settledKey];
 
           let left = isThisDragging
@@ -464,6 +501,7 @@ export function GanttSubitemStack({
                 dragState={dragState}
                 taskId={parentTaskId}
                 subitemId={bar.subitemId}
+                subSubitemId={bar.subSubitemId}
                 onHoverChange={(hovered) => handleHoverChange(bar.id, hovered)}
                 onMouseDown={(e, type) => {
                   if (!canEdit) return;
@@ -476,6 +514,7 @@ export function GanttSubitemStack({
                     'parent',
                     bar.normalizedStart,
                     bar.duration,
+                    bar.subSubitemId,
                   );
                 }}
               />

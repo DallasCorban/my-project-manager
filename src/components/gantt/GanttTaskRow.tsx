@@ -145,14 +145,14 @@ function GanttTaskRowInner({
     onOpenUpdates?.();
   };
 
-  const getTaskColor = (t: Item | Subitem): string => {
+  const getTaskColor = (t: Item | Subitem | SubSubitem): string => {
     if (colorBy === 'status') {
       return statuses.find((s) => s.id === t.status)?.color || '#c4c4c4';
     }
     return jobTypes.find((jt) => jt.id === t.jobTypeId)?.color || '#c4c4c4';
   };
 
-  const isTaskContainer = (t: Item | Subitem): boolean =>
+  const isTaskContainer = (t: Item | Subitem | SubSubitem): boolean =>
     jobTypes.find((jt) => jt.id === t.jobTypeId)?.isContainer === true;
 
   // Bar positioning calculations

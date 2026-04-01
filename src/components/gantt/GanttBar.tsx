@@ -31,6 +31,7 @@ interface GanttBarProps {
   dragState: DragState;
   taskId: string;
   subitemId: string | null;
+  subSubitemId?: string | null;
   onMouseDown: (e: React.PointerEvent, type: DragState['type']) => void;
   onDelete?: () => void;
   /** Called when hover state changes — used by stack to promote hovered bar z-order. */
@@ -58,6 +59,7 @@ export function GanttBar({
   dragState,
   taskId,
   subitemId,
+  subSubitemId = null,
   onMouseDown,
   onDelete,
   onHoverChange,
@@ -72,7 +74,8 @@ export function GanttBar({
   const isThisBarDragging =
     dragState.isDragging &&
     dragState.taskId === taskId &&
-    dragState.subitemId === subitemId;
+    dragState.subitemId === subitemId &&
+    dragState.subSubitemId === (subSubitemId ?? null);
 
   const isDeleteMode = isThisBarDragging && dragState.isDeleteMode;
 
