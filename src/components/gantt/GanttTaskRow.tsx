@@ -458,6 +458,7 @@ function GanttTaskRowInner({
           <GanttSubitemStack
             parentTask={task as Item}
             parentTaskId={task.id}
+            grandparentTaskId={depth === 1 ? parentTaskId : undefined}
             projectId={projectId}
             zoomLevel={zoomLevel}
             rowHeight={actualRowHeight}

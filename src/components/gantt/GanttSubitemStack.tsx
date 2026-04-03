@@ -57,6 +57,10 @@ interface LaneBar {
 interface GanttSubitemStackProps {
   parentTask: Item;
   parentTaskId: string;
+  /** When set, this stack is at the sub-item level (sub-sub-items collapsed onto
+   *  a sub-item row). IDs are remapped so onMouseDown receives the correct
+   *  taskId (grandparent item) / subitemId / subSubitemId. */
+  grandparentTaskId?: string;
   projectId: string;
   zoomLevel: number;
   rowHeight: number;
@@ -213,6 +217,7 @@ function computeStackOrder(
 export function GanttSubitemStack({
   parentTask,
   parentTaskId,
+  grandparentTaskId,
   projectId,
   zoomLevel,
   rowHeight,
@@ -447,23 +452,33 @@ export function GanttSubitemStack({
       {lanes
         .filter((bar) => bar.laneIndex < MAX_VISIBLE_LANES)
         .map((bar) => {
+          // Remap IDs when at the sub-item level (sub-sub-items collapsed
+          // onto a sub-item row). Without this, onMouseDown / settledKey use
+          // the sub-item ID as taskId, which doesn't exist as a top-level item
+          // and causes Firestore updates to silently fail (bar snaps back).
+          const effectiveTaskId = grandparentTaskId ?? parentTaskId;
+          const effectiveSubitemId = grandparentTaskId
+            ? parentTaskId
+            : bar.subitemId;
+          const effectiveSubSubitemId = grandparentTaskId
+            ? (bar.isParent ? null : bar.subitemId)   // bar.subitemId holds the sub-sub-item ID at this level
+            : bar.subSubitemId;
+
           // Check if this specific bar is being dragged
           const isThisDragging =
             dragState.isDragging &&
             dragState.type !== 'create' &&
             dragState.hasMoved &&
-            (bar.isParent
-              ? dragState.taskId === parentTaskId && dragState.subitemId === null
-              : bar.subSubitemId
-                ? dragState.subSubitemId === bar.subSubitemId
-                : dragState.subitemId === bar.id && !dragState.subSubitemId);
+            dragState.taskId === effectiveTaskId &&
+            dragState.subitemId === effectiveSubitemId &&
+            dragState.subSubitemId === (effectiveSubSubitemId ?? null);
 
           // Settled override key — matches useGanttDrag format
-          const settledKey = bar.isParent
-            ? parentTaskId
-            : bar.subSubitemId
-              ? `${parentTaskId}:${bar.subitemId}:${bar.subSubitemId}`
-              : `${parentTaskId}:${bar.id}`;
+          const settledKey = effectiveSubSubitemId
+            ? `${effectiveTaskId}:${effectiveSubitemId}:${effectiveSubSubitemId}`
+            : effectiveSubitemId
+              ? `${effectiveTaskId}:${effectiveSubitemId}`
+              : effectiveTaskId;
           const settled = settledOverrides[settledKey];
 
           let left = isThisDragging
@@ -499,22 +514,22 @@ export function GanttSubitemStack({
                 verticalOffsetPx={bar.offsetY}
                 isContainer={bar.isContainer}
                 dragState={dragState}
-                taskId={parentTaskId}
-                subitemId={bar.subitemId}
-                subSubitemId={bar.subSubitemId}
+                taskId={effectiveTaskId}
+                subitemId={effectiveSubitemId}
+                subSubitemId={effectiveSubSubitemId}
                 onHoverChange={(hovered) => handleHoverChange(bar.id, hovered)}
                 onMouseDown={(e, type) => {
                   if (!canEdit) return;
                   onMouseDown(
                     e,
-                    parentTaskId,
+                    effectiveTaskId,
                     projectId,
                     type,
-                    bar.subitemId,
+                    effectiveSubitemId,
                     'parent',
                     bar.normalizedStart,
                     bar.duration,
-                    bar.subSubitemId,
+                    effectiveSubSubitemId,
                   );
                 }}
               />
