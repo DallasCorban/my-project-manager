@@ -28,7 +28,7 @@ export interface BoardContext {
     start: string | null;
     duration: number | null;
     priority: string;
-    subitemCount: number;
+    subitems: Array<{ id: string; name: string; status: string }>;
   }>;
   statusBreakdown: Record<string, number>;
 }

@@ -93,3 +93,18 @@
 ### General lesson
 - **Document-level event listeners that call setState are dangerous.** They fire on interactions anywhere in the page and cause re-renders that can break unrelated UI (like native text selection). Always scope them to the relevant DOM subtree.
 - When debugging "selection disappears," check for `selectionchange` listeners first — they're the most common culprit in React apps because setState → re-render → selection cleared.
+
+## 2026-04-05 — AI Tool Overhaul
+
+### Architecture
+- **Dual data source problem**: AI creates write to `hybridRef` (user artifact doc) but reads use `projects/{id}/state/main`. New read tools (`search_items`, `get_item_details`) read from hybridRef first to find items the AI just created.
+- **Unified tools beat per-level tools**: Instead of `update_subitem` + `update_sub_subitem` + `delete_task` + `delete_subitem` + `delete_sub_subitem` (5 tools), unified `update_item` and `delete_item` that accept optional depth IDs keeps the tool count manageable and the AI model less confused.
+- **The `findItem()` helper** centralizes hierarchy navigation — taskId → subitemId → subSubitemId — reusable across update, delete, and details tools.
+
+### Key Design Decisions
+- **`bulk_create_items` with `temp_id` system**: Lets the AI create parent + children in one call by using temporary IDs that resolve to real IDs in array order. Critical for staying under the 10-tool-round limit when creating deep hierarchies.
+- **Board context: subitems array instead of subitemCount**: Gives the AI visibility into subitem names/status without needing a tool call. Token cost is ~30-50 per subitem, acceptable.
+- **Legacy memory tools removed**: 5 tools (`save_memory`, `recall_memory`, `delete_memory`, `compact_memory`, `update_user_preferences`) removed in favor of the brief system. Net tool count stayed at 17 despite adding 6 new tools.
+
+### What Prompted This
+- The AI assistant itself identified the tooling gaps after struggling to create 25 nested items (25 separate API calls, couldn't find items it created, couldn't edit subitem dates). The biggest missing capability was `update_item` for subitems — the AI literally couldn't fix a wrong date on a deliverable.

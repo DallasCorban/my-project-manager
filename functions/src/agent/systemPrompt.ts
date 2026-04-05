@@ -24,28 +24,7 @@ const JOB_TYPES = [
   { id: "research", label: "Research" },
 ];
 
-// ── Legacy types (kept for backward compatibility during migration) ──
-
-export interface MemoryFact {
-  id: string;
-  content: string;
-  category: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface MemoryContext {
-  projectFacts: MemoryFact[];
-  workspaceFacts: MemoryFact[];
-  userFacts: MemoryFact[];
-  projectBrief: string | null;
-  userPreferences: {
-    factCategories: string[];
-    workingStyle: string | null;
-  } | null;
-}
-
-// ── New briefs-based context ──
+// ── Briefs-based context ──
 
 export interface BriefsContext {
   projectBrief: string | null;
@@ -111,26 +90,6 @@ export interface ItemContextPayload {
   currentItemBrief: string | null;
 }
 
-// ── Legacy helper (still used during migration) ──
-
-function formatFactsByCategory(facts: MemoryFact[]): string {
-  if (facts.length === 0) return "  (none)\n";
-  const grouped: Record<string, MemoryFact[]> = {};
-  for (const fact of facts) {
-    const cat = fact.category || "general";
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(fact);
-  }
-  let out = "";
-  for (const [category, catFacts] of Object.entries(grouped)) {
-    out += `  **${category}**:\n`;
-    for (const f of catFacts) {
-      out += `  - [${f.id}] ${f.content}\n`;
-    }
-  }
-  return out;
-}
-
 /** Static instructions that rarely change — cached via Anthropic prompt caching. */
 const STATIC_INSTRUCTIONS = `You are an AI project management assistant for Flow, a project management application.
 
@@ -194,7 +153,9 @@ Tasks can have:
 - Use task IDs internally but show task names to the user.
 - If a tool call fails due to permissions, explain what happened clearly.
 - Proactively update briefs with important information from conversations.
-- Keep responses short for simple interactions. Save detail for when the user asks for it.`;
+- Keep responses short for simple interactions. Save detail for when the user asks for it.
+- When creating items, the response includes the generated ID. Use returned IDs immediately for creating children or updating — don't call get_project_summary to find an item you just created.
+- For bulk operations, prefer bulk_create_items over multiple individual create calls.`;
 
 export type SystemPromptBlock = Anthropic.TextBlockParam & {
   cache_control?: { type: "ephemeral" };
@@ -209,7 +170,6 @@ export type SystemPromptBlock = Anthropic.TextBlockParam & {
 export function buildSystemPrompt(
   userEmail: string,
   boardContext?: Record<string, unknown>,
-  memoryContext?: MemoryContext,
   briefsContext?: BriefsContext,
   itemContext?: ItemContextPayload,
 ): SystemPromptBlock[] {
@@ -239,7 +199,6 @@ When the user asks to create or update tasks on this board, use the project ID "
 `;
   }
 
-  // New briefs-based context (preferred)
   if (briefsContext) {
     dynamicText += `
 ## Briefs (Persistent Memory)
@@ -265,31 +224,6 @@ These are summaries of active items in this project. Use them to answer question
       for (const ib of briefsContext.activeItemBriefs) {
         dynamicText += `**${ib.name}** (${ib.status}):\n${ib.brief}\n\n`;
       }
-    }
-  }
-
-  // Legacy facts-based context (backward compat — will be removed after migration)
-  if (memoryContext && !briefsContext) {
-    dynamicText += `
-## Project Memory
-Persistent memory that survives chat clears. Use fact IDs (e.g. mf_...) when updating or deleting facts.
-
-### Project Brief
-${memoryContext.projectBrief || "(No project brief yet — create one when you have enough context about this project.)"}
-
-### Project Facts
-${formatFactsByCategory(memoryContext.projectFacts)}
-### Team Knowledge (Workspace)
-${formatFactsByCategory(memoryContext.workspaceFacts)}
-### Personal Facts
-${formatFactsByCategory(memoryContext.userFacts)}`;
-
-    if (memoryContext.userPreferences) {
-      const prefs = memoryContext.userPreferences;
-      dynamicText += `
-### User Preferences
-- Custom categories: ${prefs.factCategories.length > 0 ? prefs.factCategories.join(", ") : "(not set)"}
-${prefs.workingStyle ? `- Working style: ${prefs.workingStyle}` : ""}`;
     }
   }
 

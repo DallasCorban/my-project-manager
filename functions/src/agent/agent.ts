@@ -8,7 +8,6 @@ import * as admin from "firebase-admin";
 import Anthropic from "@anthropic-ai/sdk";
 import {
   buildSystemPrompt,
-  type MemoryContext, type MemoryFact,
   type BriefsContext, type ItemContextPayload,
 } from "./systemPrompt";
 import { toolDefinitions, executeTool } from "./tools";
@@ -28,137 +27,13 @@ interface AgentResult {
   toolCalls: Array<{ name: string; input: Record<string, unknown> }>;
 }
 
-interface MemoryFactsDoc {
-  facts: MemoryFact[];
-  updatedAt: string;
-  archivedAt?: string;
-}
-
 interface ProjectBriefDoc {
   content: string;
   updatedAt: string;
   updatedBy: string;
 }
 
-interface UserPreferencesDoc {
-  factCategories?: string[];
-  workingStyle?: string;
-  updatedAt: string;
-}
-
 const db = () => admin.firestore();
-
-/**
- * Load persistent memory from all three scopes (user, workspace, project).
- */
-async function loadMemoryContext(
-  uid: string,
-  projectId?: string,
-  workspaceId?: string
-): Promise<MemoryContext> {
-  const context: MemoryContext = {
-    projectFacts: [],
-    workspaceFacts: [],
-    userFacts: [],
-    projectBrief: null,
-    userPreferences: null,
-  };
-
-  const promises: Promise<void>[] = [];
-
-  // User preferences
-  promises.push(
-    db()
-      .collection("users")
-      .doc(uid)
-      .collection("aiMemory")
-      .doc("preferences")
-      .get()
-      .then((snap) => {
-        if (snap.exists) {
-          const data = snap.data() as UserPreferencesDoc;
-          context.userPreferences = {
-            factCategories: data.factCategories || [],
-            workingStyle: data.workingStyle || null,
-          };
-        }
-      })
-      .catch(() => {})
-  );
-
-  // User facts
-  promises.push(
-    db()
-      .collection("users")
-      .doc(uid)
-      .collection("aiMemory")
-      .doc("facts")
-      .get()
-      .then((snap) => {
-        if (snap.exists) {
-          const data = snap.data() as MemoryFactsDoc;
-          context.userFacts = data.facts || [];
-        }
-      })
-      .catch(() => {})
-  );
-
-  // Workspace facts
-  if (workspaceId) {
-    promises.push(
-      db()
-        .collection("workspaceMemory")
-        .doc(workspaceId)
-        .get()
-        .then((snap) => {
-          if (snap.exists) {
-            const data = snap.data() as MemoryFactsDoc;
-            context.workspaceFacts = data.facts || [];
-          }
-        })
-        .catch(() => {})
-    );
-  }
-
-  // Project facts + brief
-  if (projectId) {
-    const memoryCol = db()
-      .collection("projects")
-      .doc(projectId)
-      .collection("aiMemory");
-
-    promises.push(
-      memoryCol
-        .doc("facts")
-        .get()
-        .then((snap) => {
-          if (snap.exists) {
-            const data = snap.data() as MemoryFactsDoc;
-            if (!data.archivedAt) {
-              context.projectFacts = data.facts || [];
-            }
-          }
-        })
-        .catch(() => {})
-    );
-
-    promises.push(
-      memoryCol
-        .doc("brief")
-        .get()
-        .then((snap) => {
-          if (snap.exists) {
-            const data = snap.data() as ProjectBriefDoc;
-            context.projectBrief = data.content || null;
-          }
-        })
-        .catch(() => {})
-    );
-  }
-
-  await Promise.all(promises);
-  return context;
-}
 
 /**
  * Load briefs-based context (new system) from Firestore.
@@ -309,7 +184,6 @@ export async function runAgent(
 
   const projectId = boardContext?.id as string | undefined;
   const workspaceId = boardContext?.workspaceId as string | undefined;
-  const memoryContext = await loadMemoryContext(uid, projectId, workspaceId);
   const briefsContext = await loadBriefsContext(uid, projectId, workspaceId);
 
   // For board-level chat (no itemContext), load active item briefs
@@ -317,7 +191,7 @@ export async function runAgent(
     briefsContext.activeItemBriefs = await loadActiveItemBriefs(boardContext, projectId);
   }
 
-  const systemPrompt = buildSystemPrompt(userEmail, boardContext, memoryContext, briefsContext, itemContext);
+  const systemPrompt = buildSystemPrompt(userEmail, boardContext, briefsContext, itemContext);
   const allToolCalls: AgentResult["toolCalls"] = [];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -413,7 +287,6 @@ export async function runAgentStreaming(
 
   const projectId = boardContext?.id as string | undefined;
   const workspaceId = boardContext?.workspaceId as string | undefined;
-  const memoryContext = await loadMemoryContext(uid, projectId, workspaceId);
   const briefsContext = await loadBriefsContext(uid, projectId, workspaceId);
 
   // For board-level chat (no itemContext), load active item briefs
@@ -421,7 +294,7 @@ export async function runAgentStreaming(
     briefsContext.activeItemBriefs = await loadActiveItemBriefs(boardContext, projectId);
   }
 
-  const systemPrompt = buildSystemPrompt(userEmail, boardContext, memoryContext, briefsContext, itemContext);
+  const systemPrompt = buildSystemPrompt(userEmail, boardContext, briefsContext, itemContext);
   const allToolCalls: AgentResult["toolCalls"] = [];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {

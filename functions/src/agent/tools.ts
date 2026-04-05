@@ -136,6 +136,44 @@ async function getUserProjectIds(uid: string): Promise<string[]> {
   return projectIds;
 }
 
+// ─── Shared Schema Fragments ────────────────────────────────────────
+
+const STATUS_ENUM = {
+  type: "string" as const,
+  enum: ["done", "working", "stuck", "pending", "review"],
+};
+
+const JOB_TYPE_ENUM = {
+  type: "string" as const,
+  enum: ["design", "dev", "marketing", "planning", "research"],
+};
+
+const ITEM_TYPE_ENUM = {
+  type: "string" as const,
+  enum: ["project", "deliverable", "task"],
+};
+
+const PRIORITY_ENUM = {
+  type: "string" as const,
+  enum: ["low", "medium", "high", "critical"],
+};
+
+const ASSIGNEES_SCHEMA = {
+  type: "array" as const,
+  items: { type: "string" as const },
+  description: "Array of user UIDs to assign.",
+};
+
+const DATE_SCHEMA = {
+  type: "string" as const,
+  description: "Start date in YYYY-MM-DD format.",
+};
+
+const DURATION_SCHEMA = {
+  type: "number" as const,
+  description: "Duration in days.",
+};
+
 // ─── Tool Definitions ───────────────────────────────────────────────
 
 export const toolDefinitions: ToolDefinition[] = [
@@ -158,13 +196,18 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "get_project_summary",
     description:
-      "Get a detailed summary of a project including all groups, tasks, statuses, and recent updates.",
+      "Get a detailed summary of a project including all groups, tasks, statuses, and recent updates. Use depth to control how much nested structure is returned.",
     input_schema: {
       type: "object" as const,
       properties: {
         project_id: {
           type: "string",
           description: "The project ID to summarize.",
+        },
+        depth: {
+          type: "number",
+          description: "How deep to show nested items. 0 (default): subitem counts only. 1: include subitems. 2: include sub-subitems too.",
+          enum: [0, 1, 2],
         },
       },
       required: ["project_id"],
@@ -173,45 +216,19 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "create_task",
     description:
-      "Create a new task in a project. Requires the project ID and group ID.",
+      "Create a new task in a project. Requires the project ID and group ID. Returns the created task's ID.",
     input_schema: {
       type: "object" as const,
       properties: {
         project_id: { type: "string", description: "The project ID." },
-        group_id: {
-          type: "string",
-          description:
-            "The group ID to add the task to. Use get_project_summary to find group IDs.",
-        },
+        group_id: { type: "string", description: "The group ID to add the task to." },
         name: { type: "string", description: "The task name." },
-        status: {
-          type: "string",
-          description: "Task status. Default: 'pending'.",
-          enum: ["done", "working", "stuck", "pending", "review"],
-        },
-        job_type: {
-          type: "string",
-          description: "Job type ID. Optional.",
-          enum: ["design", "dev", "marketing", "planning", "research"],
-        },
-        assignees: {
-          type: "array",
-          items: { type: "string" },
-          description: "Array of user UIDs to assign.",
-        },
-        start_date: {
-          type: "string",
-          description: "Start date in YYYY-MM-DD format.",
-        },
-        duration: {
-          type: "number",
-          description: "Duration in days.",
-        },
-        priority: {
-          type: "string",
-          description: "Priority level.",
-          enum: ["low", "medium", "high", "critical"],
-        },
+        status: { ...STATUS_ENUM, description: "Task status. Default: 'pending'." },
+        job_type: { ...JOB_TYPE_ENUM, description: "Job type ID. Optional." },
+        assignees: ASSIGNEES_SCHEMA,
+        start_date: DATE_SCHEMA,
+        duration: DURATION_SCHEMA,
+        priority: { ...PRIORITY_ENUM, description: "Priority level." },
       },
       required: ["project_id", "group_id", "name"],
     },
@@ -219,35 +236,19 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "create_subitem",
     description:
-      "Create a subitem (deliverable or task) under an existing top-level task. Use this to add deliverables or tasks nested under a project item.",
+      "Create a subitem (deliverable or task) under an existing top-level task. Returns the created subitem's ID.",
     input_schema: {
       type: "object" as const,
       properties: {
         project_id: { type: "string", description: "The project ID." },
-        task_id: { type: "string", description: "The parent task ID to add the subitem under." },
+        task_id: { type: "string", description: "The parent task ID." },
         name: { type: "string", description: "The subitem name." },
-        status: {
-          type: "string",
-          description: "Status. Default: 'pending'.",
-          enum: ["done", "working", "stuck", "pending", "review"],
-        },
-        job_type: {
-          type: "string",
-          description: "Job type ID. Optional.",
-          enum: ["design", "dev", "marketing", "planning", "research"],
-        },
-        item_type: {
-          type: "string",
-          description: "Item type. Optional.",
-          enum: ["project", "deliverable", "task"],
-        },
-        assignees: {
-          type: "array",
-          items: { type: "string" },
-          description: "Array of user UIDs to assign.",
-        },
-        start_date: { type: "string", description: "Start date in YYYY-MM-DD format." },
-        duration: { type: "number", description: "Duration in days." },
+        status: { ...STATUS_ENUM, description: "Status. Default: 'pending'." },
+        job_type: { ...JOB_TYPE_ENUM, description: "Job type ID. Optional." },
+        item_type: { ...ITEM_TYPE_ENUM, description: "Item type. Optional." },
+        assignees: ASSIGNEES_SCHEMA,
+        start_date: DATE_SCHEMA,
+        duration: DURATION_SCHEMA,
       },
       required: ["project_id", "task_id", "name"],
     },
@@ -255,90 +256,153 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "create_sub_subitem",
     description:
-      "Create a sub-subitem (task) under an existing subitem. Use this for the deepest nesting level — tasks within deliverables.",
+      "Create a sub-subitem (task) under an existing subitem. Deepest nesting level. Returns the created sub-subitem's ID.",
     input_schema: {
       type: "object" as const,
       properties: {
         project_id: { type: "string", description: "The project ID." },
         task_id: { type: "string", description: "The top-level task ID." },
-        subitem_id: { type: "string", description: "The parent subitem ID to add the sub-subitem under." },
+        subitem_id: { type: "string", description: "The parent subitem ID." },
         name: { type: "string", description: "The sub-subitem name." },
-        status: {
-          type: "string",
-          description: "Status. Default: 'pending'.",
-          enum: ["done", "working", "stuck", "pending", "review"],
-        },
-        job_type: {
-          type: "string",
-          description: "Job type ID. Optional.",
-          enum: ["design", "dev", "marketing", "planning", "research"],
-        },
-        item_type: {
-          type: "string",
-          description: "Item type. Optional.",
-          enum: ["project", "deliverable", "task"],
-        },
-        assignees: {
-          type: "array",
-          items: { type: "string" },
-          description: "Array of user UIDs to assign.",
-        },
-        start_date: { type: "string", description: "Start date in YYYY-MM-DD format." },
-        duration: { type: "number", description: "Duration in days." },
+        status: { ...STATUS_ENUM, description: "Status. Default: 'pending'." },
+        job_type: { ...JOB_TYPE_ENUM, description: "Job type ID. Optional." },
+        item_type: { ...ITEM_TYPE_ENUM, description: "Item type. Optional." },
+        assignees: ASSIGNEES_SCHEMA,
+        start_date: DATE_SCHEMA,
+        duration: DURATION_SCHEMA,
       },
       required: ["project_id", "task_id", "subitem_id", "name"],
     },
   },
   {
-    name: "update_task",
+    name: "update_item",
     description:
-      "Update fields on an existing task. Only include fields you want to change.",
+      "Update fields on any item at any nesting level. Provide task_id alone to update a top-level task. Add subitem_id to target a subitem. Add sub_subitem_id to target a sub-subitem. Only include fields you want to change.",
     input_schema: {
       type: "object" as const,
       properties: {
         project_id: { type: "string", description: "The project ID." },
-        task_id: { type: "string", description: "The task ID to update." },
-        name: { type: "string", description: "New task name." },
-        status: {
-          type: "string",
-          enum: ["done", "working", "stuck", "pending", "review"],
-        },
-        job_type: {
-          type: "string",
-          enum: ["design", "dev", "marketing", "planning", "research"],
-        },
-        assignees: {
-          type: "array",
-          items: { type: "string" },
-          description: "Replace assignees with this list.",
-        },
-        start_date: {
-          type: "string",
-          description: "Start date in YYYY-MM-DD format, or null to clear.",
-        },
-        duration: {
-          type: "number",
-          description: "Duration in days, or null to clear.",
-        },
-        priority: {
-          type: "string",
-          enum: ["low", "medium", "high", "critical"],
-        },
+        task_id: { type: "string", description: "The top-level task ID." },
+        subitem_id: { type: "string", description: "Optional. The subitem ID to target." },
+        sub_subitem_id: { type: "string", description: "Optional. The sub-subitem ID to target (requires subitem_id)." },
+        name: { type: "string", description: "New name." },
+        status: STATUS_ENUM,
+        job_type: JOB_TYPE_ENUM,
+        item_type: ITEM_TYPE_ENUM,
+        assignees: { ...ASSIGNEES_SCHEMA, description: "Replace assignees with this list." },
+        start_date: { type: "string", description: "Start date in YYYY-MM-DD format, or null to clear." },
+        duration: { type: "number", description: "Duration in days, or null to clear." },
+        priority: PRIORITY_ENUM,
       },
       required: ["project_id", "task_id"],
     },
   },
   {
+    name: "delete_item",
+    description:
+      "Delete an item and all its children. Provide task_id alone to delete a top-level task. Add subitem_id to delete a subitem. Add sub_subitem_id to delete a sub-subitem.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "The project ID." },
+        task_id: { type: "string", description: "The top-level task ID." },
+        subitem_id: { type: "string", description: "Optional. The subitem ID to delete." },
+        sub_subitem_id: { type: "string", description: "Optional. The sub-subitem ID to delete (requires subitem_id)." },
+      },
+      required: ["project_id", "task_id"],
+    },
+  },
+  {
+    name: "move_task",
+    description:
+      "Move a top-level task to a different group.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "The project ID." },
+        task_id: { type: "string", description: "The task ID to move." },
+        target_group_id: { type: "string", description: "The group ID to move the task to." },
+      },
+      required: ["project_id", "task_id", "target_group_id"],
+    },
+  },
+  {
+    name: "search_items",
+    description:
+      "Search for items across all nesting levels in a project. Returns matching items with their hierarchy path and parent IDs for use in follow-up tool calls.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "The project ID to search." },
+        query: { type: "string", description: "Search by name (case-insensitive substring match)." },
+        status: { ...STATUS_ENUM, description: "Filter by status." },
+        date_from: { type: "string", description: "Filter items starting on or after this date (YYYY-MM-DD)." },
+        date_to: { type: "string", description: "Filter items starting on or before this date (YYYY-MM-DD)." },
+        item_type: { ...ITEM_TYPE_ENUM, description: "Filter by item type." },
+      },
+      required: ["project_id"],
+    },
+  },
+  {
+    name: "get_item_details",
+    description:
+      "Get full details for a specific item including all nested children, brief, and updates. Use this to drill into an item after finding it via search or project summary.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "The project ID." },
+        task_id: { type: "string", description: "The top-level task ID." },
+        subitem_id: { type: "string", description: "Optional. Get details for this subitem instead of the task." },
+        sub_subitem_id: { type: "string", description: "Optional. Get details for this sub-subitem (requires subitem_id)." },
+      },
+      required: ["project_id", "task_id"],
+    },
+  },
+  {
+    name: "bulk_create_items",
+    description:
+      "Create multiple items in a single operation. Items can reference each other via temp_id for parent-child relationships. Process in array order — parents must appear before their children. Max 50 items per call.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "The project ID." },
+        items: {
+          type: "array",
+          description: "Array of items to create, processed in order.",
+          items: {
+            type: "object",
+            properties: {
+              temp_id: { type: "string", description: "Temporary ID for referencing this item as a parent in later items." },
+              type: { type: "string", enum: ["task", "subitem", "sub_subitem"], description: "Item nesting level." },
+              group_id: { type: "string", description: "Required for tasks. The group to add the task to." },
+              parent_task_id: { type: "string", description: "Required for subitems/sub_subitems. Can be a real ID or a temp_id." },
+              parent_subitem_id: { type: "string", description: "Required for sub_subitems. Can be a real ID or a temp_id." },
+              name: { type: "string", description: "Item name." },
+              status: STATUS_ENUM,
+              job_type: JOB_TYPE_ENUM,
+              item_type: ITEM_TYPE_ENUM,
+              assignees: ASSIGNEES_SCHEMA,
+              start_date: DATE_SCHEMA,
+              duration: DURATION_SCHEMA,
+              priority: PRIORITY_ENUM,
+            },
+            required: ["type", "name"],
+          },
+        },
+      },
+      required: ["project_id", "items"],
+    },
+  },
+  {
     name: "get_overdue_items",
     description:
-      "Find tasks that are past their end date (start + duration) and not marked as done. Can search across all user projects or a specific project.",
+      "Find items (tasks, subitems, sub-subitems) that are past their end date and not marked as done. Checks all nesting levels.",
     input_schema: {
       type: "object" as const,
       properties: {
         project_id: {
           type: "string",
-          description:
-            "Optional. If provided, only search this project. Otherwise searches all user projects.",
+          description: "Optional. If provided, only search this project. Otherwise searches all user projects.",
         },
       },
       required: [],
@@ -346,89 +410,20 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: "add_update",
-    description: "Post a comment/update on a task.",
+    description: "Post a comment/update on any item. Provide task_id alone for top-level tasks. Add subitem_id/sub_subitem_id to target nested items.",
     input_schema: {
       type: "object" as const,
       properties: {
         project_id: { type: "string", description: "The project ID." },
-        task_id: { type: "string", description: "The task ID." },
+        task_id: { type: "string", description: "The top-level task ID." },
+        subitem_id: { type: "string", description: "Optional. Target a subitem." },
+        sub_subitem_id: { type: "string", description: "Optional. Target a sub-subitem (requires subitem_id)." },
         text: { type: "string", description: "The comment text." },
       },
       required: ["project_id", "task_id", "text"],
     },
   },
-  // ── Memory tools ──────────────────────────────────────────────────
-  {
-    name: "save_memory",
-    description:
-      "Save an important fact to persistent memory. Use this proactively when you encounter decisions, deadlines, budgets, client preferences, key contacts, stakeholder info, creative direction, deliverable details, or any information that would be useful to recall in future conversations. Facts persist even when chat history is cleared.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        scope: {
-          type: "string",
-          enum: ["project", "workspace", "user"],
-          description:
-            "Where to store the fact. 'project' for project-specific info, 'workspace' for team-wide knowledge, 'user' for personal preferences.",
-        },
-        project_id: {
-          type: "string",
-          description: "Required when scope is 'project'. The project ID.",
-        },
-        workspace_id: {
-          type: "string",
-          description: "Required when scope is 'workspace'. The workspace ID.",
-        },
-        content: {
-          type: "string",
-          description: "The fact to remember.",
-        },
-        category: {
-          type: "string",
-          description:
-            "Category for the fact. Use the user's custom categories when available, or a reasonable default like 'general'.",
-        },
-        fact_id: {
-          type: "string",
-          description:
-            "Optional. If provided, updates an existing fact instead of creating a new one.",
-        },
-      },
-      required: ["scope", "content"],
-    },
-  },
-  {
-    name: "recall_memory",
-    description:
-      "Retrieve facts from persistent memory. Searches across project, workspace, and user scopes by default. Use this when you need to recall previously stored information.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        project_id: {
-          type: "string",
-          description: "Project ID to search project-level memory.",
-        },
-        workspace_id: {
-          type: "string",
-          description: "Workspace ID to search workspace-level memory.",
-        },
-        scope: {
-          type: "string",
-          enum: ["project", "workspace", "user", "all"],
-          description: "Which scope to search. Default: 'all'.",
-        },
-        category: {
-          type: "string",
-          description: "Filter by category.",
-        },
-        search: {
-          type: "string",
-          description: "Search term to filter facts by content (case-insensitive).",
-        },
-      },
-      required: [],
-    },
-  },
+  // ── Brief tools ──────────────────────────────────────────────────
   {
     name: "update_project_brief",
     description:
@@ -446,94 +441,6 @@ export const toolDefinitions: ToolDefinition[] = [
         },
       },
       required: ["project_id", "content"],
-    },
-  },
-  {
-    name: "delete_memory",
-    description:
-      "Delete a specific fact from memory. Use when a fact is outdated, incorrect, or the user asks to remove it.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        scope: {
-          type: "string",
-          enum: ["project", "workspace", "user"],
-          description: "The scope where the fact is stored.",
-        },
-        project_id: {
-          type: "string",
-          description: "Required when scope is 'project'.",
-        },
-        workspace_id: {
-          type: "string",
-          description: "Required when scope is 'workspace'.",
-        },
-        fact_id: {
-          type: "string",
-          description: "The ID of the fact to delete.",
-        },
-      },
-      required: ["scope", "fact_id"],
-    },
-  },
-  {
-    name: "compact_memory",
-    description:
-      "Consolidate and compact memory facts within a scope. Use when a scope has 20+ facts to merge related facts into fewer, richer entries. Provide the IDs of facts to merge and the consolidated replacement fact. The old facts will be deleted and replaced with the new one.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        scope: {
-          type: "string",
-          enum: ["project", "workspace", "user"],
-          description: "The scope to compact.",
-        },
-        project_id: {
-          type: "string",
-          description: "Required when scope is 'project'.",
-        },
-        workspace_id: {
-          type: "string",
-          description: "Required when scope is 'workspace'.",
-        },
-        fact_ids_to_merge: {
-          type: "array",
-          items: { type: "string" },
-          description: "Array of fact IDs to merge into one consolidated fact.",
-        },
-        consolidated_content: {
-          type: "string",
-          description:
-            "The merged fact content that replaces the individual facts. Should be comprehensive but concise.",
-        },
-        category: {
-          type: "string",
-          description: "Category for the consolidated fact.",
-        },
-      },
-      required: ["scope", "fact_ids_to_merge", "consolidated_content"],
-    },
-  },
-  {
-    name: "update_user_preferences",
-    description:
-      "Update the user's AI memory preferences, including custom fact categories and working style notes. Use this when setting up a new user or when they want to change their category preferences.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        fact_categories: {
-          type: "array",
-          items: { type: "string" },
-          description:
-            "The user's preferred fact categories (e.g. ['filming-date', 'key-contact', 'budget', 'deadline']).",
-        },
-        working_style: {
-          type: "string",
-          description:
-            "Notes about how the user prefers to work, for tailoring AI responses.",
-        },
-      },
-      required: [],
     },
   },
   // ── Drill-down tools ───────────────────────────────────────────────
@@ -649,24 +556,25 @@ export async function executeTool(
       return createSubitem(input, uid);
     case "create_sub_subitem":
       return createSubSubitem(input, uid);
-    case "update_task":
-      return updateTask(input, uid);
+    case "update_item":
+    case "update_task": // backward compat alias
+      return updateItem(input, uid);
+    case "delete_item":
+      return deleteItem(input, uid);
+    case "move_task":
+      return moveTask(input, uid);
+    case "search_items":
+      return searchItems(input, uid);
+    case "get_item_details":
+      return getItemDetails(input, uid);
+    case "bulk_create_items":
+      return bulkCreateItems(input, uid);
     case "get_overdue_items":
       return getOverdueItems(input, uid);
     case "add_update":
       return addUpdate(input, uid, userEmail);
-    case "save_memory":
-      return saveMemory(input, uid);
-    case "recall_memory":
-      return recallMemory(input, uid);
     case "update_project_brief":
       return updateProjectBrief(input, uid);
-    case "delete_memory":
-      return deleteMemory(input, uid);
-    case "compact_memory":
-      return compactMemory(input, uid);
-    case "update_user_preferences":
-      return updateUserPreferences(input, uid);
     case "get_digested_file":
       return getDigestedFile(input, uid);
     case "update_item_brief":
@@ -777,24 +685,50 @@ async function getProjectSummary(
       taskCount: state.tasks.length,
       statusBreakdown: statusCounts,
       overdueTasks,
-      tasks: state.tasks.map((t) => ({
-        id: t.id,
-        groupId: t.groupId,
-        name: t.name,
-        status: t.status,
-        jobType: t.jobTypeId,
-        assignees: t.assignees,
-        start: t.start,
-        duration: t.duration,
-        progress: t.progress,
-        priority: t.priority,
-        subitemCount: t.subitems?.length || 0,
-        recentUpdates: (t.updates || []).slice(-3).map((u) => ({
-          text: u.text,
-          author: u.author,
-          date: u.createdAt,
-        })),
-      })),
+      tasks: state.tasks.map((t) => {
+        const depth = ((input.depth as number) ?? 0);
+        const base = {
+          id: t.id,
+          groupId: t.groupId,
+          name: t.name,
+          status: t.status,
+          jobType: t.jobTypeId,
+          assignees: t.assignees,
+          start: t.start,
+          duration: t.duration,
+          progress: t.progress,
+          priority: t.priority,
+          recentUpdates: (t.updates || []).slice(-3).map((u) => ({
+            text: u.text,
+            author: u.author,
+            date: u.createdAt,
+          })),
+        };
+        if (depth === 0) {
+          return { ...base, subitemCount: t.subitems?.length || 0 };
+        }
+        return {
+          ...base,
+          subitems: (t.subitems || []).map((s) => {
+            const subBase = {
+              id: s.id, name: s.name, status: s.status,
+              itemType: s.itemTypeId || null,
+              assignees: s.assignees, start: s.start, duration: s.duration,
+            };
+            if (depth === 1) {
+              return { ...subBase, subSubitemCount: s.subitems?.length || 0 };
+            }
+            return {
+              ...subBase,
+              subSubitems: (s.subitems || []).map((ss) => ({
+                id: ss.id, name: ss.name, status: ss.status,
+                itemType: ss.itemTypeId || null,
+                assignees: ss.assignees, start: ss.start, duration: ss.duration,
+              })),
+            };
+          }),
+        };
+      }),
     },
   });
 }
@@ -933,9 +867,47 @@ async function createSubSubitem(input: ToolInput, uid: string): Promise<string> 
   });
 }
 
-async function updateTask(input: ToolInput, uid: string): Promise<string> {
+/** Apply field updates to any item-shaped object. */
+function applyItemUpdates(item: Record<string, unknown>, input: ToolInput): void {
+  if (input.name !== undefined) item.name = input.name as string;
+  if (input.status !== undefined) item.status = input.status as string;
+  if (input.job_type !== undefined) item.jobTypeId = input.job_type as string;
+  if (input.item_type !== undefined) item.itemTypeId = input.item_type as string;
+  if (input.assignees !== undefined) item.assignees = input.assignees as string[];
+  if (input.start_date !== undefined) item.start = input.start_date as string | null;
+  if (input.duration !== undefined) item.duration = input.duration as number | null;
+  if (input.priority !== undefined) item.priority = input.priority as string;
+}
+
+/** Navigate to a specific item in the project hierarchy. */
+function findItem(
+  project: BoardState,
+  taskId: string,
+  subitemId?: string,
+  subSubitemId?: string,
+): { item: Record<string, unknown>; type: string } {
+  const task = (project.tasks || []).find((t) => t.id === taskId);
+  if (!task) throw new Error(`Task ${taskId} not found.`);
+
+  if (!subitemId) return { item: task as unknown as Record<string, unknown>, type: "task" };
+
+  const subitem = (task.subitems || []).find((s: { id: string }) => s.id === subitemId);
+  if (!subitem) throw new Error(`Subitem ${subitemId} not found under task ${taskId}.`);
+
+  if (!subSubitemId) return { item: subitem as unknown as Record<string, unknown>, type: "subitem" };
+
+  const subSubitems = (subitem as unknown as { subitems?: Array<{ id: string }> }).subitems || [];
+  const subSubitem = subSubitems.find((ss) => ss.id === subSubitemId);
+  if (!subSubitem) throw new Error(`Sub-subitem ${subSubitemId} not found under subitem ${subitemId}.`);
+
+  return { item: subSubitem as unknown as Record<string, unknown>, type: "sub-subitem" };
+}
+
+async function updateItem(input: ToolInput, uid: string): Promise<string> {
   const projectId = input.project_id as string;
   const taskId = input.task_id as string;
+  const subitemId = input.subitem_id as string | undefined;
+  const subSubitemId = input.sub_subitem_id as string | undefined;
   await requireEditPermission(projectId, uid);
 
   const hybridRef = getHybridRef(uid);
@@ -947,29 +919,452 @@ async function updateTask(input: ToolInput, uid: string): Promise<string> {
     const projects = JSON.parse((snap.data() as { value: string }).value) as BoardState[];
     const projectIdx = projects.findIndex((p) => p.id === projectId);
     if (projectIdx === -1) throw new Error(`Project ${projectId} not found`);
-    const tasks = projects[projectIdx].tasks || [];
-    const taskIndex = tasks.findIndex((t) => t.id === taskId);
-    if (taskIndex === -1) throw new Error(`Task ${taskId} not found.`);
 
-    const task = tasks[taskIndex];
-    if (input.name !== undefined) task.name = input.name as string;
-    if (input.status !== undefined) task.status = input.status as string;
-    if (input.job_type !== undefined) task.jobTypeId = input.job_type as string;
-    if (input.assignees !== undefined) task.assignees = input.assignees as string[];
-    if (input.start_date !== undefined) task.start = input.start_date as string | null;
-    if (input.duration !== undefined) task.duration = input.duration as number | null;
-    if (input.priority !== undefined) task.priority = input.priority as string;
+    const { item } = findItem(projects[projectIdx], taskId, subitemId, subSubitemId);
+    applyItemUpdates(item, input);
+    updatedName = item.name as string;
+    txn.update(hybridRef, { value: JSON.stringify(projects) });
+  });
 
-    tasks[taskIndex] = task;
-    projects[projectIdx].tasks = tasks;
-    updatedName = task.name;
+  const targetType = subSubitemId ? "sub-subitem" : subitemId ? "subitem" : "task";
+  return JSON.stringify({
+    success: true,
+    message: `Updated ${targetType} "${updatedName}".`,
+  });
+}
+
+async function deleteItem(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const taskId = input.task_id as string;
+  const subitemId = input.subitem_id as string | undefined;
+  const subSubitemId = input.sub_subitem_id as string | undefined;
+  await requireEditPermission(projectId, uid);
+
+  const hybridRef = getHybridRef(uid);
+  let deletedName = "";
+  let deletedType = "";
+
+  await db().runTransaction(async (txn) => {
+    const snap = await txn.get(hybridRef);
+    if (!snap.exists) throw new Error("User project data not found");
+    const projects = JSON.parse((snap.data() as { value: string }).value) as BoardState[];
+    const projectIdx = projects.findIndex((p) => p.id === projectId);
+    if (projectIdx === -1) throw new Error(`Project ${projectId} not found`);
+
+    const project = projects[projectIdx];
+    const tasks = project.tasks || [];
+
+    if (!subitemId) {
+      // Delete top-level task
+      const taskIdx = tasks.findIndex((t) => t.id === taskId);
+      if (taskIdx === -1) throw new Error(`Task ${taskId} not found.`);
+      deletedName = tasks[taskIdx].name;
+      deletedType = "task";
+      tasks.splice(taskIdx, 1);
+      project.tasks = tasks;
+    } else {
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) throw new Error(`Task ${taskId} not found.`);
+      const subitems = task.subitems || [];
+
+      if (!subSubitemId) {
+        // Delete subitem
+        const subIdx = subitems.findIndex((s: { id: string }) => s.id === subitemId);
+        if (subIdx === -1) throw new Error(`Subitem ${subitemId} not found.`);
+        deletedName = (subitems[subIdx] as { name: string }).name;
+        deletedType = "subitem";
+        subitems.splice(subIdx, 1);
+        task.subitems = subitems;
+      } else {
+        // Delete sub-subitem
+        const subitem = subitems.find((s: { id: string }) => s.id === subitemId) as unknown as {
+          subitems?: Array<{ id: string; name: string }>;
+        };
+        if (!subitem) throw new Error(`Subitem ${subitemId} not found.`);
+        const subSubs = subitem.subitems || [];
+        const ssIdx = subSubs.findIndex((ss) => ss.id === subSubitemId);
+        if (ssIdx === -1) throw new Error(`Sub-subitem ${subSubitemId} not found.`);
+        deletedName = subSubs[ssIdx].name;
+        deletedType = "sub-subitem";
+        subSubs.splice(ssIdx, 1);
+        subitem.subitems = subSubs;
+      }
+    }
+
     txn.update(hybridRef, { value: JSON.stringify(projects) });
   });
 
   return JSON.stringify({
     success: true,
-    message: `Updated task "${updatedName}".`,
+    message: `Deleted ${deletedType} "${deletedName}" and all its children.`,
   });
+}
+
+async function moveTask(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const taskId = input.task_id as string;
+  const targetGroupId = input.target_group_id as string;
+  await requireEditPermission(projectId, uid);
+
+  const hybridRef = getHybridRef(uid);
+  let taskName = "";
+  let oldGroupName = "";
+  let newGroupName = "";
+
+  await db().runTransaction(async (txn) => {
+    const snap = await txn.get(hybridRef);
+    if (!snap.exists) throw new Error("User project data not found");
+    const projects = JSON.parse((snap.data() as { value: string }).value) as BoardState[];
+    const projectIdx = projects.findIndex((p) => p.id === projectId);
+    if (projectIdx === -1) throw new Error(`Project ${projectId} not found`);
+
+    const project = projects[projectIdx];
+    const task = (project.tasks || []).find((t) => t.id === taskId);
+    if (!task) throw new Error(`Task ${taskId} not found.`);
+
+    const targetGroup = project.groups.find((g) => g.id === targetGroupId);
+    if (!targetGroup) throw new Error(`Group ${targetGroupId} not found.`);
+
+    const oldGroup = project.groups.find((g) => g.id === task.groupId);
+    oldGroupName = oldGroup?.name || task.groupId;
+    newGroupName = targetGroup.name;
+    taskName = task.name;
+    task.groupId = targetGroupId;
+
+    txn.update(hybridRef, { value: JSON.stringify(projects) });
+  });
+
+  return JSON.stringify({
+    success: true,
+    message: `Moved task "${taskName}" from "${oldGroupName}" to "${newGroupName}".`,
+  });
+}
+
+/** Read board state from hybridRef for the freshest data (includes items AI just created). */
+async function getBoardStateFromHybrid(
+  uid: string,
+  projectId: string,
+): Promise<BoardState | null> {
+  const hybridRef = getHybridRef(uid);
+  const snap = await hybridRef.get();
+  if (!snap.exists) return null;
+  try {
+    const projects = JSON.parse((snap.data() as { value: string }).value) as BoardState[];
+    return projects.find((p) => p.id === projectId) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function searchItems(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const perms = await getProjectPermissions(db(), projectId, uid);
+  if (!perms?.canView) {
+    return JSON.stringify({ error: "You don't have access to this project." });
+  }
+
+  // Read from hybridRef first (freshest), fall back to state/main
+  const state = await getBoardStateFromHybrid(uid, projectId) || await getBoardState(projectId);
+  if (!state) return JSON.stringify({ error: "Project state not found." });
+
+  const query = (input.query as string)?.toLowerCase();
+  const statusFilter = input.status as string | undefined;
+  const dateFrom = input.date_from as string | undefined;
+  const dateTo = input.date_to as string | undefined;
+  const itemTypeFilter = input.item_type as string | undefined;
+
+  const groupMap = new Map(state.groups.map((g) => [g.id, g.name]));
+  const results: Array<Record<string, unknown>> = [];
+  const MAX_RESULTS = 50;
+
+  function matchesFilters(item: {
+    name: string; status: string; start: string | null;
+    itemTypeId?: string;
+  }): boolean {
+    if (query && !item.name.toLowerCase().includes(query)) return false;
+    if (statusFilter && item.status !== statusFilter) return false;
+    if (itemTypeFilter && item.itemTypeId !== itemTypeFilter) return false;
+    if (dateFrom && (!item.start || item.start < dateFrom)) return false;
+    if (dateTo && (!item.start || item.start > dateTo)) return false;
+    return true;
+  }
+
+  for (const task of state.tasks || []) {
+    if (results.length >= MAX_RESULTS) break;
+    const groupName = groupMap.get(task.groupId) || task.groupId;
+
+    if (matchesFilters({ ...task, itemTypeId: undefined })) {
+      results.push({
+        id: task.id, name: task.name, status: task.status, type: "task",
+        path: `${groupName} > ${task.name}`,
+        taskId: task.id, start: task.start, duration: task.duration,
+        assignees: task.assignees, priority: task.priority,
+      });
+    }
+
+    for (const sub of task.subitems || []) {
+      if (results.length >= MAX_RESULTS) break;
+      if (matchesFilters(sub as { name: string; status: string; start: string | null; itemTypeId?: string })) {
+        results.push({
+          id: sub.id, name: sub.name, status: sub.status, type: "subitem",
+          itemType: sub.itemTypeId || null,
+          path: `${groupName} > ${task.name} > ${sub.name}`,
+          taskId: task.id, subitemId: sub.id,
+          start: sub.start, duration: sub.duration, assignees: sub.assignees,
+        });
+      }
+
+      for (const ss of sub.subitems || []) {
+        if (results.length >= MAX_RESULTS) break;
+        if (matchesFilters(ss as { name: string; status: string; start: string | null; itemTypeId?: string })) {
+          results.push({
+            id: ss.id, name: ss.name, status: ss.status, type: "sub_subitem",
+            itemType: ss.itemTypeId || null,
+            path: `${groupName} > ${task.name} > ${sub.name} > ${ss.name}`,
+            taskId: task.id, subitemId: sub.id, subSubitemId: ss.id,
+            start: ss.start, duration: ss.duration, assignees: ss.assignees,
+          });
+        }
+      }
+    }
+  }
+
+  return JSON.stringify({
+    results,
+    count: results.length,
+    message: results.length === 0 ? "No items found matching your filters." : `Found ${results.length} item(s).`,
+  });
+}
+
+async function getItemDetails(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const taskId = input.task_id as string;
+  const subitemId = input.subitem_id as string | undefined;
+  const subSubitemId = input.sub_subitem_id as string | undefined;
+
+  const perms = await getProjectPermissions(db(), projectId, uid);
+  if (!perms?.canView) {
+    return JSON.stringify({ error: "You don't have access to this project." });
+  }
+
+  const state = await getBoardStateFromHybrid(uid, projectId) || await getBoardState(projectId);
+  if (!state) return JSON.stringify({ error: "Project state not found." });
+
+  const task = (state.tasks || []).find((t) => t.id === taskId);
+  if (!task) return JSON.stringify({ error: `Task ${taskId} not found.` });
+
+  // Build composite ID for brief lookup
+  let compositeId = taskId;
+  if (subitemId) compositeId += `__${subitemId}`;
+  if (subSubitemId) compositeId += `__${subSubitemId}`;
+
+  // Fetch brief
+  let brief: string | null = null;
+  try {
+    const briefSnap = await db()
+      .collection("projects").doc(projectId)
+      .collection("itemBriefs").doc(compositeId).get();
+    if (briefSnap.exists) {
+      brief = (briefSnap.data() as { content?: string })?.content || null;
+    }
+  } catch { /* no brief */ }
+
+  if (subSubitemId && subitemId) {
+    // Return sub-subitem details
+    const subitem = (task.subitems || []).find((s: { id: string }) => s.id === subitemId);
+    if (!subitem) return JSON.stringify({ error: `Subitem ${subitemId} not found.` });
+    const subSubs = (subitem as unknown as { subitems?: Array<Record<string, unknown>> }).subitems || [];
+    const ss = subSubs.find((x) => (x as { id: string }).id === subSubitemId);
+    if (!ss) return JSON.stringify({ error: `Sub-subitem ${subSubitemId} not found.` });
+
+    return JSON.stringify({
+      item: ss,
+      type: "sub-subitem",
+      path: `${task.name} > ${(subitem as { name: string }).name} > ${(ss as { name: string }).name}`,
+      brief,
+    });
+  }
+
+  if (subitemId) {
+    // Return subitem with its sub-subitems
+    const subitem = (task.subitems || []).find((s: { id: string }) => s.id === subitemId) as Record<string, unknown> | undefined;
+    if (!subitem) return JSON.stringify({ error: `Subitem ${subitemId} not found.` });
+
+    // Fetch briefs for sub-subitems
+    const subSubs = (subitem.subitems as Array<Record<string, unknown>> || []);
+    const subSubBriefs: Record<string, string> = {};
+    if (subSubs.length > 0) {
+      const briefPromises = subSubs.map(async (ss) => {
+        try {
+          const cid = `${taskId}__${subitemId}__${(ss as { id: string }).id}`;
+          const snap = await db().collection("projects").doc(projectId)
+            .collection("itemBriefs").doc(cid).get();
+          if (snap.exists) {
+            subSubBriefs[(ss as { id: string }).id] = (snap.data() as { content: string }).content;
+          }
+        } catch { /* skip */ }
+      });
+      await Promise.all(briefPromises);
+    }
+
+    return JSON.stringify({
+      item: subitem,
+      type: "subitem",
+      path: `${task.name} > ${subitem.name}`,
+      brief,
+      children: subSubs.map((ss) => ({
+        ...(ss as object),
+        brief: subSubBriefs[(ss as { id: string }).id] || null,
+      })),
+    });
+  }
+
+  // Return full task with all nested children
+  // Fetch briefs for subitems
+  const subitemBriefs: Record<string, string> = {};
+  const subitems = task.subitems || [];
+  if (subitems.length > 0) {
+    const briefPromises = subitems.map(async (s: { id: string }) => {
+      try {
+        const cid = `${taskId}__${s.id}`;
+        const snap = await db().collection("projects").doc(projectId)
+          .collection("itemBriefs").doc(cid).get();
+        if (snap.exists) {
+          subitemBriefs[s.id] = (snap.data() as { content: string }).content;
+        }
+      } catch { /* skip */ }
+    });
+    await Promise.all(briefPromises);
+  }
+
+  return JSON.stringify({
+    item: {
+      id: task.id, name: task.name, status: task.status,
+      groupId: task.groupId, jobType: task.jobTypeId,
+      assignees: task.assignees, start: task.start, duration: task.duration,
+      progress: task.progress, priority: task.priority,
+      updates: (task.updates || []).slice(-10),
+    },
+    type: "task",
+    brief,
+    children: subitems.map((s: { id: string; name: string; status: string }) => ({
+      ...(s as object),
+      brief: subitemBriefs[s.id] || null,
+    })),
+  });
+}
+
+async function bulkCreateItems(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const items = input.items as Array<Record<string, unknown>>;
+
+  if (!items || items.length === 0) {
+    return JSON.stringify({ error: "No items provided." });
+  }
+  if (items.length > 50) {
+    return JSON.stringify({ error: "Maximum 50 items per bulk_create_items call." });
+  }
+
+  await requireEditPermission(projectId, uid);
+  const hybridRef = getHybridRef(uid);
+  const idMap: Record<string, string> = {};
+  const created: Array<{ tempId: string | null; realId: string; name: string; type: string }> = [];
+  let counter = 0;
+
+  await db().runTransaction(async (txn) => {
+    const snap = await txn.get(hybridRef);
+    if (!snap.exists) throw new Error("User project data not found");
+    const projects = JSON.parse((snap.data() as { value: string }).value) as BoardState[];
+    const projectIdx = projects.findIndex((p) => p.id === projectId);
+    if (projectIdx === -1) throw new Error(`Project ${projectId} not found`);
+    const project = projects[projectIdx];
+
+    for (const item of items) {
+      const type = item.type as string;
+      const name = item.name as string;
+      const tempId = item.temp_id as string | undefined;
+      const now = Date.now() + counter++;
+
+      if (type === "task") {
+        const taskId = `t${now}`;
+        const newTask = {
+          id: taskId,
+          groupId: (item.group_id as string) || (project.groups[0]?.id || ""),
+          name,
+          status: (item.status as string) || "pending",
+          jobTypeId: (item.job_type as string) || "",
+          assignees: (item.assignees as string[]) || [],
+          start: (item.start_date as string) || null,
+          duration: (item.duration as number) || null,
+          progress: 0,
+          priority: (item.priority as string) || "",
+          subitems: [],
+          updates: [],
+        };
+        project.tasks = [...(project.tasks || []), newTask];
+        if (tempId) idMap[tempId] = taskId;
+        created.push({ tempId: tempId || null, realId: taskId, name, type: "task" });
+      } else if (type === "subitem") {
+        const subitemId = `s${now}`;
+        const parentTaskId = resolveId(item.parent_task_id as string, idMap);
+        const task = (project.tasks || []).find((t) => t.id === parentTaskId);
+        if (!task) throw new Error(`Parent task ${parentTaskId} not found for subitem "${name}".`);
+
+        const newSubitem = {
+          id: subitemId, name,
+          status: (item.status as string) || "pending",
+          jobTypeId: (item.job_type as string) || "",
+          itemTypeId: (item.item_type as string) || "",
+          assignees: (item.assignees as string[]) || [],
+          start: (item.start_date as string) || null,
+          duration: (item.duration as number) || null,
+          subitems: [],
+        };
+        task.subitems = [...(task.subitems || []), newSubitem];
+        if (tempId) idMap[tempId] = subitemId;
+        created.push({ tempId: tempId || null, realId: subitemId, name, type: "subitem" });
+      } else if (type === "sub_subitem") {
+        const subSubitemId = `ss${now}`;
+        const parentTaskId = resolveId(item.parent_task_id as string, idMap);
+        const parentSubitemId = resolveId(item.parent_subitem_id as string, idMap);
+        const task = (project.tasks || []).find((t) => t.id === parentTaskId);
+        if (!task) throw new Error(`Parent task ${parentTaskId} not found for sub-subitem "${name}".`);
+        const subitem = (task.subitems || []).find((s: { id: string }) => s.id === parentSubitemId) as
+          unknown as { subitems?: Array<unknown> } | undefined;
+        if (!subitem) throw new Error(`Parent subitem ${parentSubitemId} not found for sub-subitem "${name}".`);
+
+        const newSubSubitem = {
+          id: subSubitemId, name,
+          status: (item.status as string) || "pending",
+          jobTypeId: (item.job_type as string) || "",
+          itemTypeId: (item.item_type as string) || "",
+          assignees: (item.assignees as string[]) || [],
+          start: (item.start_date as string) || null,
+          duration: (item.duration as number) || null,
+        };
+        subitem.subitems = [...(subitem.subitems || []), newSubSubitem];
+        if (tempId) idMap[tempId] = subSubitemId;
+        created.push({ tempId: tempId || null, realId: subSubitemId, name, type: "sub_subitem" });
+      } else {
+        throw new Error(`Unknown item type "${type}" for item "${name}".`);
+      }
+    }
+
+    txn.update(hybridRef, { value: JSON.stringify(projects) });
+  });
+
+  return JSON.stringify({
+    success: true,
+    created,
+    idMap,
+    message: `Created ${created.length} item(s).`,
+  });
+}
+
+/** Resolve a temp_id or real ID using the idMap. */
+function resolveId(id: string | undefined, idMap: Record<string, string>): string {
+  if (!id) throw new Error("Missing parent ID.");
+  return idMap[id] || id;
 }
 
 async function getOverdueItems(
@@ -987,9 +1382,25 @@ async function getOverdueItems(
     projectName: string;
     taskId: string;
     taskName: string;
+    subitemId?: string;
+    subitemName?: string;
+    subSubitemId?: string;
+    subSubitemName?: string;
+    type: string;
+    path: string;
     status: string;
     endDate: string;
   }> = [];
+
+  function checkOverdue(
+    start: string | null, duration: number | null, status: string,
+  ): string | null {
+    if (status === "done" || !start || !duration) return null;
+    const endDate = new Date(start);
+    endDate.setDate(endDate.getDate() + duration);
+    const endStr = endDate.toISOString().split("T")[0];
+    return endStr < today ? endStr : null;
+  }
 
   for (const pid of projectIds) {
     const perms = await getProjectPermissions(db(), pid, uid);
@@ -997,30 +1408,47 @@ async function getOverdueItems(
 
     const state = await getBoardState(pid);
     if (!state) continue;
-
-    // Skip archived boards
     if (state.archivedAt) continue;
 
     const projDoc = await db().collection("projects").doc(pid).get();
     const projectName = (projDoc.data()?.name as string) || "Untitled";
 
     for (const task of state.tasks || []) {
-      if (task.status === "done") continue;
-      if (!task.start || !task.duration) continue;
-
-      const endDate = new Date(task.start);
-      endDate.setDate(endDate.getDate() + task.duration);
-      const endStr = endDate.toISOString().split("T")[0];
-
-      if (endStr < today) {
+      const taskEnd = checkOverdue(task.start, task.duration, task.status);
+      if (taskEnd) {
         overdue.push({
-          projectId: pid,
-          projectName,
-          taskId: task.id,
-          taskName: task.name,
-          status: task.status,
-          endDate: endStr,
+          projectId: pid, projectName,
+          taskId: task.id, taskName: task.name,
+          type: "task", path: task.name,
+          status: task.status, endDate: taskEnd,
         });
+      }
+
+      for (const sub of task.subitems || []) {
+        const subEnd = checkOverdue(sub.start, sub.duration, sub.status);
+        if (subEnd) {
+          overdue.push({
+            projectId: pid, projectName,
+            taskId: task.id, taskName: task.name,
+            subitemId: sub.id, subitemName: sub.name,
+            type: "subitem", path: `${task.name} > ${sub.name}`,
+            status: sub.status, endDate: subEnd,
+          });
+        }
+
+        for (const ss of sub.subitems || []) {
+          const ssEnd = checkOverdue(ss.start, ss.duration, ss.status);
+          if (ssEnd) {
+            overdue.push({
+              projectId: pid, projectName,
+              taskId: task.id, taskName: task.name,
+              subitemId: sub.id, subitemName: sub.name,
+              subSubitemId: ss.id, subSubitemName: ss.name,
+              type: "sub-subitem", path: `${task.name} > ${sub.name} > ${ss.name}`,
+              status: ss.status, endDate: ssEnd,
+            });
+          }
+        }
       }
     }
   }
@@ -1030,8 +1458,8 @@ async function getOverdueItems(
     count: overdue.length,
     message:
       overdue.length === 0
-        ? "No overdue tasks found."
-        : `Found ${overdue.length} overdue task(s).`,
+        ? "No overdue items found."
+        : `Found ${overdue.length} overdue item(s).`,
   });
 }
 
@@ -1042,6 +1470,8 @@ async function addUpdate(
 ): Promise<string> {
   const projectId = input.project_id as string;
   const taskId = input.task_id as string;
+  const subitemId = input.subitem_id as string | undefined;
+  const subSubitemId = input.sub_subitem_id as string | undefined;
   const text = input.text as string;
   await requireEditPermission(projectId, uid);
 
@@ -1055,172 +1485,51 @@ async function addUpdate(
     const snap = await txn.get(stateRef);
     const data = snap.data() as BoardStateDoc;
     const state = JSON.parse(data.value) as BoardState;
+
+    // Navigate to the target item — updates are stored on the top-level task
+    // but we note which subitem the update is about via a prefix
     const tasks = state.tasks || [];
     const taskIndex = tasks.findIndex((t) => t.id === taskId);
     if (taskIndex === -1) throw new Error(`Task ${taskId} not found.`);
 
     const task = tasks[taskIndex];
+
+    // Verify the target exists if targeting a subitem
+    if (subitemId) {
+      const sub = (task.subitems || []).find((s: { id: string }) => s.id === subitemId);
+      if (!sub) throw new Error(`Subitem ${subitemId} not found.`);
+      if (subSubitemId) {
+        const subSubs = (sub as unknown as { subitems?: Array<{ id: string }> }).subitems || [];
+        if (!subSubs.find((ss) => ss.id === subSubitemId)) {
+          throw new Error(`Sub-subitem ${subSubitemId} not found.`);
+        }
+      }
+    }
+
     const updates = task.updates || [];
-    updates.push({
+    const updateEntry: { id: string; text: string; author: string; createdAt: string; targetSubitemId?: string; targetSubSubitemId?: string } = {
       id: `u${Date.now()}`,
       text,
       author: userEmail,
       createdAt: new Date().toISOString(),
-    });
+    };
+    if (subitemId) updateEntry.targetSubitemId = subitemId;
+    if (subSubitemId) updateEntry.targetSubSubitemId = subSubitemId;
+
+    updates.push(updateEntry);
     task.updates = updates;
     tasks[taskIndex] = task;
     state.tasks = tasks;
     txn.update(stateRef, serializeStateUpdate(state, uid));
   });
 
+  const targetType = subSubitemId ? "sub-subitem" : subitemId ? "subitem" : "task";
   return JSON.stringify({
     success: true,
-    message: `Added update to task.`,
+    message: `Added update to ${targetType}.`,
   });
 }
 
-// ─── Memory Tool Implementations ─────────────────────────────────
-
-interface MemoryFact {
-  id: string;
-  content: string;
-  category: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface MemoryFactsDoc {
-  facts: MemoryFact[];
-  updatedAt: string;
-  archivedAt?: string;
-}
-
-/** Resolve the Firestore document reference for a memory facts doc based on scope. */
-function getMemoryFactsRef(
-  scope: string,
-  uid: string,
-  projectId?: string,
-  workspaceId?: string
-): admin.firestore.DocumentReference {
-  switch (scope) {
-    case "project":
-      if (!projectId) throw new Error("project_id is required for project scope.");
-      return db().collection("projects").doc(projectId).collection("aiMemory").doc("facts");
-    case "workspace":
-      if (!workspaceId) throw new Error("workspace_id is required for workspace scope.");
-      // Workspace memory is stored under the org's workspace subcollection
-      // We store it at a top-level path for simplicity since Cloud Functions bypass rules
-      return db().collection("workspaceMemory").doc(workspaceId);
-    case "user":
-      return db().collection("users").doc(uid).collection("aiMemory").doc("facts");
-    default:
-      throw new Error(`Invalid scope: ${scope}`);
-  }
-}
-
-async function saveMemory(input: ToolInput, uid: string): Promise<string> {
-  const scope = input.scope as string;
-  const content = input.content as string;
-  const category = (input.category as string) || "general";
-  const factId = (input.fact_id as string) || `mf_${Date.now()}`;
-  const projectId = input.project_id as string | undefined;
-  const workspaceId = input.workspace_id as string | undefined;
-
-  // Permission check for project scope
-  if (scope === "project" && projectId) {
-    await requireEditPermission(projectId, uid);
-  }
-
-  const ref = getMemoryFactsRef(scope, uid, projectId, workspaceId);
-  const now = new Date().toISOString();
-
-  await db().runTransaction(async (txn) => {
-    const snap = await txn.get(ref);
-    const data = snap.exists ? (snap.data() as MemoryFactsDoc) : { facts: [], updatedAt: now };
-    const facts = data.facts || [];
-
-    const existingIndex = facts.findIndex((f) => f.id === factId);
-    if (existingIndex >= 0) {
-      // Update existing fact
-      facts[existingIndex] = { ...facts[existingIndex], content, category, updatedAt: now };
-    } else {
-      // Add new fact
-      facts.push({ id: factId, content, category, createdAt: now, updatedAt: now });
-    }
-
-    txn.set(ref, { facts, updatedAt: now }, { merge: true });
-  });
-
-  return JSON.stringify({
-    success: true,
-    fact_id: factId,
-    message: `Saved memory fact to ${scope} scope.`,
-  });
-}
-
-async function recallMemory(input: ToolInput, uid: string): Promise<string> {
-  const scope = (input.scope as string) || "all";
-  const category = input.category as string | undefined;
-  const search = (input.search as string)?.toLowerCase();
-  const projectId = input.project_id as string | undefined;
-  const workspaceId = input.workspace_id as string | undefined;
-
-  const results: Record<string, MemoryFact[]> = {};
-
-  const loadFacts = async (
-    scopeName: string,
-    ref: admin.firestore.DocumentReference
-  ) => {
-    const snap = await ref.get();
-    if (!snap.exists) return;
-    const data = snap.data() as MemoryFactsDoc;
-    // Skip archived memory
-    if (data.archivedAt) return;
-    let facts = data.facts || [];
-
-    if (category) {
-      facts = facts.filter((f) => f.category === category);
-    }
-    if (search) {
-      facts = facts.filter((f) => f.content.toLowerCase().includes(search));
-    }
-    if (facts.length > 0) {
-      results[scopeName] = facts;
-    }
-  };
-
-  if (scope === "all" || scope === "user") {
-    await loadFacts(
-      "user",
-      db().collection("users").doc(uid).collection("aiMemory").doc("facts")
-    );
-  }
-
-  if ((scope === "all" || scope === "workspace") && workspaceId) {
-    await loadFacts(
-      "workspace",
-      db().collection("workspaceMemory").doc(workspaceId)
-    );
-  }
-
-  if ((scope === "all" || scope === "project") && projectId) {
-    const perms = await getProjectPermissions(db(), projectId, uid);
-    if (perms?.canView) {
-      await loadFacts(
-        "project",
-        db().collection("projects").doc(projectId).collection("aiMemory").doc("facts")
-      );
-    }
-  }
-
-  const totalFacts = Object.values(results).reduce((sum, arr) => sum + arr.length, 0);
-
-  return JSON.stringify({
-    memory: results,
-    totalFacts,
-    message: totalFacts === 0 ? "No matching facts found." : `Found ${totalFacts} fact(s).`,
-  });
-}
 
 async function updateProjectBrief(input: ToolInput, uid: string): Promise<string> {
   const projectId = input.project_id as string;
@@ -1242,96 +1551,6 @@ async function updateProjectBrief(input: ToolInput, uid: string): Promise<string
   return JSON.stringify({
     success: true,
     message: "Project brief updated.",
-  });
-}
-
-async function deleteMemory(input: ToolInput, uid: string): Promise<string> {
-  const scope = input.scope as string;
-  const factId = input.fact_id as string;
-  const projectId = input.project_id as string | undefined;
-  const workspaceId = input.workspace_id as string | undefined;
-
-  if (scope === "project" && projectId) {
-    await requireEditPermission(projectId, uid);
-  }
-
-  const ref = getMemoryFactsRef(scope, uid, projectId, workspaceId);
-
-  await db().runTransaction(async (txn) => {
-    const snap = await txn.get(ref);
-    if (!snap.exists) throw new Error("No memory facts found.");
-    const data = snap.data() as MemoryFactsDoc;
-    const facts = (data.facts || []).filter((f) => f.id !== factId);
-    txn.update(ref, { facts, updatedAt: new Date().toISOString() });
-  });
-
-  return JSON.stringify({
-    success: true,
-    message: `Deleted memory fact ${factId}.`,
-  });
-}
-
-async function compactMemory(input: ToolInput, uid: string): Promise<string> {
-  const scope = input.scope as string;
-  const factIdsToMerge = input.fact_ids_to_merge as string[];
-  const consolidatedContent = input.consolidated_content as string;
-  const category = (input.category as string) || "general";
-  const projectId = input.project_id as string | undefined;
-  const workspaceId = input.workspace_id as string | undefined;
-
-  if (!factIdsToMerge || factIdsToMerge.length < 2) {
-    return JSON.stringify({ error: "Need at least 2 fact IDs to compact." });
-  }
-
-  if (scope === "project" && projectId) {
-    await requireEditPermission(projectId, uid);
-  }
-
-  const ref = getMemoryFactsRef(scope, uid, projectId, workspaceId);
-  const newFactId = `mf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-  await db().runTransaction(async (txn) => {
-    const snap = await txn.get(ref);
-    if (!snap.exists) throw new Error("No memory facts found.");
-    const data = snap.data() as MemoryFactsDoc;
-    const mergeSet = new Set(factIdsToMerge);
-    const remaining = (data.facts || []).filter((f) => !mergeSet.has(f.id));
-    remaining.push({
-      id: newFactId,
-      content: consolidatedContent,
-      category,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-    txn.update(ref, { facts: remaining, updatedAt: new Date().toISOString() });
-  });
-
-  return JSON.stringify({
-    success: true,
-    message: `Compacted ${factIdsToMerge.length} facts into 1 consolidated fact (${newFactId}).`,
-    newFactId,
-  });
-}
-
-async function updateUserPreferences(input: ToolInput, uid: string): Promise<string> {
-  const ref = db().collection("users").doc(uid).collection("aiMemory").doc("preferences");
-
-  const update: Record<string, unknown> = {
-    updatedAt: new Date().toISOString(),
-  };
-
-  if (input.fact_categories !== undefined) {
-    update.factCategories = input.fact_categories as string[];
-  }
-  if (input.working_style !== undefined) {
-    update.workingStyle = input.working_style as string;
-  }
-
-  await ref.set(update, { merge: true });
-
-  return JSON.stringify({
-    success: true,
-    message: "User preferences updated.",
   });
 }
 

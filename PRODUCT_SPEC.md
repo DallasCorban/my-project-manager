@@ -422,12 +422,24 @@ Two playback modes, toggled via Fast/HD button in the panel header:
 
 **Interruption handling:** When the user starts speaking while TTS is playing, TTS is immediately cancelled. A generation counter ensures stale streaming callbacks (from the interrupted response) cannot restart audio playback.
 
-### AI Memory
+### AI Memory & Briefs
 
-- Brain icon in the header toggles the memory viewer
-- Badge shows total fact count
-- Memory stored per-board in Firestore: project facts, workspace facts, user facts
-- AI can save/recall facts via tool calls during conversation
+- AI maintains living briefs at multiple levels: project, item, team, and user
+- Briefs are auto-updated by the AI as it learns information from conversations
+- Briefs shown to users in the app's Brief tab
+- Legacy fact-based memory system has been removed; briefs are the sole persistence mechanism
+
+### AI Tools
+
+The AI assistant has tools to read and write project data:
+
+- **Query & Search**: `query_projects`, `get_project_summary` (with depth 0/1/2 for nested items), `search_items` (by name, status, date, item type across all nesting levels), `get_item_details` (full details + briefs + children)
+- **Create**: `create_task`, `create_subitem`, `create_sub_subitem`, `bulk_create_items` (up to 50 items in one call with temp_id references for parent-child relationships)
+- **Update**: `update_item` (works at any nesting level — tasks, subitems, sub-subitems), `move_task` (between groups), `add_update` (comments on any item level)
+- **Delete**: `delete_item` (any nesting level, cascades to children)
+- **Overdue**: `get_overdue_items` (checks all nesting levels)
+- **Briefs**: `update_project_brief`, `update_item_brief`, `update_team_brief`, `update_user_brief`
+- **Files**: `get_digested_file` (retrieve extracted text from uploaded documents)
 
 ### Transcript Upload
 

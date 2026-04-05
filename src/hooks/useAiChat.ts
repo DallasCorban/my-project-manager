@@ -58,7 +58,7 @@ function buildBoardContext(project: Board): BoardContext {
       start: t.start,
       duration: t.duration,
       priority: t.priority || '',
-      subitemCount: t.subitems?.length || 0,
+      subitems: (t.subitems || []).map((s) => ({ id: s.id, name: s.name, status: s.status })),
     })),
     statusBreakdown,
   };
