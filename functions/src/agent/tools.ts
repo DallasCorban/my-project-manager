@@ -339,6 +339,8 @@ export const toolDefinitions: ToolDefinition[] = [
         date_from: { type: "string", description: "Filter items starting on or after this date (YYYY-MM-DD)." },
         date_to: { type: "string", description: "Filter items starting on or before this date (YYYY-MM-DD)." },
         item_type: { ...ITEM_TYPE_ENUM, description: "Filter by item type." },
+        level: { type: "string", enum: ["task", "subitem", "sub_subitem"], description: "Filter by nesting level." },
+        parent_task_id: { type: "string", description: "Only return items under this top-level task." },
       },
       required: ["project_id"],
     },
@@ -391,6 +393,39 @@ export const toolDefinitions: ToolDefinition[] = [
         },
       },
       required: ["project_id", "items"],
+    },
+  },
+  {
+    name: "bulk_update_items",
+    description:
+      "Update multiple items in a single operation. Each entry targets an item by its IDs and applies field changes. Max 50 items per call.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "The project ID." },
+        updates: {
+          type: "array",
+          description: "Array of updates to apply.",
+          items: {
+            type: "object",
+            properties: {
+              task_id: { type: "string", description: "The top-level task ID." },
+              subitem_id: { type: "string", description: "Optional. Target a subitem." },
+              sub_subitem_id: { type: "string", description: "Optional. Target a sub-subitem." },
+              name: { type: "string", description: "New name." },
+              status: STATUS_ENUM,
+              job_type: JOB_TYPE_ENUM,
+              item_type: ITEM_TYPE_ENUM,
+              assignees: { ...ASSIGNEES_SCHEMA, description: "Replace assignees." },
+              start_date: { type: "string", description: "Start date YYYY-MM-DD, or null to clear." },
+              duration: { type: "number", description: "Duration in days, or null to clear." },
+              priority: PRIORITY_ENUM,
+            },
+            required: ["task_id"],
+          },
+        },
+      },
+      required: ["project_id", "updates"],
     },
   },
   {
@@ -569,6 +604,8 @@ export async function executeTool(
       return getItemDetails(input, uid);
     case "bulk_create_items":
       return bulkCreateItems(input, uid);
+    case "bulk_update_items":
+      return bulkUpdateItems(input, uid);
     case "get_overdue_items":
       return getOverdueItems(input, uid);
     case "add_update":
@@ -911,7 +948,7 @@ async function updateItem(input: ToolInput, uid: string): Promise<string> {
   await requireEditPermission(projectId, uid);
 
   const hybridRef = getHybridRef(uid);
-  let updatedName = "";
+  let updatedItem: Record<string, unknown> = {};
 
   await db().runTransaction(async (txn) => {
     const snap = await txn.get(hybridRef);
@@ -922,14 +959,26 @@ async function updateItem(input: ToolInput, uid: string): Promise<string> {
 
     const { item } = findItem(projects[projectIdx], taskId, subitemId, subSubitemId);
     applyItemUpdates(item, input);
-    updatedName = item.name as string;
+    updatedItem = { ...item };
     txn.update(hybridRef, { value: JSON.stringify(projects) });
   });
 
   const targetType = subSubitemId ? "sub-subitem" : subitemId ? "subitem" : "task";
   return JSON.stringify({
     success: true,
-    message: `Updated ${targetType} "${updatedName}".`,
+    message: `Updated ${targetType} "${updatedItem.name}".`,
+    item: {
+      id: updatedItem.id,
+      taskId,
+      subitemId: subitemId || null,
+      subSubitemId: subSubitemId || null,
+      name: updatedItem.name,
+      status: updatedItem.status,
+      start: updatedItem.start,
+      duration: updatedItem.duration,
+      assignees: updatedItem.assignees,
+      priority: updatedItem.priority,
+    },
   });
 }
 
@@ -1072,6 +1121,8 @@ async function searchItems(input: ToolInput, uid: string): Promise<string> {
   const dateFrom = input.date_from as string | undefined;
   const dateTo = input.date_to as string | undefined;
   const itemTypeFilter = input.item_type as string | undefined;
+  const levelFilter = input.level as string | undefined;
+  const parentTaskFilter = input.parent_task_id as string | undefined;
 
   const groupMap = new Map(state.groups.map((g) => [g.id, g.name]));
   const results: Array<Record<string, unknown>> = [];
@@ -1091,9 +1142,10 @@ async function searchItems(input: ToolInput, uid: string): Promise<string> {
 
   for (const task of state.tasks || []) {
     if (results.length >= MAX_RESULTS) break;
+    if (parentTaskFilter && task.id !== parentTaskFilter) continue;
     const groupName = groupMap.get(task.groupId) || task.groupId;
 
-    if (matchesFilters({ ...task, itemTypeId: undefined })) {
+    if ((!levelFilter || levelFilter === "task") && !parentTaskFilter && matchesFilters({ ...task, itemTypeId: undefined })) {
       results.push({
         id: task.id, name: task.name, status: task.status, type: "task",
         path: `${groupName} > ${task.name}`,
@@ -1104,7 +1156,8 @@ async function searchItems(input: ToolInput, uid: string): Promise<string> {
 
     for (const sub of task.subitems || []) {
       if (results.length >= MAX_RESULTS) break;
-      if (matchesFilters(sub as { name: string; status: string; start: string | null; itemTypeId?: string })) {
+      if ((!levelFilter || levelFilter === "subitem") &&
+          matchesFilters(sub as { name: string; status: string; start: string | null; itemTypeId?: string })) {
         results.push({
           id: sub.id, name: sub.name, status: sub.status, type: "subitem",
           itemType: sub.itemTypeId || null,
@@ -1116,7 +1169,8 @@ async function searchItems(input: ToolInput, uid: string): Promise<string> {
 
       for (const ss of sub.subitems || []) {
         if (results.length >= MAX_RESULTS) break;
-        if (matchesFilters(ss as { name: string; status: string; start: string | null; itemTypeId?: string })) {
+        if ((!levelFilter || levelFilter === "sub_subitem") &&
+            matchesFilters(ss as { name: string; status: string; start: string | null; itemTypeId?: string })) {
           results.push({
             id: ss.id, name: ss.name, status: ss.status, type: "sub_subitem",
             itemType: ss.itemTypeId || null,
@@ -1365,6 +1419,60 @@ async function bulkCreateItems(input: ToolInput, uid: string): Promise<string> {
 function resolveId(id: string | undefined, idMap: Record<string, string>): string {
   if (!id) throw new Error("Missing parent ID.");
   return idMap[id] || id;
+}
+
+async function bulkUpdateItems(input: ToolInput, uid: string): Promise<string> {
+  const projectId = input.project_id as string;
+  const updates = input.updates as Array<Record<string, unknown>>;
+
+  if (!updates || updates.length === 0) {
+    return JSON.stringify({ error: "No updates provided." });
+  }
+  if (updates.length > 50) {
+    return JSON.stringify({ error: "Maximum 50 updates per bulk_update_items call." });
+  }
+
+  await requireEditPermission(projectId, uid);
+  const hybridRef = getHybridRef(uid);
+  const results: Array<{ taskId: string; subitemId?: string; subSubitemId?: string; name: string; success: boolean }> = [];
+
+  await db().runTransaction(async (txn) => {
+    const snap = await txn.get(hybridRef);
+    if (!snap.exists) throw new Error("User project data not found");
+    const projects = JSON.parse((snap.data() as { value: string }).value) as BoardState[];
+    const projectIdx = projects.findIndex((p) => p.id === projectId);
+    if (projectIdx === -1) throw new Error(`Project ${projectId} not found`);
+
+    for (const update of updates) {
+      const taskId = update.task_id as string;
+      const subitemId = update.subitem_id as string | undefined;
+      const subSubitemId = update.sub_subitem_id as string | undefined;
+
+      try {
+        const { item } = findItem(projects[projectIdx], taskId, subitemId, subSubitemId);
+        applyItemUpdates(item, update as ToolInput);
+        results.push({
+          taskId, subitemId, subSubitemId,
+          name: item.name as string, success: true,
+        });
+      } catch (err) {
+        results.push({
+          taskId, subitemId, subSubitemId,
+          name: (update.name as string) || "unknown",
+          success: false,
+        });
+      }
+    }
+
+    txn.update(hybridRef, { value: JSON.stringify(projects) });
+  });
+
+  const successCount = results.filter((r) => r.success).length;
+  return JSON.stringify({
+    success: true,
+    results,
+    message: `Updated ${successCount} of ${updates.length} item(s).`,
+  });
 }
 
 async function getOverdueItems(

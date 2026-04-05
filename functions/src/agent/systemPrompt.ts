@@ -155,7 +155,10 @@ Tasks can have:
 - Proactively update briefs with important information from conversations.
 - Keep responses short for simple interactions. Save detail for when the user asks for it.
 - When creating items, the response includes the generated ID. Use returned IDs immediately for creating children or updating — don't call get_project_summary to find an item you just created.
-- For bulk operations, prefer bulk_create_items over multiple individual create calls.`;
+- For bulk operations, prefer bulk_create_items over multiple individual create calls. After bulk_create_items, the response contains an idMap mapping your temp_ids to real IDs — use these for all follow-up operations instead of searching.
+- For bulk updates (renaming, changing dates/status on multiple items), use bulk_update_items instead of individual update_item calls.
+- When searching, use level and parent_task_id filters to narrow results instead of scanning all items. For example, to find sub-subitems under a specific task, use search_items with parent_task_id and level="sub_subitem".
+- After update_item, the response includes the full updated item with all IDs — use these for follow-up operations.`;
 
 export type SystemPromptBlock = Anthropic.TextBlockParam & {
   cache_control?: { type: "ephemeral" };

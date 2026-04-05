@@ -106,5 +106,8 @@
 - **Board context: subitems array instead of subitemCount**: Gives the AI visibility into subitem names/status without needing a tool call. Token cost is ~30-50 per subitem, acceptable.
 - **Legacy memory tools removed**: 5 tools (`save_memory`, `recall_memory`, `delete_memory`, `compact_memory`, `update_user_preferences`) removed in favor of the brief system. Net tool count stayed at 17 despite adding 6 new tools.
 
+### Deployment Gotcha
+- `tsc --noEmit` only type-checks — it does NOT write to `functions/lib/`. Firebase deploys whatever compiled JS is in `lib/`, so always run `npm run build` (or just `tsc` without `--noEmit`) before `firebase deploy`. First deploy shipped stale old code because of this.
+
 ### What Prompted This
 - The AI assistant itself identified the tooling gaps after struggling to create 25 nested items (25 separate API calls, couldn't find items it created, couldn't edit subitem dates). The biggest missing capability was `update_item` for subitems — the AI literally couldn't fix a wrong date on a deliverable.
